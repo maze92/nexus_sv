@@ -1,0 +1,4773 @@
+--- a/client/pack/root/consolemodule.py
++++ b/client/pack/root/consolemodule.py
+@@ -78,8 +78,10 @@
+ 		#self.Print(app.GetInfo(app.INFO_TEXTTAIL))
+
+ 
+
+ 	def Disconnect(self):
+
+-		"Disconnect by sending unknown packet"
+
+-		net.SendStrangePacket()
+
++		"Disconnect (unsafe debug packet removed)"
+
++		# net.SendStrangePacket() does not exist in your C++ net module and is unsafe by design.
+
++		# Keep as no-op to avoid latent crashes if consoleModule is accidentally present/loaded.
+
++		self.Print("Disconnect disabled (unsafe debug packet removed)")
+
+ 
+
+ 	def ToggleActorDirectionLine(self):
+
+ 		"Shows character's direction line"
+
+@@ -527,7 +529,7 @@
+ 		#chr.testSetComboType(int(type))
+
+ 
+
+ 	def SetSkillGroupFake(self, index):
+
+-		"""Å×½ºÆ® ÄÚµå"""
+
++		"""׽Ʈ ڵ"""
+
+ 		pass
+
+ 		#net.SetSkillGroupFake(int(index))
+
+ 		#self.Print(" SetSkillGroupFake : %d" % int(index))
+
+@@ -758,7 +760,7 @@
+ 	def CloseWindow(self):
+
+ 		self.Hide()
+
+ 
+
+-	## NOTE : ÀÌ°÷¿¡¼­ Command¸¦ Ã³¸®ÇÕ´Ï´Ù - [levites]
+
++	## NOTE : ̰ Command óմϴ - [levites]
+
+ 	def ProcessCommand(self, text):
+
+ 
+
+ 		if '/' == text[0]:
+
+@@ -906,4 +908,4 @@
+ 			for i in xrange(count - self.MAX_LINE_COUNT):
+
+ 				del self.TextList[0]
+
+ 
+
+-		self.UpdatePosition()
++		self.UpdatePosition()
+
+
+--- a/client/pack/root/game.py
++++ b/client/pack/root/game.py
+@@ -39,7 +39,6 @@
+ # END_OF_PRIVATE_SHOP_PRICE_LIST
+
+ 
+
+ import mouseModule
+
+-import consoleModule
+
+ import localeInfo
+
+ 
+
+ import playerSettingModule
+
+@@ -118,6 +117,34 @@
+ 		self.interface.MakeInterface()
+
+ 		self.interface.ShowDefaultWindows()
+
+ 
+
++		# ENABLE_OFFLINE_SHOP: ensure C++ handler is always initialized (prevents NULL handler crash)
+
++		if hasattr(net, "SetOfflineShopManagerHandler"):
+
++			class _OfflineShopManagerHandler(object):
+
++				def __init__(self, interface):
+
++					self.interface = interface
+
++
+
++				# Called by CPythonOfflineShop on shop spawn
+
++				def OnSpawnShop(self, shopId, vid, decoBoard, shopName):
+
++					if hasattr(self.interface, "OnOfflineShopSpawn"):
+
++						try:
+
++							self.interface.OnOfflineShopSpawn(shopId, vid, decoBoard, shopName)
+
++						except Exception:
+
++							pass
+
++
+
++				# Called by CPythonOfflineShop on shop close
+
++				def OnCloseShop(self, shopId):
+
++					if hasattr(self.interface, "OnOfflineShopClose"):
+
++						try:
+
++							self.interface.OnOfflineShopClose(shopId)
+
++						except Exception:
+
++							pass
+
++
+
++			self.interface.offlineShopManagerHandler = _OfflineShopManagerHandler(self.interface)
+
++			try:
+
++				net.SetOfflineShopManagerHandler(self.interface.offlineShopManagerHandler)
+
++			except Exception:
+
++				pass
+
++
+
+ 		self.curtain = uiPhaseCurtain.PhaseCurtain()
+
+ 		self.curtain.speed = 0.03
+
+ 		self.curtain.Hide()
+
+@@ -132,11 +159,6 @@
+ 			self.allianceTargetBoard.Hide()
+
+ 			self.interface.SetAllianceTargetBoard(self.allianceTargetBoard)
+
+ 
+
+-		self.console = consoleModule.ConsoleWindow()
+
+-		self.console.BindGameClass(self)
+
+-		self.console.SetConsoleSize(wndMgr.GetScreenWidth(), 200)
+
+-		self.console.Hide()
+
+-
+
+ 		self.mapNameShower = uiMapNameShower.MapNameShower()
+
+ 		self.affectShower = uiAffectShower.AffectShower()
+
+ 		self.interface.SetAffectShower(self.affectShower)
+
+@@ -144,7 +166,7 @@
+ 		self.playerGauge = uiPlayerGauge.PlayerGauge(self)
+
+ 		self.playerGauge.Hide()
+
+ 
+
+-		#wj 2014.1.2. ESCÅ°¸¦ ´©¸¦ ½Ã ¿ì¼±ÀûÀ¸·Î DropQuestionDialog¸¦ ²ôµµ·Ï ¸¸µé¾ú´Ù. ÇÏÁö¸¸ Ã³À½¿¡ itemDropQuestionDialog°¡ ¼±¾ðµÇ¾î ÀÖÁö ¾Ê¾Æ ERROR°¡ ¹ß»ýÇÏ¿© init¿¡¼­ ¼±¾ð°ú µ¿½Ã¿¡ ÃÊ±âÈ­ ½ÃÅ´.
+
++		#wj 2014.1.2. ESCŰ   켱 DropQuestionDialog  .  ó itemDropQuestionDialog Ǿ  ʾ ERROR ߻Ͽ init  ÿ ʱȭ Ŵ.
+
+ 		self.itemDropQuestionDialog = None
+
+ 		if app.ENABLE_NEW_DROP_DIALOG:
+
+ 			self.itemDestroyQuestionDialog = None
+
+@@ -179,8 +201,8 @@
+ 		self.quickSlotPageIndex = 0
+
+ 		self.PickingCharacterIndex = -1
+
+ 		self.PickingItemIndex = -1
+
+-		self.consoleEnable = False
+
+ 		self.isShowDebugInfo = False
+
++		self._nextDebugInfoUpdateTime = 0.0
+
+ 		self.ShowNameFlag = False
+
+ 
+
+ 		self.enableXMasBoom = False
+
+@@ -280,7 +302,7 @@
+ 			exception.Abort("GameWindow.Open")
+
+ 		# END_OF_START_GAME_ERROR_EXIT
+
+ 
+
+-		# NPC°¡ Å¥ºê½Ã½ºÅÛÀ¸·Î ¸¸µé ¼ö ÀÖ´Â ¾ÆÀÌÅÛµéÀÇ ¸ñ·ÏÀ» Ä³½Ì
+
++		# NPC ťý   ִ ۵  ĳ
+
+ 		# ex) cubeInformation[20383] = [ {"rewordVNUM": 72723, "rewordCount": 1, "materialInfo": "101,1&102,2", "price": 999 }, ... ]
+
+ 		if not app.ENABLE_CUBE_RENEWAL:
+
+ 			self.cubeInformation = {}
+
+@@ -392,10 +414,10 @@
+ 	def __BuildKeyDict(self):
+
+ 		onPressKeyDict = {}
+
+ 
+
+-		# PressKey ´Â ´©¸£°í ÀÖ´Â µ¿¾È °è¼Ó Àû¿ëµÇ´Â Å°ÀÌ´Ù.
+
+-
+
+-		## ¼ýÀÚ ´ÜÃàÅ° Äü½½·Ô¿¡ ÀÌ¿ëµÈ´Ù.(ÀÌÈÄ ¼ýÀÚµéµµ Äü ½½·Ô¿ë ¿¹¾à)
+
+-		## F12 ´Â Å¬¶ó µð¹ö±×¿ë Å°ÀÌ¹Ç·Î ¾²Áö ¾Ê´Â °Ô ÁÁ´Ù.
+
++		# PressKey   ִ   Ǵ Ű̴.
+
++
+
++		##  Ű Կ ̿ȴ.( ڵ鵵  Կ )
+
++		## F12  Ŭ ׿ Ű̹Ƿ  ʴ  .
+
+ 		onPressKeyDict[app.DIK_1] = lambda : self.__PressNumKey(1)
+
+ 		onPressKeyDict[app.DIK_2] = lambda : self.__PressNumKey(2)
+
+ 		onPressKeyDict[app.DIK_3] = lambda : self.__PressNumKey(3)
+
+@@ -415,7 +437,7 @@
+ 		onPressKeyDict[app.DIK_SYSRQ] = lambda : self.SaveScreen()
+
+ 		onPressKeyDict[app.DIK_SPACE] = lambda : self.StartAttack()
+
+ 
+
+-		# Ä³¸¯ÅÍ ÀÌµ¿Å°
+
++		# ĳ ̵Ű
+
+ 		onPressKeyDict[app.DIK_UP] = lambda : self.MoveUp()
+
+ 		onPressKeyDict[app.DIK_DOWN] = lambda : self.MoveDown()
+
+ 		onPressKeyDict[app.DIK_LEFT] = lambda : self.MoveLeft()
+
+@@ -452,7 +474,6 @@
+ 		onPressKeyDict[app.DIK_ADD] = lambda : self.interface.MiniMapScaleUp()
+
+ 		onPressKeyDict[app.DIK_SUBTRACT] = lambda : self.interface.MiniMapScaleDown()
+
+ 		onPressKeyDict[app.DIK_L] = lambda : self.interface.ToggleChatLogWindow()
+
+-		onPressKeyDict[app.DIK_COMMA] = lambda : self.ShowConsole() # "`" key
+
+ 		onPressKeyDict[app.DIK_LSHIFT] = lambda : self.__SetQuickPageMode()
+
+ 
+
+ 		if app.ENABLE_GROWTH_PET_SYSTEM:
+
+@@ -721,12 +742,12 @@
+ 		self.TextureNum.SetFontName(localeInfo.UI_DEF_FONT)
+
+ 		self.TextureNum.SetPosition(wndMgr.GetScreenWidth() - 270, 100)
+
+ 
+
+-		# ¿ÀºêÁ§Æ® ±×¸®´Â °³¼ö
+
++		# Ʈ ׸ 
+
+ 		self.ObjectNum = ui.TextLine()
+
+ 		self.ObjectNum.SetFontName(localeInfo.UI_DEF_FONT)
+
+ 		self.ObjectNum.SetPosition(wndMgr.GetScreenWidth() - 270, 120)
+
+ 
+
+-		# ½Ã¾ß°Å¸®
+
++		# þ߰Ÿ
+
+ 		self.ViewDistance = ui.TextLine()
+
+ 		self.ViewDistance.SetFontName(localeInfo.UI_DEF_FONT)
+
+ 		self.ViewDistance.SetPosition(0, 0)
+
+@@ -1299,7 +1320,7 @@
+ 			self.interface.AddExchangeItemSlotIndex(idx)
+
+ 
+
+ 	## Party
+
+-	# ÆÄÆ¼ °¡ÀÔ Á¦ÇÑ ½Ã°£¶§¹®¿¡ ¼öÁ¤.
+
++	# Ƽ   ð .
+
+ 	if app.ENABLE_NEW_USER_CARE:
+
+ 		def RecvPartyInviteQuestion(self, leaderVID, leaderName):
+
+ 			partyInviteQuestionDialog = uiCommon.QuestionDialogWithTimeLimit()
+
+@@ -1326,7 +1347,7 @@
+ 
+
+ 		partyLeaderVID = self.partyInviteQuestionDialog.partyLeaderVID
+
+ 
+
+-		# ÆÄÆ¼°¡ÀÔ¿¡ ´ëÇÑ °Å¸® Á¦ÇÑ »èÁ¦.
+
++		# ƼԿ  Ÿ  .
+
+ 		if not app.ENABLE_NEW_USER_CARE:
+
+ 			distance = player.GetCharacterDistance(partyLeaderVID)
+
+ 			if distance < 0.0 or distance > 5000:
+
+@@ -1496,11 +1517,6 @@
+ 		else:
+
+ 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.SCREENSHOT_SAVE_FAILURE)
+
+ 
+
+-	def ShowConsole(self):
+
+-		if debugInfo.IsDebugMode() or True == self.consoleEnable:
+
+-			player.EndKeyWalkingImmediately()
+
+-			self.console.OpenWindow()
+
+-
+
+ 	def ShowName(self):
+
+ 		self.ShowNameFlag = True
+
+ 		self.playerGauge.EnableShowAlways()
+
+@@ -1582,7 +1598,7 @@
+ 		try:
+
+ 			if app.ENABLE_KEYCHANGE_SYSTEM:
+
+ 				if self.wndKeyChange.IsOpen() == 1:
+
+-					## Å°¼³Á¤ Ã¢ÀÌ ¿­·ÈÀ»¶§. ±×¸®°í ¹¹¸¦ ¹Ù²ÜÁö ¼±ÅÃÇßÀ»¶§
+
++					## Ű â . ׸  ٲ 
+
+ 					if self.wndKeyChange.IsSelectKeySlot():
+
+ 						if app.IsPressed(app.DIK_LCONTROL) or app.IsPressed(app.DIK_RCONTROL):
+
+ 							if self.wndKeyChange.IsChangeKey(self.wndKeyChange.GetSelectSlotNumber()):
+
+@@ -1658,7 +1674,7 @@
+ 			## Inventory
+
+ 			elif player.SLOT_TYPE_INVENTORY == attachedType:
+
+ 				if player.ITEM_MONEY == attachedItemIndex:
+
+-					# Note : ÀÎº¥ µ· ¼ÂÆÃ ÈÄ, ´Ù¸¥ À¯Àú Å¬¸¯ÇÏ¸é µé¾î¿À´Â ÇÔ¼ö
+
++					# Note : κ   , ٸ  Ŭϸ  Լ
+
+ 					if app.ENABLE_CHEQUE_SYSTEM:
+
+ 						cheque = mouseModule.mouseController.GetCheque()
+
+ 						self.__PutMoney(attachedType, attachedItemCount, self.PickingCharacterIndex, cheque)
+
+@@ -1672,7 +1688,7 @@
+ 				self.__PutItem(attachedType, attachedItemIndex, attachedItemSlotPos, attachedItemCount, self.PickingCharacterIndex)
+
+ 
+
+ 			if app.ENABLE_ACCE_COSTUME_SYSTEM:
+
+-				## ¹Ù´Ú¿¡ ¶³±ÉÀ»¶§ ¾Ç¼¼¼­¸®(Á¶ÇÕ,Èí¼ö) ¾ÆÀÌÅÛ »©±â.
+
++				## ٴڿ  Ǽ(,)  .
+
+ 				if player.SLOT_TYPE_ACCE == attachedType:
+
+ 					self.__PutItem(attachedType, attachedItemIndex, attachedItemSlotPos, attachedItemCount, self.PickingCharacterIndex)
+
+ 
+
+@@ -1742,7 +1758,7 @@
+ 				self.__DropItem(attachedType, attachedItemIndex, attachedItemSlotPos, attachedItemCount)
+
+ 
+
+ 		if app.ENABLE_ACCE_COSTUME_SYSTEM:
+
+-			## ¹Ù´Ú¿¡ ¶³±ÉÀ»¶§ ¾Ç¼¼¼­¸®(Á¶ÇÕ,Èí¼ö) ¾ÆÀÌÅÛ »©±â.
+
++			## ٴڿ  Ǽ(,)  .
+
+ 			if player.SLOT_TYPE_ACCE == attachedType:
+
+ 				self.__DropItem(attachedType, attachedItemIndex, attachedItemSlotPos, attachedItemCount)
+
+ 
+
+@@ -1768,7 +1784,7 @@
+ 				self.__DropMoney(attachedType, attachedMoney)
+
+ 
+
+ 	def __DropMoney(self, attachedType, attachedMoney):
+
+-		# PRIVATESHOP_DISABLE_ITEM_DROP - °³ÀÎ»óÁ¡ ¿­°í ÀÖ´Â µ¿¾È ¾ÆÀÌÅÛ ¹ö¸² ¹æÁö
+
++		# PRIVATESHOP_DISABLE_ITEM_DROP - λ  ִ    
+
+ 		if uiPrivateShopBuilder.IsBuildingPrivateShop():
+
+ 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.DROP_ITEM_FAILURE_PRIVATE_SHOP)
+
+ 			return
+
+@@ -1790,7 +1806,7 @@
+ 		self.itemDropQuestionDialog = itemDropQuestionDialog
+
+ 
+
+ 	def __DropItem(self, attachedType, attachedItemIndex, attachedItemSlotPos, attachedItemCount):
+
+-		# PRIVATESHOP_DISABLE_ITEM_DROP - °³ÀÎ»óÁ¡ ¿­°í ÀÖ´Â µ¿¾È ¾ÆÀÌÅÛ ¹ö¸² ¹æÁö
+
++		# PRIVATESHOP_DISABLE_ITEM_DROP - λ  ִ    
+
+ 		if uiPrivateShopBuilder.IsBuildingPrivateShop():
+
+ 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.DROP_ITEM_FAILURE_PRIVATE_SHOP)
+
+ 			return
+
+@@ -1870,7 +1886,7 @@
+ 				constInfo.SET_ITEM_QUESTION_DIALOG_STATUS(1)
+
+ 
+
+ 			if app.ENABLE_ACCE_COSTUME_SYSTEM:
+
+-				## ¹Ù´Ú¿¡ ¶³±ÉÀ»¶§ ¾Ç¼¼¼­¸®(Á¶ÇÕ,Èí¼ö) ¾ÆÀÌÅÛ »©±â.
+
++				## ٴڿ  Ǽ(,)  .
+
+ 				if player.SLOT_TYPE_ACCE == attachedType:
+
+ 					net.SendAcceRefineCheckOut(attachedItemSlotPos)
+
+ 
+
+@@ -1995,7 +2011,11 @@
+ 			self.mapNameShower.Update()
+
+ 
+
+ 		if self.isShowDebugInfo:
+
+-			self.UpdateDebugInfo()
+
++			# Debug info is expensive: throttle to reduce frame-time spikes if enabled
+
++			t = app.GetTime()
+
++			if t >= self._nextDebugInfoUpdateTime:
+
++				self._nextDebugInfoUpdateTime = t + 0.25
+
++				self.UpdateDebugInfo()
+
+ 
+
+ 		if self.enableXMasBoom:
+
+ 			self.__XMasBoom_Update()
+
+@@ -2004,7 +2024,7 @@
+ 
+
+ 	def UpdateDebugInfo(self):
+
+ 		#
+
+-		# Ä³¸¯ÅÍ ÁÂÇ¥ ¹× FPS Ãâ·Â
+
++		# ĳ ǥ  FPS 
+
+ 		(x, y, z) = player.GetMainCharacterPosition()
+
+ 		nUpdateTime = app.GetUpdateTime()
+
+ 		nUpdateFPS = app.GetUpdateFPS()
+
+@@ -2038,10 +2058,6 @@
+ 	def OnRender(self):
+
+ 		app.RenderGame()
+
+ 
+
+-		if self.console.Console.collision:
+
+-			background.RenderCollision()
+
+-			chr.RenderCollision()
+
+-
+
+ 		(x, y) = app.GetCursorPosition()
+
+ 
+
+ 		########################
+
+@@ -2185,22 +2201,22 @@
+ 		def BINARY_Cube_Close(self):
+
+ 			self.interface.CloseCubeWindow()
+
+ 
+
+-		# Á¦ÀÛ¿¡ ÇÊ¿äÇÑ °ñµå, ¿¹»óµÇ´Â ¿Ï¼ºÇ°ÀÇ VNUM°ú °³¼ö Á¤º¸ update
+
++		# ۿ ʿ , Ǵ ϼǰ VNUM   update
+
+ 		def BINARY_Cube_UpdateInfo(self, gold, itemVnum, count):
+
+ 			self.interface.UpdateCubeInfo(gold, itemVnum, count)
+
+ 
+
+ 		def BINARY_Cube_Succeed(self, itemVnum, count):
+
+-			print "Å¥ºê Á¦ÀÛ ¼º°ø"
+
++			print "ť  "
+
+ 			self.interface.SucceedCubeWork(itemVnum, count)
+
+ 			pass
+
+ 
+
+ 		def BINARY_Cube_Failed(self):
+
+-			print "Å¥ºê Á¦ÀÛ ½ÇÆÐ"
+
++			print "ť  "
+
+ 			self.interface.FailedCubeWork()
+
+ 			pass
+
+ 
+
+ 		def BINARY_Cube_ResultList(self, npcVNUM, listText):
+
+-			# ResultList Text Format : 72723,1/72725,1/72730.1/50001,5 ÀÌ·±½ÄÀ¸·Î "/" ¹®ÀÚ·Î ±¸ºÐµÈ ¸®½ºÆ®¸¦ ÁÜ
+
++			# ResultList Text Format : 72723,1/72725,1/72730.1/50001,5 ̷ "/" ڷ е Ʈ 
+
+ 			#print listText
+
+ 
+
+ 			if npcVNUM == 0:
+
+@@ -2295,7 +2311,7 @@
+ 
+
+ 		# END_OF_CUBE
+
+ 
+
+-	# ¿ëÈ¥¼®
+
++	# ȥ
+
+ 	def BINARY_Highlight_Item(self, inven_type, inven_pos):
+
+ 		self.interface.Highligt_Item(inven_type, inven_pos)
+
+ 
+
+@@ -2420,10 +2436,8 @@
+ 
+
+ 	## BINARY CALLBACK
+
+ 	######################################################################################
+
+-
+
+ 	def __ServerCommand_Build(self):
+
+ 		serverCommandList = {
+
+-			"ConsoleEnable" : self.__Console_Enable,
+
+ 			"DayMode" : self.__DayMode_Update,
+
+ 			"PRESERVE_DayMode" : self.__PRESERVE_DayMode_Update,
+
+ 			"CloseRestartWindow" : self.__RestartDialog_Close,
+
+@@ -2740,12 +2754,6 @@
+ 
+
+ 	def __RestartDialog_Close(self):
+
+ 		self.interface.CloseRestartDialog()
+
+-
+
+-	def __Console_Enable(self):
+
+-		self.consoleEnable = True
+
+-		app.EnableSpecialCameraMode()
+
+-		ui.EnablePaste(True)
+
+-		self.ShowConsole()
+
+ 
+
+ 	## PrivateShop
+
+ 	if app.ENABLE_CHEQUE_SYSTEM:
+
+@@ -2958,11 +2966,47 @@
+ 		self.PopupMessage(localeInfo.PARTY_REQUEST_DENIED)
+
+ 
+
+ 	def __EnableTestServerFlag(self):
+
+-		app.EnableTestServerFlag()
+
++		# Do not allow the server to remotely toggle client test/debug behavior.
+
++		try:
+
++			import debugInfo
+
++			if debugInfo.IsDebugMode():
+
++				app.EnableTestServerFlag()
+
++		except:
+
++			pass
+
++
+
++	def __IsSafeWebURL(self, url):
+
++		# Only allow http(s). Block file://, javascript:, data:, etc.
+
++		if not isinstance(url, str):
+
++			return False
+
++		u = url.strip()
+
++		if not u or len(u) > 2048:
+
++			return False
+
++		lu = u.lower()
+
++		return lu.startswith("http://") or lu.startswith("https://")
+
++
+
++	def __IsSafeBgmFile(self, filename):
+
++		# Prevent traversal/absolute paths from server commands.
+
++		# Only allow relative BGM file names with safe chars and common extensions.
+
++		if not isinstance(filename, str):
+
++			return False
+
++		f = filename.strip().replace("\\", "/")
+
++		if not f or len(f) > 128:
+
++			return False
+
++		if f.startswith("/") or f.startswith("~") or ".." in f:
+
++			return False
+
++		lf = f.lower()
+
++		if not (lf.endswith(".mp3") or lf.endswith(".ogg") or lf.endswith(".wav")):
+
++			return False
+
++		for c in f:
+
++			# conservative allowed charset
+
++			if not (c.isalnum() or c in "._-/"):
+
++				return False
+
++		return True
+
+ 
+
+ 	def __InGameShop_Show(self, url):
+
+ 		if constInfo.IN_GAME_SHOP_ENABLE:
+
+-			self.interface.OpenWebWindow(url)
+
++			if self.__IsSafeWebURL(url):
+
++				self.interface.OpenWebWindow(url)
+
+ 
+
+ 	# WEDDING
+
+ 	def __LoginLover(self):
+
+@@ -2992,6 +3036,8 @@
+ 	def __PlayMusic(self, flag, filename):
+
+ 		flag = int(flag)
+
+ 		if flag:
+
++			if not self.__IsSafeBgmFile(filename):
+
++				return
+
+ 			snd.FadeOutAllMusic()
+
+ 			musicInfo.SaveLastPlayFieldMusic()
+
+ 			snd.FadeInMusic("BGM/" + filename)
+
+@@ -3007,7 +3053,9 @@
+ 			self.interface.SetPopupNoticeEventFlag(int(flag_value))
+
+ 
+
+ 		def __PopupNoticeProcess(self, is_checked, url):
+
+-			self.interface.PopupNoticeProcess(int(is_checked), url)
+
++			# URL must be http(s) only
+
++			if self.__IsSafeWebURL(url):
+
++				self.interface.PopupNoticeProcess(int(is_checked), url)
+
+ 
+
+ 	if app.ENABLE_ACCE_COSTUME_SYSTEM:
+
+ 		def OpenAcceWindow(self, type):
+
+
+--- a/client/pack/root/intrologin.py
++++ b/client/pack/root/intrologin.py
+@@ -19,7 +19,6 @@
+ import serverCommandParser
+
+ 
+
+ RegisteredID = ""
+
+-RegisteredPassword = ""
+
+ # RegisteredPin = ""
+
+ LOGIN_DELAY_SEC = 0.0 #Default 0.0
+
+ 
+
+@@ -504,10 +503,32 @@
+ 	def OnUpdate(self):
+
+ 		ServerStateChecker.Update()
+
+ 		for i in range(1,7):
+
+-			if os.path.exists('UserData/Account/' + (str(i))+ '.cfg'):
+
+-				accountfile = open('UserData/Account/' + (str(i))+ '.cfg', "r")
+
+-				informations = (accountfile.read()).split("|")
+
+-				self.registerButtons[i].SetText(informations[1])
+
++			path = 'UserData/Account/' + str(i) + '.cfg'
+
++			if os.path.exists(path):
+
++				try:
+
++					accountfile = open(path, "r")
+
++					raw = accountfile.read()
+
++					accountfile.close()
+
++					informations = raw.split("|")
+
++					# expected formats:
+
++					#   new: |id|
+
++					#   old: |id|pwd|
+
++					saved_id = informations[1] if len(informations) > 1 else ""
+
++					saved_pwd = informations[2] if len(informations) > 2 else ""
+
++
+
++					# sanitize legacy plaintext passwords on disk immediately
+
++					if saved_pwd:
+
++						try:
+
++							open(path, "w").write("|" + str(saved_id) + "|")
+
++						except:
+
++							pass
+
++
+
++					if saved_id:
+
++						self.registerButtons[i].SetText(saved_id)
+
++					else:
+
++						self.registerButtons[i].SetText(uiScriptLocale.FREE)
+
++				except:
+
++					self.registerButtons[i].SetText(uiScriptLocale.FREE)
+
+ 			else:
+
+ 				self.registerButtons[i].SetText(uiScriptLocale.FREE)
+
+ 
+
+@@ -738,18 +759,18 @@
+ 
+
+ 	def OnClickRegisterButton(self, alper):#21.02.2019
+
+ 		global RegisteredID
+
+-		global RegisteredPassword
+
+ 		# global RegisteredPin
+
+ 		al = self.registerButtons[alper].GetText()
+
+ 		if al.find(uiScriptLocale.FREE) != -1:
+
+ 			id = self.idEditLine.GetText()
+
+-			pwd = self.pwdEditLine.GetText()
+
++			# Never store passwords on disk
+
+ 			# pin = self.pinEditLine.GetText()
+
+-			if id == "" or pwd == "":
+
+-				self.PopupNotifyMessage(localeInfo.NOID_OR_PASSWORD)
+
++			if id == "":
+
++				self.PopupNotifyMessage(localeInfo.LOGIN_INPUT_ID, self.SetIDEditLineFocus)
+
+ 			else:
+
+ 				if not os.path.exists('UserData/Account/' + str(alper) + '.cfg'):#todo security reg
+
+-					open('UserData/Account/' + str(alper) + '.cfg', "w").write("|"+str(id)+"|"+str(pwd)+"|")
+
++					# Store ID only (no password)
+
++					open('UserData/Account/' + str(alper) + '.cfg', "w").write("|"+str(id)+"|")
+
+ 
+
+ 					self.registerButtons[alper].SetText(str(id))
+
+ 
+
+@@ -757,11 +778,31 @@
+ 				else:
+
+ 					pass
+
+ 		else:
+
+-			accountfile = open('UserData/Account/' + str(alper)+ '.cfg', "r")
+
+-			informations = (accountfile.read()).split("|")
+
+-			self.Connect(informations[1], informations[2])
+
+-			RegisteredID = informations[1]
+
+-			RegisteredPassword = informations[2]
+
++			path = 'UserData/Account/' + str(alper) + '.cfg'
+
++			try:
+
++				accountfile = open(path, "r")
+
++				raw = accountfile.read()
+
++				accountfile.close()
+
++				informations = raw.split("|")
+
++				saved_id = informations[1] if len(informations) > 1 else ""
+
++				saved_pwd = informations[2] if len(informations) > 2 else ""
+
++
+
++				# sanitize legacy format if password exists
+
++				if saved_pwd:
+
++					try:
+
++						open(path, "w").write("|"+str(saved_id)+"|")
+
++					except:
+
++						pass
+
++
+
++				if saved_id:
+
++					self.idEditLine.SetText(saved_id)
+
++					self.pwdEditLine.SetText("")
+
++					self.pwdEditLine.SetFocus()
+
++					RegisteredID = saved_id
+
++				else:
+
++					self.PopupNotifyMessage(localeInfo.LOGIN_INPUT_ID, self.SetIDEditLineFocus)
+
++			except:
+
++				self.PopupNotifyMessage(localeInfo.LOGIN_CONNECT_FAILURE, self.SetIDEditLineFocus)
+
+ 			# RegisteredPin = informations[3]
+
+ 
+
+ 	def __OnClickdeleteButton(self, alper):
+
+
+--- a/client/pack/root/intrologin1.py
++++ b/client/pack/root/intrologin1.py
+@@ -475,13 +475,6 @@
+ 			dbg.TraceError("LoginWindow.Open - __LoadScript Error")
+
+ 			return
+
+ 
+
+-		'''
+
+-		if app.GetLoginType() == app.LOGIN_TYPE_NONE:
+
+-			self.__LoadLoginInfo("loginInfo.xml")
+
+-		else:
+
+-			app.loggined = False
+
+-		'''
+
+-
+
+ 		self.__LoadLoginInfo("loginInfo.xml")
+
+ 
+
+ 		'''
+
+@@ -548,13 +541,13 @@
+ 
+
+ 		# print "---------------------------------------------------------------------------- CLOSE LOGIN WINDOW "
+
+ 		#
+
+-		# selectMusicÀÌ ¾øÀ¸¸é BGMÀÌ ²÷±â¹Ç·Î µÎ°³ ´Ù Ã¼Å©ÇÑ´Ù. 
+
++		# selectMusic  BGM Ƿ ΰ  üũѴ. 
+
+ 		#
+
+ 		if musicInfo.loginMusic != "" and musicInfo.selectMusic != "":
+
+ 			snd.FadeOutMusic("BGM/"+musicInfo.loginMusic)
+
+ 
+
+-		## NOTE : idEditLine¿Í pwdEditLineÀº ÀÌº¥Æ®°¡ ¼­·Î ¿¬°á µÇ¾îÀÖ¾î¼­
+
+-		##		Event¸¦ °­Á¦·Î ÃÊ±âÈ­ ÇØÁÖ¾î¾ß¸¸ ÇÕ´Ï´Ù - [levites]
+
++		## NOTE : idEditLine pwdEditLine ̺Ʈ   Ǿ־
+
++		##		Event  ʱȭ ־߸ մϴ - [levites]
+
+ 		self.idEditLine.SetTabEvent(0)
+
+ 		self.idEditLine.SetReturnEvent(0)
+
+ 		self.pwdEditLine.SetReturnEvent(0)
+
+@@ -640,11 +633,11 @@
+ 
+
+ 	def SetPasswordEditLineFocus(self):
+
+ 		if localeInfo.IsEUROPE():
+
+-			if self.idEditLine != None: #0000862: [M2EU] ·Î±×ÀÎÃ¢ ÆË¾÷ ¿¡·¯: Á¾·á½Ã ¸ÕÀú None ¼³Á¤µÊ
+
++			if self.idEditLine != None: #0000862: [M2EU] αâ ˾ :   None 
+
+ 				self.idEditLine.SetText("")
+
+-				self.idEditLine.SetFocus() #0000685: [M2EU] ¾ÆÀÌµð/ºñ¹Ð¹øÈ£ À¯Ãß °¡´É ¹ö±× ¼öÁ¤: ¹«Á¶°Ç ¾ÆÀÌµð·Î Æ÷Ä¿½º°¡ °¡°Ô ¸¸µç´Ù
+
+-
+
+-			if self.pwdEditLine != None: #0000862: [M2EU] ·Î±×ÀÎÃ¢ ÆË¾÷ ¿¡·¯: Á¾·á½Ã ¸ÕÀú None ¼³Á¤µÊ
+
++				self.idEditLine.SetFocus() #0000685: [M2EU] ̵/йȣ    :  ̵ Ŀ  
+
++
+
++			if self.pwdEditLine != None: #0000862: [M2EU] αâ ˾ :   None 
+
+ 				self.pwdEditLine.SetText("")
+
+ 		else:
+
+ 			if self.pwdEditLine != None:
+
+@@ -698,7 +691,7 @@
+ 		except KeyError:
+
+ 			loginFailureMsg = localeInfo.LOGIN_FAILURE_UNKNOWN + error
+
+ 
+
+-		#0000685: [M2EU] ¾ÆÀÌµð/ºñ¹Ð¹øÈ£ À¯Ãß °¡´É ¹ö±× ¼öÁ¤: ¹«Á¶°Ç ÆÐ½º¿öµå·Î Æ÷Ä¿½º°¡ °¡°Ô ¸¸µç´Ù
+
++		#0000685: [M2EU] ̵/йȣ    :  н Ŀ  
+
+ 		loginFailureFunc = self.loginFailureFuncDict.get(error, self.SetPasswordEditLineFocus)
+
+ 
+
+ 		if app.loggined:
+
+@@ -928,7 +921,7 @@
+ 					self.PopupNotifyMessage(localeInfo.CHANNEL_SELECT_CHANNEL)
+
+ 					return
+
+ 
+
+-				# »óÅÂ°¡ CLOSED¸é°ú °°À¸¸é ÁøÀÔ ±ÝÁö
+
++				# ° CLOSED   
+
+ 				tokens = serverInfo.REGION_DICT[regionID][serverID].get("state", "NONE").split("|")
+
+ 				is_server_closed = False
+
+ 
+
+@@ -940,7 +933,7 @@
+ 					self.PopupNotifyMessage(localeInfo.SERVER_NOTIFY_CLOSED)
+
+ 					return
+
+ 
+
+-				# »óÅÂ°¡ FULL °ú °°À¸¸é ÁøÀÔ ±ÝÁö
+
++				# ° FULL    
+
+ 				if state == serverInfo.STATE_DICT[len(serverInfo.STATE_DICT) - 1]:
+
+ 					self.PopupNotifyMessage(localeInfo.CHANNEL_NOTIFY_FULL)
+
+ 					return
+
+@@ -1063,9 +1056,9 @@
+ 				execfile(loginInfoFileName, loginInfo)
+
+ 			except IOError:
+
+ 				print(\
+
+-					"ÀÚµ¿ ·Î±×ÀÎÀ» ÇÏ½Ã·Á¸é" + loginInfoFileName + "ÆÄÀÏÀ» ÀÛ¼ºÇØÁÖ¼¼¿ä\n"\
+
++					"ڵ α Ͻ÷" + loginInfoFileName + " ۼּ\n"\
+
+ 					"\n"\
+
+-					"³»¿ë:\n"\
+
++					":\n"\
+
+ 					"================================================================\n"
+
+ 				);
+
+ 
+
+@@ -1152,8 +1145,8 @@
+ 		serverIndex = self.__ServerIDToServerIndex(loadRegionID, loadServerID)
+
+ 		channelIndex = self.__ChannelIDToChannelIndex(loadChannelID)
+
+ 
+
+-		# ½Å±ÔÀ¯Àú ¼­¹ö ¼±ÅÃ ·ÎÁ÷.
+
+-		if app.ENABLE_SERVER_SELECT_RENEWAL and serverIndex == -1: # ¼±ÅÃµÈ ¼­¹ö°¡ ¾øÀ» ¶§ ½Å±ÔÀ¯Àú¶ó°í ÆÇ´Ü
+
++		# ű   .
+
++		if app.ENABLE_SERVER_SELECT_RENEWAL and serverIndex == -1: # õ    ű Ǵ
+
+ 			newIdx = serverInfo.SERVER_STATE_DICT.get("NEW", 0)
+
+ 			specialIdx = serverInfo.SERVER_STATE_DICT.get("SPECIAL", 0)
+
+ 			closeIdx = serverInfo.SERVER_STATE_DICT.get("CLOSE", 0)
+
+@@ -1165,12 +1158,12 @@
+ 
+
+ 			for idx in xrange(self.serverList.GetItemCount()):
+
+ 				(state, state2) = self.serverList.GetState(idx)
+
+-				if state == newIdx or state2 == newIdx: # 1¼øÀ§·Î NEW¸¦ ¼±ÅÃÇÑ´Ù.
+
++				if state == newIdx or state2 == newIdx: # 1 NEW Ѵ.
+
+ 					serverSelect1st = idx
+
+ 					break
+
+-				elif serverSelect2nd == -1 and (state == specialIdx or state2 == specialIdx): # 2¼øÀ§·Î SPECIAL¸¦ ¼±ÅÃÇÑ´Ù.
+
++				elif serverSelect2nd == -1 and (state == specialIdx or state2 == specialIdx): # 2 SPECIAL Ѵ.
+
+ 					serverSelect2nd = idx
+
+-				elif serverSelect3rd == -1 and (state != closeIdx and state2 != closeIdx): # 3¼øÀ§ Á¢¼Ó°¡´ÉÇÑ ¼­¹ö Áß ÃÖ»óÀ§.
+
++				elif serverSelect3rd == -1 and (state != closeIdx and state2 != closeIdx): # 3 Ӱ   ֻ.
+
+ 					serverSelect3rd = idx
+
+ 				elif serverSelect4th == -1 and (state != standbyIdx and state2 != standbyIdx):
+
+ 					serverSelect4th = idx
+
+@@ -1195,7 +1188,7 @@
+ 			if channelIndex >= 0:
+
+ 				self.channelList.SelectItem(channelIndex)
+
+ 
+
+-		## Show/Hide ÄÚµå¿¡ ¹®Á¦°¡ ÀÖ¾î¼­ ÀÓ½Ã - [levites]
+
++		## Show/Hide ڵ忡  ־ ӽ - [levites]
+
+ 		self.serverBoard.SetPosition(self.xServerBoard, self.yServerBoard)
+
+ 		self.serverBoard.Show()
+
+ 		self.connectBoard.Hide()
+
+@@ -1295,9 +1288,9 @@
+ 						except:
+
+ 							server_id = visible_index
+
+ 
+
+-						self.serverList.InsertItem(id, "  %s" % (name), state, state2, flag) # ¼­¹öÀÇ »óÅÂ ´ëÇÑ °ª ¼³Á¤.
+
+-						# self.serverList.InsertItem(id, "  %02d. %s" % (int(server_id), name), state, state2, locale) # ¼­¹öÀÇ »óÅÂ ´ëÇÑ °ª ¼³Á¤.
+
+-						#self.serverList.InsertItem(id, "  %s" % (name), state, state2)	# ¼­¹öÀÇ »óÅÂ ´ëÇÑ °ª ¼³Á¤.
+
++						self.serverList.InsertItem(id, "  %s" % (name), state, state2, flag) #     .
+
++						# self.serverList.InsertItem(id, "  %02d. %s" % (int(server_id), name), state, state2, locale) #     .
+
++						#self.serverList.InsertItem(id, "  %s" % (name), state, state2)	#     .
+
+ 
+
+ 						visible_index += 1
+
+ 		else:
+
+@@ -1432,7 +1425,7 @@
+ 					if BusyChannelID == 0 and channelState == serverInfo.STATE_DICT[2]:
+
+ 						BusyChannelID = channelID
+
+ 
+
+-					# »óÅÂ°¡ FULLÀÌ³ª OFFLINEÀÌ¸é ´Ù¸¥ Ã¤³ÎÀ» ¼±ÅÃÇÏµµ·Ï ÇÔ
+
++					# ° FULL̳ OFFLINE̸ ٸ ä ϵ 
+
+ 					if bakChannelID == channelID and (channelState == serverInfo.STATE_DICT[0] or channelState == serverInfo.STATE_DICT[3]):
+
+ 						bakChannelID = 0
+
+ 
+
+@@ -1537,17 +1530,17 @@
+ 				if tokens[idx].strip() == "CLOSE":
+
+ 					is_server_closed = True
+
+ 
+
+-			# »óÅÂ°¡ CLOSED¸é ÁøÀÔ ±ÝÁö
+
++			# ° CLOSED  
+
+ 			if is_server_closed == True:
+
+ 				self.PopupNotifyMessage(localeInfo.SERVER_NOTIFY_CLOSED)
+
+ 				return
+
+ 
+
+-			# »óÅÂ°¡ FULL °ú °°À¸¸é ÁøÀÔ ±ÝÁö
+
++			# ° FULL    
+
+ 			if state == serverInfo.STATE_DICT[len(serverInfo.STATE_DICT) - 1]:
+
+ 				self.PopupNotifyMessage(localeInfo.CHANNEL_NOTIFY_FULL)
+
+ 				return
+
+ 		else:
+
+-			# »óÅÂ°¡ FULL °ú °°À¸¸é ÁøÀÔ ±ÝÁö
+
++			# ° FULL    
+
+ 			if state == serverInfo.STATE_DICT[3]:
+
+ 				self.PopupNotifyMessage(localeInfo.CHANNEL_NOTIFY_FULL)
+
+ 				return
+
+@@ -1559,9 +1552,9 @@
+ 			channelName = serverInfo.REGION_DICT[regionID][serverID]["channel"][channelID]["name"]
+
+ 			addrKey = serverInfo.REGION_DICT[regionID][serverID]["channel"][channelID]["key"]
+
+ 
+
+-			if "Ãµ¸¶ ¼­¹ö" == serverName:
+
++			if "õ " == serverName:
+
+ 				app.ForceSetLocale("ymir", "locale/ymir")
+
+-			elif "Äèµµ ¼­¹ö" == serverName:
+
++			elif "赵 " == serverName:
+
+ 				app.ForceSetLocale("we_korea", "locale/we_korea")
+
+ 
+
+ 		except:
+
+@@ -1576,7 +1569,7 @@
+ 			tcp_port = serverInfo.REGION_DICT[regionID][serverID]["channel"][channelID]["tcp_port"]
+
+ 		except:
+
+ 			import exception
+
+-			exception.Abort("LoginWindow.__OnClickSelectServerButton - ¼­¹ö ¼±ÅÃ ½ÇÆÐ")
+
++			exception.Abort("LoginWindow.__OnClickSelectServerButton -   ")
+
+ 
+
+ 		try:
+
+ 			account_ip = serverInfo.REGION_AUTH_SERVER_DICT[regionID][serverID]["ip"]
+
+@@ -1597,7 +1590,7 @@
+ 
+
+ 		except:
+
+ 			import exception
+
+-			exception.Abort("LoginWindow.__OnClickSelectServerButton - ¸¶Å© Á¤º¸ ¾øÀ½")
+
++			exception.Abort("LoginWindow.__OnClickSelectServerButton - ũ  ")
+
+ 
+
+ 		self.stream.SetConnectInfo(ip, tcp_port, account_ip, account_port)
+
+ 		print("SetConnectInfo %s, %s, %s, %s" % (str(ip), str(tcp_port), str(account_ip), str(account_port)))
+
+
+--- a/client/pack/root/servercommandparser.py
++++ b/client/pack/root/servercommandparser.py
+@@ -3,6 +3,7 @@
+ import stringCommander
+
+ import constInfo
+
+ import app
+
++import re
+
+ 
+
+ class ServerCommandParser(object):
+
+ 	def __init__(self):
+
+@@ -57,12 +58,22 @@
+ 	def __PreserveCommand(self, line):
+
+ 		net.PreserveServerCommand(line)
+
+ 
+
++	def __IsSafeWebURL(self, url):
+
++		if not isinstance(url, str):
+
++			return False
+
++		u = url.strip()
+
++		if not u or len(u) > 2048:
+
++			return False
+
++		lu = u.lower()
+
++		return lu.startswith("http://") or lu.startswith("https://")
+
++
+
+ 	if app.ENABLE_POPUP_NOTICE:
+
+ 		def __SetPopupNoticeEventFlag(self, flag_value):
+
+ 			self.__PreserveCommand("PopupNoticeEventFlag " + flag_value)
+
+ 
+
+ 		def __PopupNoticeProcess(self, is_checked, url):
+
+-			self.__PreserveCommand("PopupNoticeProcess %d %s" % (int(is_checked), url))
+
++			if self.__IsSafeWebURL(url):
+
++				self.__PreserveCommand("PopupNoticeProcess %d %s" % (int(is_checked), url))
+
+ 
+
+ 	def __DayMode_Update(self, mode):
+
+ 		self.__PreserveCommand("PRESERVE_DayMode " + mode)
+
+@@ -70,7 +81,7 @@
+ 	def __ItemMall_Open(self):
+
+ 		self.__PreserveCommand("item_mall")
+
+ 
+
+-	## ÀÓ½Ã
+
++	## ӽ
+
+ 	def __XMasBoom_Enable(self, mode):
+
+ 		if "1" == mode:
+
+ 			self.__PreserveCommand("PRESERVE_DayMode dark")
+
+
+--- a/client/pack/root/ui.py
++++ b/client/pack/root/ui.py
+@@ -675,7 +675,7 @@
+ 		self.eventEscape = Window.NoneMethod
+
+ #		self.eventTab = None
+
+ 		self.numberMode = False
+
+-		self.UseCodePage = True # MT-679 °³ÀÎ »óÁ¡ Å¸ÀÌÆ²ÀÇ CodePage ÀÌ½´
+
++		self.UseCodePage = True # MT-679   ŸƲ CodePage ̽
+
+ 		self.useIME = True
+
+ 
+
+ 		self.eventUpdate = Window.NoneMethod
+
+@@ -784,7 +784,7 @@
+ 	def SetNumberMode(self):
+
+ 		self.numberMode = True
+
+ 
+
+-	#MT-679 °³ÀÎ »óÁ¡ Å¸ÀÌÆ²ÀÇ CodePage ÀÌ½´
+
++	#MT-679   ŸƲ CodePage ̽
+
+ 	def SetUseCodePage(self, bUse = True):
+
+ 		self.UseCodePage = bUse
+
+ 
+
+@@ -898,7 +898,7 @@
+ 		return False
+
+ 
+
+ 	def OnIMEUpdate(self):
+
+-		# MT-679 °³ÀÎ »óÁ¡ Å¸ÀÌÆ²ÀÇ CodePage ÀÌ½´
+
++		# MT-679   ŸƲ CodePage ̽
+
+ 		if self.UseCodePage == False and self.IsIncludeCodePage(ime.GetText(self.bCodePage)) == True:
+
+ 			ime.SetText("")
+
+ 
+
+@@ -1221,7 +1221,7 @@
+ 	def SetRenderingMode(self, mode):
+
+ 		wndMgr.SetRenderingMode(self.hWnd, mode)
+
+ 
+
+-	# [0.0, 1.0] »çÀÌÀÇ °ª¸¸Å­ ÆÛ¼¾Æ®·Î ±×¸®Áö ¾Ê´Â´Ù.
+
++	# [0.0, 1.0]  ŭ ۼƮ ׸ ʴ´.
+
+ 	def SetRenderingRect(self, left, top, right, bottom):
+
+ 		wndMgr.SetRenderingRect(self.hWnd, left, top, right, bottom)
+
+ 
+
+@@ -2242,11 +2242,11 @@
+ 		return wndMgr.GetSlotCount(self.hWnd)
+
+ 
+
+ 	def SetUseMode(self, flag):
+
+-		"TrueÀÏ¶§¸¸ ItemToItem ÀÌ °¡´ÉÇÑÁö º¸¿©ÁØ´Ù"
+
++		"True϶ ItemToItem   ش"
+
+ 		wndMgr.SetUseMode(self.hWnd, flag)
+
+ 
+
+ 	def SetUsableItem(self, flag):
+
+-		"True¸é ÇöÀç °¡¸®Å² ¾ÆÀÌÅÛÀÌ ItemToItem Àû¿ë °¡´ÉÇÏ´Ù"
+
++		"True  Ų  ItemToItem  ϴ"
+
+ 		wndMgr.SetUsableItem(self.hWnd, flag)
+
+ 
+
+ 	## Slot
+
+@@ -2539,7 +2539,7 @@
+ 
+
+ 	def MakeTitleBar(self, width, color):
+
+ 
+
+-		## ÇöÀç Color´Â »ç¿ëÇÏ°í ÀÖÁö ¾ÊÀ½
+
++		##  Color ϰ  
+
+ 
+
+ 		width = max(64, width)
+
+ 
+
+@@ -4024,6 +4024,10 @@
+ 			self.SelectItem(self.overLine+self.basePos)
+
+ 
+
+ 	def OnUpdate(self):
+
++		# Avoid work for invisible widgets (many UI elements tick every frame)
+
++		if not self.IsShow():
+
++			return
+
++
+
+ 		self.overLine = -1
+
+ 
+
+ 		if self.IsIn():
+
+@@ -4090,6 +4094,9 @@
+ 		self._RefreshForm()
+
+ 
+
+ 	def OnUpdate(self):
+
++		if not self.IsShow():
+
++			return
+
++
+
+ 		mpos = wndMgr.GetMousePosition()
+
+ 		self.overLine = self._CalcPointIndex(mpos)
+
+ 
+
+@@ -4285,6 +4292,9 @@
+ 		self.ToggleOpenCloseListBox()
+
+ 
+
+ 	def OnUpdate(self):
+
++		if not self.IsShow():
+
++			return
+
++
+
+ 		if not self.enable:
+
+ 			return
+
+ 
+
+@@ -4448,6 +4458,9 @@
+ 				self.__ArrangeListBox()
+
+ 
+
+ 	def OnUpdate(self):
+
++		if not self.IsShow():
+
++			return
+
++
+
+ 		if not self.enable:
+
+ 			return
+
+ 
+
+@@ -4581,13 +4594,43 @@
+ 
+
+ 		#print "===== Load Script File : %s" % (FileName)
+
+ 
+
+-		#ui ÄÚµå´Â sandbox ³»¿¡¼­ ½ÇÇàµÇ¾î¾ßÇÑ´Ù.(º¿ÀÌ ²¸ÀÖÀ» ¿©Áö°¡ ÀÖ±â ¶§¹®¿¡)
+
++		# Security hardening:
+
++		# UI definitions are executed via execfile(). FileName must never be absolute,
+
++		# contain drive letters, or allow traversal. Only allow packed UI paths.
+
++		if not isinstance(FileName, str):
+
++			exception.Abort("LoadScriptFile: invalid filename type")
+
++
+
++		# normalize separators early (Windows/backslashes)
+
++		_safeName = FileName.replace("\\", "/")
+
++
+
++		# basic length sanity
+
++		if len(_safeName) == 0 or len(_safeName) > 260:
+
++			exception.Abort("LoadScriptFile: invalid filename length")
+
++
+
++		# reject absolute paths / drive letters / home paths
+
++		if ":" in _safeName or _safeName.startswith("/") or _safeName.startswith("~"):
+
++			exception.Abort("LoadScriptFile: invalid filename path")
+
++
+
++		# normalize and block traversal
+
++		_norm = os.path.normpath(_safeName).replace("\\", "/")
+
++		if _norm == ".." or _norm.startswith("../") or "/../" in ("/" + _norm + "/"):
+
++			exception.Abort("LoadScriptFile: path traversal blocked")
+
++
+
++		# allow only standard UI script roots
+
++		_low = _norm.lower()
+
++		if not (_low.startswith("uiscript/") or _low.startswith("locale/")):
+
++			exception.Abort("LoadScriptFile: blocked script root")
+
++
+
++		# use normalized safe path
+
++		FileName = _norm
+
++
+
++		#ui 코드는 sandbox 내에서 실행되어야한다.(봉이 꽂힐 여지가 있기 때문에)
+
+ 		#import sys
+
+ 		#from utils import Sandbox
+
+ 		#sandbox = Sandbox(True, ["uiScriptLocale", "localeInfo", "sys", "item", "app"])
+
+ 
+
+-		# chr, player µîÀº sandbox ³»¿¡¼­ import°¡ Çã¿ëµÇÁö ¾Ê±â ¶§¹®¿¡,(º¿ÀÌ ¾Ç¿ëÇÒ ¿©Áö°¡ ¸Å¿ì Å­.)
+
+-		#  ¹Ì¸® script dictionary¿¡ ÇÊ¿äÇÑ »ó¼ö¸¦ ³Ö¾î³õ´Â´Ù.
+
++		# chr, player  sandbox  import  ʱ ,( ǿ  ſ ŭ.)
+
++		#  ̸ script dictionary ʿ  ־´.
+
+ 		import chr
+
+ 		import player
+
+ 		import app
+
+
+--- a/client/pack/root/uipopupnotice.py
++++ b/client/pack/root/uipopupnotice.py
+@@ -3,6 +3,15 @@
+ import player
+
+ import ui
+
+ import localeInfo
+
++
+
++def _IsSafeWebURL(url):
+
++	if not isinstance(url, str):
+
++		return False
+
++	u = url.strip()
+
++	if not u or len(u) > 2048:
+
++		return False
+
++	lu = u.lower()
+
++	return lu.startswith("http://") or lu.startswith("https://")
+
+ 
+
+ class PopupNoticeWindow(ui.ScriptWindow):
+
+ 	def __init__(self):
+
+@@ -120,6 +129,9 @@
+ 			self.Open(url, is_checked)
+
+ 
+
+ 	def Open(self, url, is_checked):
+
++		if not _IsSafeWebURL(url):
+
++			return
+
++
+
+ 		self.Refresh()
+
+ 		self.Show()
+
+ 		self.SetCenterPosition()
+
+
+--- a/client/pack/root/uiweb.py
++++ b/client/pack/root/uiweb.py
+@@ -5,6 +5,15 @@
+ import app
+
+ import mouseModule
+
+ import constInfo
+
++
+
++def _IsSafeWebURL(url):
+
++	if not isinstance(url, str):
+
++		return False
+
++	u = url.strip()
+
++	if not u or len(u) > 2048:
+
++		return False
+
++	lu = u.lower()
+
++	return lu.startswith("http://") or lu.startswith("https://")
+
+ 
+
+ class WebWindow(ui.ScriptWindow):
+
+ 	def __init__(self):
+
+@@ -42,6 +51,9 @@
+ 		self.titleBar = None
+
+ 
+
+ 	def Open(self, url):
+
++		if not _IsSafeWebURL(url):
+
++			return
+
++
+
+ 		self.Refresh()
+
+ 		self.Show()
+
+ 		self.SetCenterPosition()
+
+
+--- a/src-client/Client/EterBase/lzo.cpp
++++ b/src-client/Client/EterBase/lzo.cpp
+@@ -69,7 +69,7 @@
+ 
+
+ } gs_freeMemMgr;
+
+ 
+
+-DWORD CLZObject::ms_dwFourCC = MAKEFOURCC('M', 'C', 'O', 'Z');
+
++DWORD CLZObject::ms_dwFourCC = MAKEFOURCC('N', 'C', 'O', 'Z');
+
+ 
+
+ CLZObject::CLZObject()
+
+ {
+
+@@ -125,9 +125,9 @@
+ 	m_pbIn = (const BYTE*)pvIn;
+
+ 
+
+ 	// sizeof(SHeader) +
+
+-	// ¾ÏÈ£È­¸¦ À§ÇÑ fourCC 4¹ÙÀÌÆ®
+
+-	// ¾ÐÃàµÈ ÈÄ ¸¸µé¾îÁú ¼ö ÀÖ´Â ÃÖ´ë ¿ë·® +
+
+-	// ¾ÏÈ£È­¸¦ À§ÇÑ 8 ¹ÙÀÌÆ®
+
++	// ȣȭ  fourCC 4Ʈ
+
++	//     ִ ִ 뷮 +
+
++	// ȣȭ  8 Ʈ
+
+ 	m_dwBufferSize = sizeof(THeader) + sizeof(DWORD) + (uiInLen + uiInLen / 64 + 16 + 3) + 8;
+
+ 
+
+ 	m_pbBuffer = gs_freeMemMgr.Alloc(m_dwBufferSize);
+
+@@ -144,9 +144,9 @@
+ 	m_pbIn = (const BYTE*)pvIn;
+
+ 
+
+ 	// sizeof(SHeader) +
+
+-	// ¾ÏÈ£È­¸¦ À§ÇÑ fourCC 4¹ÙÀÌÆ®
+
+-	// ¾ÐÃàµÈ ÈÄ ¸¸µé¾îÁú ¼ö ÀÖ´Â ÃÖ´ë ¿ë·® +
+
+-	// ¾ÏÈ£È­¸¦ À§ÇÑ 8 ¹ÙÀÌÆ®
+
++	// ȣȭ  fourCC 4Ʈ
+
++	//     ִ ִ 뷮 +
+
++	// ȣȭ  8 Ʈ
+
+ 	m_dwBufferSize = sizeof(THeader) + sizeof(DWORD) + (uiInLen + uiInLen / 64 + 16 + 3) + 8;
+
+ 
+
+ 	m_pbBuffer = gs_freeMemMgr.Alloc(m_dwBufferSize);
+
+
+--- a/src-client/Client/EterGrnLib/ThingInstance.cpp
++++ b/src-client/Client/EterGrnLib/ThingInstance.cpp
+@@ -343,8 +343,8 @@
+ 	return true;
+
+ }
+
+ 
+
+-// iSkelInstance °¡ ÀÖÀ¸¸é ±âº» º»¿¡ Link(º»ÀÌ ºÙ´Â°Í)½ÃÅ°°í,
+
+-// ¾øÀ¸¸é ±âº» º»¿¡ attach(ÁÂÇ¥¸¸ °¡Á®´Ù ¾²´Â°Í) µË´Ï´Ù.
+
++// iSkelInstance   ⺻  Link( ٴ°)Ű,
+
++//  ⺻  attach(ǥ  °) ˴ϴ.
+
+ bool CGraphicThingInstance::SetModelInstance(int iDstModelInstance, int iSrcModelThing, int iSrcModel, int iSkelInstance)
+
+ {
+
+ 	if (!CheckModelInstanceIndex(iDstModelInstance))
+
+@@ -519,6 +519,10 @@
+ 	}
+
+ 
+
+ 	m_modelThingSetVector[iModelThing].Clear();
+
++
+
++	// [Safety Fix] Null pointer guard to prevent crashes during warp/load
+
++	if (!pModelThing)
+
++		return;
+
+ 
+
+ 	if (pModelThing)
+
+ 		RegisterLODThing(iModelThing, pModelThing);
+
+@@ -830,7 +834,7 @@
+ 	const D3DXVECTOR3& c_rv3CameraPosition = pCurCamera->GetEye();
+
+ 	const D3DXVECTOR3& c_v3Position = GetPosition();
+
+ 
+
+-	// NOTE : Áß½ÉÀ¸·ÎºÎÅÍÀÇ °Å¸® °è»ê¿¡ z°ª Â÷ÀÌ´Â »ç¿ëÇÏÁö ¾Ê´Â´Ù. - [levites]
+
++	// NOTE : ߽κ Ÿ 꿡 z ̴  ʴ´. - [levites]
+
+ 	float fDistanceFromCenter = sqrtf((c_rv3TargetPosition.x - c_v3Position.x) * (c_rv3TargetPosition.x - c_v3Position.x) +
+
+ 		(c_rv3TargetPosition.y - c_v3Position.y) * (c_rv3TargetPosition.y - c_v3Position.y));
+
+ 	float fDistanceFromCamera = sqrtf((c_rv3CameraPosition.x - c_v3Position.x) * (c_rv3CameraPosition.x - c_v3Position.x) +
+
+
+--- a/src-client/Client/GameLib/ActorInstanceAttach.cpp
++++ b/src-client/Client/GameLib/ActorInstanceAttach.cpp
+@@ -176,7 +176,7 @@
+ 	}
+
+ 
+
+ 	__DestroyWeaponTrace();
+
+-	// ¾ç¼Õ¹«±â(ÀÚ°´ ÀÌµµ·ù) ¿Þ¼Õ,¿À¸¥¼Õ ¸ðµÎ¿¡ ÀåÂø.
+
++	// չ(ڰ ̵) ޼, ο .
+
+ 	DWORD dwWeaponType = pItemData->GetWeaponType();
+
+ #if defined(ENABLE_WEAPON_COSTUME_SYSTEM)
+
+ 	if (pItemData->GetType() == CItemData::ITEM_TYPE_COSTUME)
+
+@@ -198,9 +198,15 @@
+ 		}
+
+ 
+
+ 		if (__IsRightHandWeapon(dwWeaponType))
+
++		{
+
++			m_adwPartItemID[CRaceData::PART_WEAPON] = dwItemIndex;
+
+ 			AttachWeapon(dwParentPartIndex, CRaceData::PART_WEAPON, pItemData);
+
++		}
+
+ 		if (__IsLeftHandWeapon(dwWeaponType))
+
++		{
+
++			m_adwPartItemID[CRaceData::PART_WEAPON_LEFT] = dwItemIndex;
+
+ 			AttachWeapon(dwParentPartIndex, CRaceData::PART_WEAPON_LEFT, pItemData);
+
++		}
+
+ 	}
+
+ #else
+
+ 	if (__IsRightHandWeapon(dwWeaponType))
+
+@@ -225,7 +231,7 @@
+ 	if (!GetAttachingBoneName(dwPartIndex, &szBoneName))
+
+ 		return;
+
+ 
+
+-	// NOTE : (ÀÌµµ·ùÃ³¸®)´ÜµµÀÏ °æ¿ì ÇüÅÂ°¡ ´Ù¸¥ °ÍÀ¸·Î ¾ò´Â´Ù. ¾øÀ» °æ¿ì µðÆúÆ®¸¦ ¸®ÅÏ
+
++	// NOTE : (̵ó)ܵ  ° ٸ  ´.   Ʈ 
+
+ 	if (CRaceData::PART_WEAPON_LEFT == dwPartIndex)
+
+ 		RegisterModelThing(dwPartIndex, pItemData->GetSubModelThing());
+
+ 	else
+
+@@ -241,10 +247,17 @@
+ 		RegisterLODThing(dwPartIndex, pThing);
+
+ 	}
+
+ 
+
+-	SetModelInstance(dwPartIndex, dwPartIndex, 0);
+
++	// [Safety Fix] Ensure SetModelInstance succeeds
+
++	if (!SetModelInstance(dwPartIndex, dwPartIndex, 0))
+
++	{
+
++		DWORD vnum = m_adwPartItemID[dwPartIndex];
+
++		if (vnum) QueuePendingWeaponAttach(vnum, dwParentPartIndex, dwPartIndex);
+
++		return;
+
++	}
+
++
+
+ 	AttachModelInstance(dwParentPartIndex, szBoneName, dwPartIndex);
+
+ 
+
+-	// 20041208.myevan.¹«±â½ºÆåÅ§·¯(°ª¿ÊÀº SetShape¿¡¼­ Á÷Á¢ ÇØÁØ´Ù.)
+
++	// 20041208.myevan.ë¬´ê¸?ìŠ¤íŽ™í?ëŸ?(ê°’ì˜·ì? SetShapeì—?ì„œ ì§?ì‘? í•´ì¤€ë‹¤.)
+
+ 	if (USE_WEAPON_SPECULAR)
+
+ 	{
+
+ 		SMaterialData kMaterialData;
+
+@@ -493,8 +506,8 @@
+ 				{
+
+ 					const NRaceData::TCollisionData* c_pCollisionData = c_pAttachingData->pCollisionData;
+
+ 
+
+-					// FIXME : Ã¹¹øÂ° ÀÎÀÚ´Â PartÀÇ ¹øÈ£´Ù.
+
+-					// Base´Â ¹«Á¶°Ç 0ÀÎ°¡? - [levites]
+
++					// FIXME : ù° ڴ Part ȣ.
+
++					// Base  0ΰ? - [levites]
+
+ 					TCollisionPointInstance PointInstance;
+
+ 					if (NRaceData::COLLISION_TYPE_ATTACKING == c_pCollisionData->iCollisionType)
+
+ 						continue;
+
+
+--- a/src-client/Client/UserInterface/GuildMarkDownloader.cpp
++++ b/src-client/Client/UserInterface/GuildMarkDownloader.cpp
+@@ -317,11 +317,11 @@
+ 		Recv(sizeof(WORD), &guildID);
+
+ 		Recv(sizeof(WORD), &markID);
+
+ 
+
+-		// ±æµåID -> ¸¶Å©ID ÀÎµ¦½º µî·Ï
+
++		// ID -> ũID ε 
+
+ 		CGuildMarkManager::Instance().AddMarkIDByGuildID(guildID, markID);
+
+ 	}
+
+ 
+
+-	// ¸ðµç ¸¶Å© ÀÌ¹ÌÁö ÆÄÀÏÀ» ·ÎµåÇÑ´Ù. (ÆÄÀÏÀÌ ¾øÀ¸¸é ¸¸µé¾îÁü)
+
++	//  ũ ̹  εѴ. (  )
+
+ 	CGuildMarkManager::Instance().LoadMarkImages();
+
+ 
+
+ 	// MARK_BUG_FIX
+
+@@ -381,17 +381,17 @@
+ 		else
+
+ 		{
+
+ 			Recv(compSize, compBuf);
+
+-			// ¾ÐÃàµÈ ÀÌ¹ÌÁö¸¦ ½ÇÁ¦·Î ÀúÀåÇÑ´Ù. CRCµî ¿©·¯°¡Áö Á¤º¸°¡ ÇÔ²² ºôµåµÈ´Ù.
+
++			//  ̹  Ѵ. CRC   Բ ȴ.
+
+ 			CGuildMarkManager::Instance().SaveBlockFromCompressedData(kPacket.imgIdx, posBlock, (const BYTE*)compBuf, compSize);
+
+ 		}
+
+ 	}
+
+ 
+
+ 	if (kPacket.count > 0)
+
+ 	{
+
+-		// ¸¶Å© ÀÌ¹ÌÁö ÀúÀå
+
++		// ũ ̹ 
+
+ 		CGuildMarkManager::Instance().SaveMarkImage(kPacket.imgIdx);
+
+ 
+
+-		// ¸®¼Ò½º ¸®·Îµù (ÀçÁ¢¼ÓÀ» ¾ÈÇØµµ º»ÀÎ°ÍÀº Àß º¸ÀÌ°Ô ÇÔ)
+
++		// ҽ ε ( ص ΰ  ̰ )
+
+ 		std::string imagePath;
+
+ 
+
+ 		if (CGuildMarkManager::Instance().GetMarkImageFilename(kPacket.imgIdx, imagePath))
+
+@@ -405,7 +405,7 @@
+ 		}
+
+ 	}
+
+ 
+
+-	// ´õ ¿äÃ»ÇÒ °ÍÀÌ ÀÖÀ¸¸é ¿äÃ»ÇÏ°í ¾Æ´Ï¸é ÀÌ¹ÌÁö¸¦ ÀúÀåÇÏ°í Á¾·á
+
++	//  û   ûϰ ƴϸ ̹ ϰ 
+
+ 	if (m_currentRequestingImageIndex < CGuildMarkManager::Instance().GetMarkImageCount())
+
+ 		__SendMarkCRCList();
+
+ 	else
+
+@@ -431,7 +431,7 @@
+ 	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
+
+ 	if (agreedLength == 0)
+
+ 	{
+
+-		// ÃÊ±âÈ­ ½ÇÆÐ
+
++		// ʱȭ 
+
+ 		Disconnect();
+
+ 		return false;
+
+ 	}
+
+@@ -439,7 +439,7 @@
+ 
+
+ 	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
+
+ 	{
+
+-		// Key agreement ¼º°ø, ÀÀ´ä Àü¼Û
+
++		// Key agreement ,  
+
+ 		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
+
+ 		packetToSend.wAgreedLength = (WORD)agreedLength;
+
+ 		packetToSend.wDataLength = (WORD)dataLength;
+
+@@ -453,7 +453,7 @@
+ 	}
+
+ 	else
+
+ 	{
+
+-		// Å° Çù»ó ½ÇÆÐ
+
++		// Ű  
+
+ 		Disconnect();
+
+ 		return false;
+
+ 	}
+
+@@ -504,7 +504,17 @@
+ #ifdef _DEBUG
+
+ 	printf("__LoginState_RecvSymbolData [%d/%d]\n", GetRecvBufferSize(), packet.size);
+
+ #endif
+
+-	if (packet.size > GetRecvBufferSize())
+
++	// Validate dynamic packet size: must at least contain the header struct.
+
++	if (packet.size < sizeof(TPacketGCGuildSymbolData))
+
++		return false;
+
++
+
++	// Cap to prevent abuse/oom (WORD max is 65535 anyway).
+
++	const WORD kMaxPacket = 64 * 1024; // 64KB cap for symbol packets
+
++	if (packet.size > kMaxPacket)
+
++		return false;
+
++
+
++	// Wait until the full dynamic packet is available.
+
++	if (!Peek(packet.size))
+
+ 		return true;
+
+ 
+
+ 	//////////////////////////////////////////////////////////////
+
+@@ -513,15 +523,21 @@
+ 	if (!Recv(sizeof(kPacketSymbolData), &kPacketSymbolData))
+
+ 		return false;
+
+ 
+
+-	WORD wDataSize = kPacketSymbolData.size - sizeof(kPacketSymbolData);
+
++	if (kPacketSymbolData.size < sizeof(kPacketSymbolData))
+
++		return false;
+
++	if (kPacketSymbolData.size != packet.size)
+
++		return false;
+
++
+
++	WORD wDataSize = kPacketSymbolData.size - static_cast<WORD>(sizeof(kPacketSymbolData));
+
+ 	DWORD dwGuildID = kPacketSymbolData.guild_id;
+
+-	BYTE* pbyBuf = new BYTE[wDataSize];
+
+-
+
+-	if (!Recv(wDataSize, pbyBuf))
+
+-	{
+
+-		delete[] pbyBuf;
+
+-		return false;
+
+-	}
+
++	if (wDataSize == 0)
+
++		return false;
+
++
+
++	std::vector<BYTE> buf;
+
++	buf.resize(wDataSize);
+
++
+
++	if (!Recv(wDataSize, buf.data()))
+
++		return false;
+
+ 
+
+ 	MyCreateDirectory(g_strGuildSymbolPathName.c_str());
+
+ 
+
+@@ -530,16 +546,14 @@
+ 	FILE* File = fopen(strFileName.c_str(), "wb");
+
+ 	if (!File)
+
+ 	{
+
+-		delete[] pbyBuf;
+
+-		return false;
+
+-	}
+
+-	fwrite(pbyBuf, wDataSize, 1, File);
+
++		return false;
+
++	}
+
++	fwrite(buf.data(), wDataSize, 1, File);
+
+ 	fclose(File);
+
+ 
+
+ #ifdef _DEBUG
+
+ 	printf("__LoginState_RecvSymbolData(filename:%s, datasize:%d, guildid:%d)\n", strFileName.c_str(), wDataSize, dwGuildID);
+
+ #endif
+
+ 
+
+-	delete[] pbyBuf;
+
+-	return true;
+
+-}
+
++	return true;
+
++}
+
+
+--- a/src-client/Client/UserInterface/GuildMarkUploader.cpp
++++ b/src-client/Client/UserInterface/GuildMarkUploader.cpp
+@@ -28,7 +28,7 @@
+ 
+
+ bool CGuildMarkUploader::__Save(const char* c_szFileName)
+
+ {
+
+-	// ¾÷·Î´õ¿¡¼­ ÀúÀåÇÏÁö ¾Ê¾Æ¾ß ÇÔ;
+
++	// δ  ʾƾ ;
+
+ 	/*
+
+ 	ILuint uImg;
+
+ 	ilGenImages(1, &uImg);
+
+@@ -79,18 +79,21 @@
+ 	if (!ilLoad(IL_TYPE_UNKNOWN, (const ILstring)c_szFileName))
+
+ 	{
+
+ 		*peError = ERROR_LOAD;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 
+
+ 	if (ilGetInteger(IL_IMAGE_WIDTH) != SGuildMark::WIDTH)
+
+ 	{
+
+ 		*peError = ERROR_WIDTH;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 
+
+ 	if (ilGetInteger(IL_IMAGE_HEIGHT) != SGuildMark::HEIGHT)
+
+ 	{
+
+ 		*peError = ERROR_HEIGHT;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 
+
+@@ -113,20 +116,22 @@
+ 	if (!ilLoad(IL_TYPE_UNKNOWN, (const ILstring)c_szFileName))
+
+ 	{
+
+ 		*peError = ERROR_LOAD;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 	if (ilGetInteger(IL_IMAGE_WIDTH) != 64)
+
+ 	{
+
+ 		*peError = ERROR_WIDTH;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 	if (ilGetInteger(IL_IMAGE_HEIGHT) != 128)
+
+ 	{
+
+ 		*peError = ERROR_HEIGHT;
+
++		ilDeleteImages(1, &uImg);
+
+ 		return false;
+
+ 	}
+
+ 	ilDeleteImages(1, &uImg);
+
+-	ilShutDown();
+
+ 
+
+ 	/////
+
+ 
+
+@@ -134,14 +139,38 @@
+ 	if (!file)
+
+ 	{
+
+ 		*peError = ERROR_LOAD;
+
++		return false;
+
+ 	}
+
+ 
+
+ 	fseek(file, 0, SEEK_END);
+
+ 	m_dwSymbolBufSize = ftell(file);
+
+ 	fseek(file, 0, SEEK_SET);
+
+ 
+
++	// Symbol upload packet uses WORD size; prevent overflow / mismatch and huge allocations.
+
++	const DWORD kMaxPayload = 65535u - static_cast<DWORD>(sizeof(TPacketCGSymbolUpload));
+
++	if (m_dwSymbolBufSize == 0 || m_dwSymbolBufSize > kMaxPayload)
+
++	{
+
++		fclose(file);
+
++		*peError = ERROR_LOAD;
+
++		return false;
+
++	}
+
++
+
++	if (m_pbySymbolBuf)
+
++	{
+
++		delete[] m_pbySymbolBuf;
+
++		m_pbySymbolBuf = NULL;
+
++	}
+
++
+
+ 	m_pbySymbolBuf = new BYTE[m_dwSymbolBufSize];
+
+-	fread(m_pbySymbolBuf, m_dwSymbolBufSize, 1, file);
+
++	if (fread(m_pbySymbolBuf, m_dwSymbolBufSize, 1, file) != 1)
+
++	{
+
++		fclose(file);
+
++		delete[] m_pbySymbolBuf;
+
++		m_pbySymbolBuf = NULL;
+
++		m_dwSymbolBufSize = 0;
+
++		*peError = ERROR_LOAD;
+
++		return false;
+
++	}
+
+ 
+
+ 	fclose(file);
+
+ 
+
+@@ -241,7 +270,7 @@
+ 
+
+ 	if (m_pbySymbolBuf)
+
+ 	{
+
+-		delete m_pbySymbolBuf;
+
++		delete[] m_pbySymbolBuf;
+
+ 	}
+
+ 
+
+ 	m_dwSymbolBufSize = 0;
+
+@@ -418,7 +447,7 @@
+ 	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
+
+ 	if (agreedLength == 0)
+
+ 	{
+
+-		// ÃÊ±âÈ­ ½ÇÆÐ
+
++		// ʱȭ 
+
+ 		Disconnect();
+
+ 		return false;
+
+ 	}
+
+@@ -426,7 +455,7 @@
+ 
+
+ 	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
+
+ 	{
+
+-		// Key agreement ¼º°ø, ÀÀ´ä Àü¼Û
+
++		// Key agreement ,  
+
+ 		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
+
+ 		packetToSend.wAgreedLength = (WORD)agreedLength;
+
+ 		packetToSend.wDataLength = (WORD)dataLength;
+
+@@ -440,7 +469,7 @@
+ 	}
+
+ 	else
+
+ 	{
+
+-		// Å° Çù»ó ½ÇÆÐ
+
++		// Ű  
+
+ 		Disconnect();
+
+ 		return false;
+
+ 	}
+
+
+--- a/src-client/Client/UserInterface/Packet.h
++++ b/src-client/Client/UserInterface/Packet.h
+@@ -11,8 +11,8 @@
+ 	HEADER_CG_LOGIN = 1,
+
+ 	HEADER_CG_ATTACK = 2,
+
+ 	HEADER_CG_CHAT = 3,
+
+-	HEADER_CG_PLAYER_CREATE = 4, // »õ·Î¿î ÇÃ·¡ÀÌ¾î¸¦ »ý¼º
+
+-	HEADER_CG_PLAYER_DESTROY = 5, // ÇÃ·¡ÀÌ¾î¸¦ »èÁ¦.
+
++	HEADER_CG_PLAYER_CREATE = 4, // ο ÷̾ 
+
++	HEADER_CG_PLAYER_DESTROY = 5, // ÷̾ .
+
+ 	HEADER_CG_PLAYER_SELECT = 6,
+
+ 	HEADER_CG_CHARACTER_MOVE = 7,
+
+ 	HEADER_CG_SYNC_POSITION = 8,
+
+@@ -95,15 +95,15 @@
+ 
+
+ 	//HEADER_CG_UNUSED = 62,
+
+ 	//HEADER_CG_UNUSED = 63,
+
+-	HEADER_CG_TEXT = 64, // @ ·Î ½ÃÀÛµÇ¸é ÅØ½ºÆ®¸¦ ÆÄ½ÌÇÑ´Ù.
+
++	HEADER_CG_TEXT = 64, // @  ۵Ǹ ؽƮ ĽѴ.
+
+ 	HEADER_CG_WARP = 65,
+
+ 	HEADER_CG_SCRIPT_BUTTON = 66,
+
+ 	HEADER_CG_MESSENGER = 67,
+
+ 	//HEADER_CG_UNUSED = 68,
+
+ 
+
+ 	HEADER_CG_MALL_CHECKOUT = 69,
+
+-	HEADER_CG_SAFEBOX_CHECKIN = 70, // ¾ÆÀÌÅÛÀ» Ã¢°í¿¡ ³Ö´Â´Ù.
+
+-	HEADER_CG_SAFEBOX_CHECKOUT = 71, // ¾ÆÀÌÅÛÀ» Ã¢°í·Î ºÎÅÍ »©¿Â´Ù.
+
++	HEADER_CG_SAFEBOX_CHECKIN = 70, //  â ִ´.
+
++	HEADER_CG_SAFEBOX_CHECKOUT = 71, //  â  ´.
+
+ 
+
+ 	HEADER_CG_PARTY_INVITE = 72,
+
+ 	HEADER_CG_PARTY_INVITE_ANSWER = 73,
+
+@@ -281,10 +281,10 @@
+ 	HEADER_CG_EXT_SEND_BP_PREMIUM_ITEM = 202,
+
+ #endif
+
+ 
+
+-	// NOTE : ÀÌ·± °³XXX Á¤¸» ÀÌ°Å Packet¼³°èÇÑ »ç¶÷Àº ´©±¸³Ä. ÀÌ·¸°Ô ÄÚµùÇÏ°í ¹äÀÌ ³Ñ¾î°¡³ª.
+
+-	// enumÀ» º°µµ·Î ±¸º°À» ÇÏ´ø°¡. ¾Æ´Ô namepsace·Î ±¸º°À» ÇÏ´ø°¡..
+
+-	// Á¤¸» packet generator±îÁö´Â ¹Ù¶óÁöµµ ¾Ê´Â´Ù. ÀÌ·± ¾¾XX
+
+-	// ÀÌ·¯´Ù°¡ ¼ýÀÚ °ãÄ¡¸é ´©°¡ Ã¥ÀÓÁö´Âµ¥???
+
++	// NOTE : ̷ XXX  ̰ Packet  . ̷ ڵϰ  Ѿ.
+
++	// enum   ϴ. ƴ namepsace  ϴ..
+
++	//  packet generator ٶ ʴ´. ̷ XX
+
++	// ̷ٰ  ġ  åµ???
+
+ 	//HEADER_CG_HS_ACK = 203,
+
+ 	//HEADER_CG_XTRAP_ACK = 204,
+
+ 
+
+@@ -380,21 +380,21 @@
+ 	HEADER_GC_STUN = 13,
+
+ 	HEADER_GC_DEAD = 14,
+
+ 
+
+-	HEADER_GC_MAIN_CHARACTER = 15,
+
++	HEADER_GC_MAIN_CHARACTER = 113,
+
+ 	HEADER_GC_PLAYER_POINTS = 16,
+
+ 	HEADER_GC_PLAYER_POINT_CHANGE = 17,
+
+ 	HEADER_GC_CHANGE_SPEED = 18,
+
+ 	HEADER_GC_CHARACTER_UPDATE = 19,
+
+ 
+
+-	HEADER_GC_ITEM_SET_EMPTY = 20, // ¾ÆÀÌÅÛ Ã¢¿¡ Ãß°¡
+
+-	HEADER_GC_ITEM_SET = 21, // ¾ÆÀÌÅÛ Ã¢¿¡ Ãß°¡
+
+-	HEADER_GC_ITEM_USE = 22, // ¾ÆÀÌÅÛ »ç¿ë (ÁÖÀ§ »ç¶÷µé¿¡°Ô º¸¿©ÁÖ±â À§ÇØ)
+
+-	HEADER_GC_ITEM_DROP = 23, // ¾ÆÀÌÅÛ ¹ö¸®±â
+
++	HEADER_GC_ITEM_SET_EMPTY = 20, //  â ߰
+
++	HEADER_GC_ITEM_SET = 21, //  â ߰
+
++	HEADER_GC_ITEM_USE = 22, //   ( 鿡 ֱ )
+
++	HEADER_GC_ITEM_DROP = 23, //  
+
+ 
+
+ 	//HEADER_GC_UNUSED = 24,
+
+-	HEADER_GC_ITEM_UPDATE = 25, // ¾ÆÀÌÅÛ ¼öÄ¡ ¾÷µ¥ÀÌÆ®
+
+-	HEADER_GC_ITEM_GROUND_ADD = 26, // ¹Ù´Ú¿¡ ¾ÆÀÌÅÛ Ãß°¡
+
+-	HEADER_GC_ITEM_GROUND_DEL = 27, // ¹Ù´Ú¿¡¼­ ¾ÆÀÌÅÛ »èÁ¦
+
++	HEADER_GC_ITEM_UPDATE = 25, //  ġ Ʈ
+
++	HEADER_GC_ITEM_GROUND_ADD = 26, // ٴڿ  ߰
+
++	HEADER_GC_ITEM_GROUND_DEL = 27, // ٴڿ  
+
+ 
+
+ 	HEADER_GC_QUICKSLOT_ADD = 28,
+
+ 	HEADER_GC_QUICKSLOT_DEL = 29,
+
+@@ -459,7 +459,7 @@
+ 
+
+ 	HEADER_GC_CREATE_FLY = 70,
+
+ 	HEADER_GC_FLY_TARGETING = 71,
+
+-	HEADER_GC_SKILL_LEVEL = 72,
+
++	HEADER_GC_SKILL_LEVEL = 76,
+
+ 	//HEADER_GC_UNUSED = 73,
+
+ 	HEADER_GC_MESSENGER = 74,
+
+ 	HEADER_GC_GUILD = 75,
+
+@@ -489,7 +489,7 @@
+ 	HEADER_GC_PARTY_UNLINK = 92,
+
+ 	//HEADER_GC_UNUSED = 93,
+
+ 	//HEADER_GC_UNUSED = 94,
+
+-	HEADER_GC_REFINE_INFORMATION = 95,
+
++	HEADER_GC_REFINE_INFORMATION = 119,
+
+ 	//HEADER_GC_UNUSED = 96,
+
+ #if defined(ENABLE_CUBE_RENEWAL)
+
+ 	HEADER_GC_CUBE = 97,
+
+@@ -743,13 +743,13 @@
+ 	PLAYER_PER_ACCOUNT5 = 5,
+
+ #endif
+
+ 
+
+-	PLAYER_ITEM_SLOT_MAX_NUM = 20, // ÇÃ·¡ÀÌ¾îÀÇ ½½·Ô´ç µé¾î°¡´Â °¹¼ö.
+
++	PLAYER_ITEM_SLOT_MAX_NUM = 20, // ÷̾ Դ  .
+
+ 
+
+ 	QUICKSLOT_MAX_LINE = 4,
+
+-	QUICKSLOT_MAX_COUNT_PER_LINE = 8, // Å¬¶óÀÌ¾ðÆ® ÀÓÀÇ °áÁ¤°ª
+
++	QUICKSLOT_MAX_COUNT_PER_LINE = 8, // Ŭ̾Ʈ  
+
+ 	QUICKSLOT_MAX_COUNT = QUICKSLOT_MAX_LINE * QUICKSLOT_MAX_COUNT_PER_LINE,
+
+ 
+
+-	QUICKSLOT_MAX_NUM = 36, // ¼­¹ö¿Í ¸ÂÃçÁ® ÀÖ´Â °ª
+
++	QUICKSLOT_MAX_NUM = 36, //   ִ 
+
+ 
+
+ #if defined(ENABLE_MYSHOP_EXPANSION)
+
+ 	SHOP_HOST_ITEM_MAX = 80,
+
+@@ -830,7 +830,7 @@
+ 	BYTE header;
+
+ 	DWORD bufSize;
+
+ 	WORD count;
+
+-	//µÚ¿¡ size * (WORD + WORD)¸¸Å­ µ¥ÀÌÅÍ ºÙÀ½
+
++	//ڿ size * (WORD + WORD)ŭ  
+
+ } TPacketGCMarkIDXList;
+
+ 
+
+ typedef struct packet_mark_block
+
+@@ -839,7 +839,7 @@
+ 	DWORD bufSize;
+
+ 	BYTE imgIdx;
+
+ 	DWORD count;
+
+-	// µÚ¿¡ 64 x 48 x ÇÈ¼¿Å©±â(4¹ÙÀÌÆ®) = 12288¸¸Å­ µ¥ÀÌÅÍ ºÙÀ½
+
++	// ڿ 64 x 48 x ȼũ(4Ʈ) = 12288ŭ  
+
+ } TPacketGCMarkBlock;
+
+ 
+
+ typedef struct command_symbol_upload
+
+@@ -864,6 +864,13 @@
+ 	DWORD guild_id;
+
+ } TPacketGCGuildSymbolData;
+
+ 
+
++// Packet layout safety (must match server-side expectations exactly)
+
++static_assert(sizeof(TPacketCGMarkLogin)   == 1 + 4 + 4, "TPacketCGMarkLogin size mismatch");
+
++static_assert(sizeof(TPacketCGMarkUpload)  == 1 + 4 + (16 * 12 * 4), "TPacketCGMarkUpload size mismatch");
+
++static_assert(sizeof(TPacketCGSymbolUpload)== 1 + 2 + 4, "TPacketCGSymbolUpload size mismatch");
+
++static_assert(sizeof(TPacketGCGuildSymbolData) == 1 + 2 + 4, "TPacketGCGuildSymbolData size mismatch");
+
++static_assert(sizeof(TChannelStatus) == 2 + 1, "TChannelStatus size mismatch");
+
++
+
+ //
+
+ //
+
+ //
+
+@@ -907,7 +914,7 @@
+ 	char pwd[PASS_MAX_NUM + 1];
+
+ } TPacketCGLogin;
+
+ 
+
+-// start - ±ÇÇÑ ¼­¹ö Á¢¼ÓÀ» À§ÇÑ ÆÐÅ¶µé
+
++// start -     Ŷ
+
+ typedef struct command_login2
+
+ {
+
+ 	BYTE header;
+
+@@ -926,7 +933,7 @@
+ 	char country[COUNTRY_NAME_MAX_LEN + 1];
+
+ #endif
+
+ } TPacketCGLogin3;
+
+-// end - ±ÇÇÑ ¼­¹ö Á¢¼ÓÀ» À§ÇÑ ÆÐÅ¶µé
+
++// end -     Ŷ
+
+ 
+
+ typedef struct command_direct_enter
+
+ {
+
+@@ -948,8 +955,8 @@
+ typedef struct command_attack
+
+ {
+
+ 	BYTE header;
+
+-	BYTE bType; // °ø°Ý À¯Çü
+
+-	DWORD dwVictimVID; // Àû VID
+
++	BYTE bType; //  
+
++	DWORD dwVictimVID; //  VID
+
+ 	BYTE bCRCMagicCubeProcPiece;
+
+ 	BYTE bCRCMagicCubeFilePiece;
+
+ } TPacketCGAttack;
+
+@@ -1392,12 +1399,12 @@
+ 	DWORD vnum;
+
+ 	DWORD count;
+
+ 
+
+-	TItemPos pos; // PC »óÁ¡¿¡¸¸ ÀÌ¿ë
+
+-	DWORD price; // PC »óÁ¡¿¡¸¸ ÀÌ¿ë
+
++	TItemPos pos; // PC  ̿
+
++	DWORD price; // PC  ̿
+
+ #if defined(ENABLE_CHEQUE_SYSTEM)
+
+ 	DWORD cheque;
+
+ #endif
+
+-	BYTE display_pos; // PC »óÁ¡¿¡¸¸ ÀÌ¿ë, º¸ÀÏ À§Ä¡.
+
++	BYTE display_pos; // PC  ̿,  ġ.
+
+ #if defined(ENABLE_SHOPEX_RENEWAL)
+
+ 	BYTE bPriceType;
+
+ 	DWORD dwPriceVnum;
+
+@@ -1528,18 +1535,18 @@
+ // From Server
+
+ enum EPhase
+
+ {
+
+-	PHASE_CLOSE, // ²÷±â´Â »óÅÂ (¶Ç´Â ²÷±â Àü »óÅÂ)
+
+-	PHASE_HANDSHAKE, // ¾Ç¼ö..;;
+
+-	PHASE_LOGIN, // ·Î±×ÀÎ Áß
+
+-	PHASE_SELECT, // Ä³¸¯ÅÍ ¼±ÅÃ È­¸é
+
+-	PHASE_LOADING, // ¼±ÅÃ ÈÄ ·Îµù È­¸é
+
+-	PHASE_GAME, // °ÔÀÓ È­¸é
+
+-	PHASE_DEAD, // Á×¾úÀ» ¶§.. (°ÔÀÓ ¾È¿¡ ÀÖ´Â °ÍÀÏ ¼öµµ..)
+
+-
+
+-	PHASE_DBCLIENT_CONNECTING, // ¼­¹ö¿ë
+
+-	PHASE_DBCLIENT, // ¼­¹ö¿ë
+
+-	PHASE_P2P, // ¼­¹ö¿ë
+
+-	PHASE_AUTH, // ·Î±×ÀÎ ÀÎÁõ ¿ë
+
++	PHASE_CLOSE, //   (Ǵ   )
+
++	PHASE_HANDSHAKE, // Ǽ..;;
+
++	PHASE_LOGIN, // α 
+
++	PHASE_SELECT, // ĳ  ȭ
+
++	PHASE_LOADING, //   ε ȭ
+
++	PHASE_GAME, //  ȭ
+
++	PHASE_DEAD, // ׾ .. ( ȿ ִ  ..)
+
++
+
++	PHASE_DBCLIENT_CONNECTING, // 
+
++	PHASE_DBCLIENT, // 
+
++	PHASE_P2P, // 
+
++	PHASE_AUTH, // α  
+
+ };
+
+ 
+
+ typedef struct packet_phase
+
+@@ -1548,7 +1555,7 @@
+ 	BYTE phase;
+
+ } TPacketGCPhase;
+
+ 
+
+-typedef struct packet_blank // °ø¹éÆÐÅ¶.
+
++typedef struct packet_blank // Ŷ.
+
+ {
+
+ 	BYTE header;
+
+ } TPacketGCBlank;
+
+@@ -1745,7 +1752,7 @@
+ 	PK_MODE_MAX_NUM,
+
+ };
+
+ 
+
+-// 2004.11.20.myevan.CRaceData::PART_MAX_NUM »ç¿ë¾ÈÇÏ°Ô ¼öÁ¤ - ¼­¹ö¿¡¼­ »ç¿ëÇÏ´Â°Í°ú ÀÏÄ¡ÇÏÁö ¾ÊÀ½
+
++// 2004.11.20.myevan.CRaceData::PART_MAX_NUM ϰ  -  ϴ°Ͱ ġ 
+
+ enum ECharacterEquipmentPart
+
+ {
+
+ 	CHR_EQUIPPART_ARMOR,
+
+@@ -1802,7 +1809,7 @@
+ #if defined(ENABLE_CONQUEROR_LEVEL)
+
+ 	DWORD dwConquerorLevel;
+
+ #endif
+
+-	short sAlignment; // ¼±¾ÇÄ¡
+
++	short sAlignment; // ġ
+
+ 	BYTE bPKMode;
+
+ 	DWORD dwMountVnum;
+
+ #if defined(ENABLE_QUIVER_SYSTEM)
+
+@@ -1870,14 +1877,14 @@
+ 
+
+ enum EChatType
+
+ {
+
+-	CHAT_TYPE_TALKING, /* ±×³É Ã¤ÆÃ */
+
+-	CHAT_TYPE_INFO, /* Á¤º¸ (¾ÆÀÌÅÛÀ» Áý¾ú´Ù, °æÇèÄ¡¸¦ ¾ò¾ú´Ù. µî) */
+
+-	CHAT_TYPE_NOTICE, /* °øÁö»çÇ× */
+
+-	CHAT_TYPE_PARTY, /* ÆÄÆ¼¸» */
+
+-	CHAT_TYPE_GUILD, /* ±æµå¸» */
+
+-	CHAT_TYPE_COMMAND, /* ¸í·É */
+
+-	CHAT_TYPE_SHOUT, /* ¿ÜÄ¡±â */
+
+-	CHAT_TYPE_WHISPER, // ¼­¹ö¿Í´Â ¿¬µ¿µÇÁö ¾Ê´Â Only Client Enum
+
++	CHAT_TYPE_TALKING, /* ׳ ä */
+
++	CHAT_TYPE_INFO, /*  ( , ġ . ) */
+
++	CHAT_TYPE_NOTICE, /*  */
+
++	CHAT_TYPE_PARTY, /* Ƽ */
+
++	CHAT_TYPE_GUILD, /* 帻 */
+
++	CHAT_TYPE_COMMAND, /*  */
+
++	CHAT_TYPE_SHOUT, /* ġ */
+
++	CHAT_TYPE_WHISPER, // ʹ  ʴ Only Client Enum
+
+ 	CHAT_TYPE_BIG_NOTICE,
+
+ 	CHAT_TYPE_MONARCH_NOTICE,
+
+ #if defined(ENABLE_OX_RENEWAL)
+
+@@ -1911,7 +1918,7 @@
+ #endif
+
+ } TPacketGCChat;
+
+ 
+
+-typedef struct packet_whisper // °¡º¯ ÆÐÅ¶
+
++typedef struct packet_whisper //  Ŷ
+
+ {
+
+ 	BYTE bHeader;
+
+ 	WORD wSize;
+
+@@ -2006,104 +2013,104 @@
+ 	POINT_MAX_HP,					// 6
+
+ 	POINT_SP,						// 7
+
+ 	POINT_MAX_SP,					// 8
+
+-	POINT_STAMINA,					// 9 ½ºÅ×¹Ì³Ê
+
+-	POINT_MAX_STAMINA,				// 10 ÃÖ´ë ½ºÅ×¹Ì³Ê
+
++	POINT_STAMINA,					// 9 ׹̳
+
++	POINT_MAX_STAMINA,				// 10 ִ ׹̳
+
+ 
+
+ 	POINT_GOLD,						// 11
+
+-	POINT_ST,						// 12 ±Ù·Â
+
+-	POINT_HT,						// 13 Ã¼·Â
+
+-	POINT_DX,						// 14 ¹ÎÃ¸¼º
+
+-	POINT_IQ,						// 15 Á¤½Å·Â
+
+-	POINT_ATT_POWER,				// 16 °ø°Ý·Â
+
+-	POINT_ATT_SPEED,				// 17 °ø°Ý¼Óµµ
+
+-	POINT_EVADE_RATE,				// 18 È¸ÇÇÀ²
+
+-	POINT_MOV_SPEED,				// 19 ÀÌµ¿¼Óµµ
+
+-	POINT_DEF_GRADE,				// 20 ¹æ¾îµî±Þ
+
+-	POINT_CASTING_SPEED,			// 21 ÁÖ¹®¼Óµµ (Äð´Ù¿îÅ¸ÀÓ*100) / (100 + ÀÌ°ª) = ÃÖÁ¾ Äð´Ù¿î Å¸ÀÓ
+
+-	POINT_MAGIC_ATT_GRADE,			// 22 ¸¶¹ý°ø°Ý·Â
+
+-	POINT_MAGIC_DEF_GRADE,			// 23 ¸¶¹ý¹æ¾î·Â
+
+-	POINT_EMPIRE_POINT,				// 24 Á¦±¹Á¡¼ö
+
+-	POINT_LEVEL_STEP,				// 25 ÇÑ ·¹º§¿¡¼­ÀÇ ´Ü°è.. (1 2 3 µÉ ¶§ º¸»ó, 4 µÇ¸é ·¹º§ ¾÷)
+
+-	POINT_STAT,						// 26 ´É·ÂÄ¡ ¿Ã¸± ¼ö ÀÖ´Â °³¼ö
+
+-	POINT_SUB_SKILL,				// 27 º¸Á¶ ½ºÅ³ Æ÷ÀÎÆ®
+
+-	POINT_SKILL,					// 28 ¾×Æ¼ºê ½ºÅ³ Æ÷ÀÎÆ®
+
+-	//POINT_SKILL_PASV,				// 27 ÆÐ½Ãºê ±â¼ú ¿Ã¸± ¼ö ÀÖ´Â °³¼ö
+
+-	//POINT_SKILL_ACTIVE,			// 28 ¾×Æ¼ºê ½ºÅ³ Æ÷ÀÎÆ®
+
+-	POINT_MIN_ATK,					// 29 ÃÖ¼Ò ÆÄ±«·Â
+
+-	POINT_MAX_ATK,					// 30 ÃÖ´ë ÆÄ±«·Â
+
+-	POINT_PLAYTIME,					// 31 ÇÃ·¹ÀÌ½Ã°£
+
+-	POINT_HP_REGEN,					// 32 HP È¸º¹·ü
+
+-	POINT_SP_REGEN,					// 33 SP È¸º¹·ü
+
+-
+
+-	POINT_BOW_DISTANCE,				// 34 È° »çÁ¤°Å¸® Áõ°¡Ä¡ (meter)
+
+-
+
+-	POINT_HP_RECOVERY,				// 35 Ã¼·Â È¸º¹ Áõ°¡·®
+
+-	POINT_SP_RECOVERY,				// 36 Á¤½Å·Â È¸º¹ Áõ°¡·®
+
+-
+
+-	POINT_POISON_PCT,				// 37 µ¶ È®·ü
+
+-	POINT_STUN_PCT,					// 38 ±âÀý È®·ü
+
+-	POINT_SLOW_PCT,					// 39 ½½·Î¿ì È®·ü
+
+-	POINT_CRITICAL_PCT,				// 40 Å©¸®Æ¼ÄÃ È®·ü
+
+-	POINT_PENETRATE_PCT,			// 41 °üÅëÅ¸°Ý È®·ü
+
+-	POINT_CURSE_PCT,				// 42 ÀúÁÖ È®·ü
+
+-
+
+-	POINT_ATTBONUS_HUMAN,			// 43 ÀÎ°£¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_ANIMAL,			// 44 µ¿¹°¿¡°Ô µ¥¹ÌÁö % Áõ°¡
+
+-	POINT_ATTBONUS_ORC,				// 45 ¿õ±Í¿¡°Ô µ¥¹ÌÁö % Áõ°¡
+
+-	POINT_ATTBONUS_MILGYO,			// 46 ¹Ð±³¿¡°Ô µ¥¹ÌÁö % Áõ°¡
+
+-	POINT_ATTBONUS_UNDEAD,			// 47 ½ÃÃ¼¿¡°Ô µ¥¹ÌÁö % Áõ°¡
+
+-	POINT_ATTBONUS_DEVIL,			// 48 ¸¶±Í(¾Ç¸¶)¿¡°Ô µ¥¹ÌÁö % Áõ°¡
+
+-	POINT_ATTBONUS_INSECT,			// 49 ¹ú·¹Á·
+
+-	POINT_ATTBONUS_FIRE,			// 50 È­¿°Á·
+
+-	POINT_ATTBONUS_ICE,				// 51 ºù¼³Á·
+
+-	POINT_ATTBONUS_DESERT,			// 52 »ç¸·Á·
+
+-	POINT_ATTBONUS_MONSTER,			// 53 ¸ðµç ¸ó½ºÅÍ¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_WARRIOR,			// 54 ¹«»ç¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_ASSASSIN,		// 55 ÀÚ°´¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_SURA,			// 56 ¼ö¶ó¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_SHAMAN,			// 57 ¹«´ç¿¡°Ô °­ÇÔ
+
+-	POINT_ATTBONUS_TREE,			// 58 ³ª¹«¿¡°Ô °­ÇÔ 20050729.myevan UNUSED5
+
+-	POINT_RESIST_WARRIOR,			// 59 ¹«»ç¿¡°Ô ÀúÇ×
+
+-	POINT_RESIST_ASSASSIN,			// 60 ÀÚ°´¿¡°Ô ÀúÇ×
+
+-	POINT_RESIST_SURA,				// 61 ¼ö¶ó¿¡°Ô ÀúÇ×
+
+-	POINT_RESIST_SHAMAN,			// 62 ¹«´ç¿¡°Ô ÀúÇ×
+
+-
+
+-	POINT_STEAL_HP,					// 63 »ý¸í·Â Èí¼ö
+
+-	POINT_STEAL_SP,					// 64 Á¤½Å·Â Èí¼ö
+
+-
+
+-	POINT_MANA_BURN_PCT,			// 65 ¸¶³ª ¹ø
+
+-
+
+-	/// ÇÇÇØ½Ã º¸³Ê½º ///
+
+-
+
+-	POINT_DAMAGE_SP_RECOVER,		// 66 °ø°Ý´çÇÒ ½Ã Á¤½Å·Â È¸º¹ È®·ü
+
+-
+
+-	POINT_BLOCK,					// 67 ºí·°À²
+
+-	POINT_DODGE,					// 68 È¸ÇÇÀ²
+
++	POINT_ST,						// 12 ٷ
+
++	POINT_HT,						// 13 ü
+
++	POINT_DX,						// 14 ø
+
++	POINT_IQ,						// 15 ŷ
+
++	POINT_ATT_POWER,				// 16 ݷ
+
++	POINT_ATT_SPEED,				// 17 ݼӵ
+
++	POINT_EVADE_RATE,				// 18 ȸ
+
++	POINT_MOV_SPEED,				// 19 ̵ӵ
+
++	POINT_DEF_GRADE,				// 20 
+
++	POINT_CASTING_SPEED,			// 21 ֹӵ (ٿŸ*100) / (100 + ̰) =  ٿ Ÿ
+
++	POINT_MAGIC_ATT_GRADE,			// 22 ݷ
+
++	POINT_MAGIC_DEF_GRADE,			// 23 
+
++	POINT_EMPIRE_POINT,				// 24 
+
++	POINT_LEVEL_STEP,				// 25   ܰ.. (1 2 3   , 4 Ǹ  )
+
++	POINT_STAT,						// 26 ɷġ ø  ִ 
+
++	POINT_SUB_SKILL,				// 27  ų Ʈ
+
++	POINT_SKILL,					// 28 Ƽ ų Ʈ
+
++	//POINT_SKILL_PASV,				// 27 нú  ø  ִ 
+
++	//POINT_SKILL_ACTIVE,			// 28 Ƽ ų Ʈ
+
++	POINT_MIN_ATK,					// 29 ּ ı
+
++	POINT_MAX_ATK,					// 30 ִ ı
+
++	POINT_PLAYTIME,					// 31 ÷̽ð
+
++	POINT_HP_REGEN,					// 32 HP ȸ
+
++	POINT_SP_REGEN,					// 33 SP ȸ
+
++
+
++	POINT_BOW_DISTANCE,				// 34 Ȱ Ÿ ġ (meter)
+
++
+
++	POINT_HP_RECOVERY,				// 35 ü ȸ 
+
++	POINT_SP_RECOVERY,				// 36 ŷ ȸ 
+
++
+
++	POINT_POISON_PCT,				// 37  Ȯ
+
++	POINT_STUN_PCT,					// 38  Ȯ
+
++	POINT_SLOW_PCT,					// 39 ο Ȯ
+
++	POINT_CRITICAL_PCT,				// 40 ũƼ Ȯ
+
++	POINT_PENETRATE_PCT,			// 41 Ÿ Ȯ
+
++	POINT_CURSE_PCT,				// 42  Ȯ
+
++
+
++	POINT_ATTBONUS_HUMAN,			// 43 ΰ 
+
++	POINT_ATTBONUS_ANIMAL,			// 44   % 
+
++	POINT_ATTBONUS_ORC,				// 45 Ϳ  % 
+
++	POINT_ATTBONUS_MILGYO,			// 46 б  % 
+
++	POINT_ATTBONUS_UNDEAD,			// 47 ü  % 
+
++	POINT_ATTBONUS_DEVIL,			// 48 (Ǹ)  % 
+
++	POINT_ATTBONUS_INSECT,			// 49 
+
++	POINT_ATTBONUS_FIRE,			// 50 ȭ
+
++	POINT_ATTBONUS_ICE,				// 51 
+
++	POINT_ATTBONUS_DESERT,			// 52 縷
+
++	POINT_ATTBONUS_MONSTER,			// 53  Ϳ 
+
++	POINT_ATTBONUS_WARRIOR,			// 54 翡 
+
++	POINT_ATTBONUS_ASSASSIN,		// 55 ڰ 
+
++	POINT_ATTBONUS_SURA,			// 56 󿡰 
+
++	POINT_ATTBONUS_SHAMAN,			// 57 翡 
+
++	POINT_ATTBONUS_TREE,			// 58   20050729.myevan UNUSED5
+
++	POINT_RESIST_WARRIOR,			// 59 翡 
+
++	POINT_RESIST_ASSASSIN,			// 60 ڰ 
+
++	POINT_RESIST_SURA,				// 61 󿡰 
+
++	POINT_RESIST_SHAMAN,			// 62 翡 
+
++
+
++	POINT_STEAL_HP,					// 63  
+
++	POINT_STEAL_SP,					// 64 ŷ 
+
++
+
++	POINT_MANA_BURN_PCT,			// 65  
+
++
+
++	/// ؽ ʽ ///
+
++
+
++	POINT_DAMAGE_SP_RECOVER,		// 66 ݴ  ŷ ȸ Ȯ
+
++
+
++	POINT_BLOCK,					// 67 
+
++	POINT_DODGE,					// 68 ȸ
+
+ 
+
+ 	POINT_RESIST_SWORD,				// 69
+
+ 	POINT_RESIST_TWOHAND,			// 70
+
+ 	POINT_RESIST_DAGGER,			// 71
+
+ 	POINT_RESIST_BELL,				// 72
+
+ 	POINT_RESIST_FAN,				// 73
+
+-	POINT_RESIST_BOW,				// 74 È­»ì ÀúÇ× : ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_FIRE,				// 75 È­¿° ÀúÇ× : È­¿°°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_ELEC,				// 76 Àü±â ÀúÇ× : Àü±â°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_MAGIC,				// 77 ¼ú¹ý ÀúÇ× : ¸ðµç¼ú¹ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_WIND,				// 78 ¹Ù¶÷ ÀúÇ× : ¹Ù¶÷°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-
+
+-	POINT_REFLECT_MELEE,			// 79 °ø°Ý ¹Ý»ç
+
+-
+
+-	/// Æ¯¼ö ÇÇÇØ½Ã ///
+
+-	POINT_REFLECT_CURSE,			// 80 ÀúÁÖ ¹Ý»ç
+
+-	POINT_POISON_REDUCE,			// 81 µ¶µ¥¹ÌÁö °¨¼Ò
+
+-
+
+-	/// Àû ¼Ò¸ê½Ã ///
+
+-	POINT_KILL_SP_RECOVER,			// 82 Àû ¼Ò¸ê½Ã MP È¸º¹
+
++	POINT_RESIST_BOW,				// 74 ȭ  :  
+
++	POINT_RESIST_FIRE,				// 75 ȭ  : ȭݿ   
+
++	POINT_RESIST_ELEC,				// 76   : ݿ   
+
++	POINT_RESIST_MAGIC,				// 77   :    
+
++	POINT_RESIST_WIND,				// 78 ٶ  : ٶݿ   
+
++
+
++	POINT_REFLECT_MELEE,			// 79  ݻ
+
++
+
++	/// Ư ؽ ///
+
++	POINT_REFLECT_CURSE,			// 80  ݻ
+
++	POINT_POISON_REDUCE,			// 81  
+
++
+
++	///  Ҹ ///
+
++	POINT_KILL_SP_RECOVER,			// 82  Ҹ MP ȸ
+
+ 	POINT_EXP_DOUBLE_BONUS,			// 83
+
+ 	POINT_GOLD_DOUBLE_BONUS,		// 84
+
+ 	POINT_ITEM_DROP_BONUS,			// 85
+
+ 
+
+-	/// È¸º¹ °ü·Ã ///
+
++	/// ȸ  ///
+
+ 	POINT_POTION_BONUS,				// 86
+
+ 	POINT_KILL_HP_RECOVERY,			// 87
+
+ 
+
+@@ -2132,41 +2139,41 @@
+ 	POINT_STAT_RESET_COUNT = 112,	// 112
+
+ 	POINT_HORSE_SKILL = 113,		// 113
+
+ 
+
+-	POINT_MALL_ATTBONUS,			// 114 °ø°Ý·Â +x%
+
+-	POINT_MALL_DEFBONUS,			// 115 ¹æ¾î·Â +x%
+
+-	POINT_MALL_EXPBONUS,			// 116 °æÇèÄ¡ +x%
+
+-	POINT_MALL_ITEMBONUS,			// 117 ¾ÆÀÌÅÛ µå·ÓÀ² x/10¹è
+
+-	POINT_MALL_GOLDBONUS,			// 118 µ· µå·ÓÀ² x/10¹è
+
+-	POINT_MAX_HP_PCT,				// 119 ÃÖ´ë»ý¸í·Â +x%
+
+-	POINT_MAX_SP_PCT,				// 120 ÃÖ´ëÁ¤½Å·Â +x%
+
+-
+
+-	POINT_SKILL_DAMAGE_BONUS,		// 121 ½ºÅ³ µ¥¹ÌÁö *(100+x)%
+
+-	POINT_NORMAL_HIT_DAMAGE_BONUS,	// 122 ÆòÅ¸ µ¥¹ÌÁö *(100+x)%
+
+-
+
+-	POINT_SKILL_DEFEND_BONUS,		// 123 ½ºÅ³ ¹æ¾î µ¥¹ÌÁö
+
+-	POINT_NORMAL_HIT_DEFEND_BONUS,	// 124 ÆòÅ¸ ¹æ¾î µ¥¹ÌÁö
+
++	POINT_MALL_ATTBONUS,			// 114 ݷ +x%
+
++	POINT_MALL_DEFBONUS,			// 115  +x%
+
++	POINT_MALL_EXPBONUS,			// 116 ġ +x%
+
++	POINT_MALL_ITEMBONUS,			// 117   x/10
+
++	POINT_MALL_GOLDBONUS,			// 118   x/10
+
++	POINT_MAX_HP_PCT,				// 119 ִ +x%
+
++	POINT_MAX_SP_PCT,				// 120 ִŷ +x%
+
++
+
++	POINT_SKILL_DAMAGE_BONUS,		// 121 ų  *(100+x)%
+
++	POINT_NORMAL_HIT_DAMAGE_BONUS,	// 122 Ÿ  *(100+x)%
+
++
+
++	POINT_SKILL_DEFEND_BONUS,		// 123 ų  
+
++	POINT_NORMAL_HIT_DEFEND_BONUS,	// 124 Ÿ  
+
+ 	POINT_PC_BANG_EXP_BONUS,		// 125
+
+-	POINT_PC_BANG_DROP_BONUS,		// 126 PC¹æ Àü¿ë µå·Ó·ü º¸³Ê½º
+
+-
+
+-	POINT_ENERGY = 128,				// 128 ±â·Â
+
+-
+
+-	// ±â·Â ui ¿ë.
+
+-	// ÀÌ·¸°Ô ÇÏ°í ½ÍÁö ¾Ê¾ÒÁö¸¸, 
+
+-	// uiTaskBar¿¡¼­´Â affect¿¡ Á¢±ÙÇÒ ¼ö ¾ø°í,
+
+-	// ´õ±¸³ª Å¬¶ó¸®¾ðÆ®¿¡¼­´Â blend_affect´Â °ü¸®ÇÏÁö ¾Ê¾Æ,
+
+-	// ÀÓ½Ã·Î ÀÌ·¸°Ô µÐ´Ù.
+
+-	POINT_ENERGY_END_TIME = 129,	// 129 ±â·Â Á¾·á ½Ã°£
+
++	POINT_PC_BANG_DROP_BONUS,		// 126 PC  ӷ ʽ
+
++
+
++	POINT_ENERGY = 128,				// 128 
+
++
+
++	//  ui .
+
++	// ̷ ϰ  ʾ, 
+
++	// uiTaskBar affect   ,
+
++	//  Ŭ󸮾Ʈ blend_affect  ʾ,
+
++	// ӽ÷ ̷ д.
+
++	POINT_ENERGY_END_TIME = 129,	// 129   ð
+
+ 
+
+ 	POINT_COSTUME_ATTR_BONUS = 130,			// 130
+
+ 	POINT_MAGIC_ATT_BONUS_PER = 131,		// 131
+
+ 	POINT_MELEE_MAGIC_ATT_BONUS_PER = 132,	// 132
+
+ 
+
+-	POINT_RESIST_ICE = 133,				// 133 ³Ã±â ÀúÇ× : ¾óÀ½°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_EARTH = 134,			// 134 ´ëÁö ÀúÇ× : ¾óÀ½°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-	POINT_RESIST_DARK = 135,			// 135 ¾îµÒ ÀúÇ× : ¾óÀ½°ø°Ý¿¡ ´ëÇÑ ´ë¹ÌÁö °¨¼Ò
+
+-
+
+-	POINT_RESIST_CRITICAL = 136,		// 136 Å©¸®Æ¼ÄÃ ÀúÇ× : »ó´ëÀÇ Å©¸®Æ¼ÄÃ È®·üÀ» °¨¼Ò
+
+-	POINT_RESIST_PENETRATE = 137,		// 137 °üÅëÅ¸°Ý ÀúÇ× : »ó´ëÀÇ °üÅëÅ¸°Ý È®·üÀ» °¨¼Ò
+
++	POINT_RESIST_ICE = 133,				// 133 ñ  : ݿ   
+
++	POINT_RESIST_EARTH = 134,			// 134   : ݿ   
+
++	POINT_RESIST_DARK = 135,			// 135   : ݿ   
+
++
+
++	POINT_RESIST_CRITICAL = 136,		// 136 ũƼ  :  ũƼ Ȯ 
+
++	POINT_RESIST_PENETRATE = 137,		// 137 Ÿ  :  Ÿ Ȯ 
+
+ 
+
+ 	POINT_BLEEDING_REDUCE = 138,		// 138
+
+ 	POINT_BLEEDING_PCT = 139,			// 139
+
+@@ -2389,7 +2396,7 @@
+ 	POINT_IMMUNE_BLEEDING100,
+
+ 	POINT_MONSTER_DEFEND_BONUS,
+
+ 
+
+-	// Å¬¶óÀÌ¾ðÆ® Æ÷ÀÎÆ®
+
++	// Ŭ̾Ʈ Ʈ
+
+ 	POINT_MIN_WEP,
+
+ 	POINT_MAX_WEP,
+
+ 	POINT_MIN_MAGIC_WEP,
+
+@@ -2452,8 +2459,8 @@
+ 	TItemPos Cell;
+
+ 	DWORD dwVnum;
+
+ 	DWORD dwCount;
+
+-	DWORD dwFlags; // ÇÃ·¡±× Ãß°¡
+
+-	DWORD dwAntiFlags; // ÇÃ·¡±× Ãß°¡
+
++	DWORD dwFlags; // ÷ ߰
+
++	DWORD dwAntiFlags; // ÷ ߰
+
+ 	bool bHighLight;
+
+ #if defined(ENABLE_SOULBIND_SYSTEM)
+
+ 	long lSealDate;
+
+@@ -2583,7 +2590,7 @@
+ #endif
+
+ } TPacketGCShopStart;
+
+ 
+
+-typedef struct packet_shop_start_ex // ´ÙÀ½¿¡ TSubPacketShopTab* shop_tabs ÀÌ µû¶ó¿È.
+
++typedef struct packet_shop_start_ex //  TSubPacketShopTab* shop_tabs  .
+
+ {
+
+ 	typedef struct sub_packet_shop_tab
+
+ 	{
+
+@@ -2798,12 +2805,12 @@
+ enum
+
+ {
+
+ 	QUEST_SEND_IS_BEGIN = 1 << 0,
+
+-	QUEST_SEND_TITLE = 1 << 1, // 28ÀÚ ±îÁö
+
+-	QUEST_SEND_CLOCK_NAME = 1 << 2, // 16ÀÚ ±îÁö
+
++	QUEST_SEND_TITLE = 1 << 1, // 28 
+
++	QUEST_SEND_CLOCK_NAME = 1 << 2, // 16 
+
+ 	QUEST_SEND_CLOCK_VALUE = 1 << 3,
+
+-	QUEST_SEND_COUNTER_NAME = 1 << 4, // 16ÀÚ ±îÁö
+
++	QUEST_SEND_COUNTER_NAME = 1 << 4, // 16 
+
+ 	QUEST_SEND_COUNTER_VALUE = 1 << 5,
+
+-	QUEST_SEND_ICON_FILE = 1 << 6, // 24ÀÚ ±îÁö 
+
++	QUEST_SEND_ICON_FILE = 1 << 6, // 24  
+
+ };
+
+ 
+
+ typedef struct packet_quest_info
+
+@@ -2830,8 +2837,8 @@
+ {
+
+ 	BYTE header;
+
+ 	DWORD dwVID;
+
+-	DWORD dwVictimVID; // Àû VID
+
+-	BYTE bType; // °ø°Ý À¯Çü
+
++	DWORD dwVictimVID; //  VID
+
++	BYTE bType; //  
+
+ } TPacketGCAttack;
+
+ 
+
+ typedef struct packet_c2c
+
+@@ -2901,7 +2908,7 @@
+ typedef struct packet_duel_start
+
+ {
+
+ 	BYTE header;
+
+-	WORD wSize; // DWORD°¡ ¸î°³? °³¼ö = (wSize - sizeof(TPacketGCPVPList)) / 4
+
++	WORD wSize; // DWORD ?  = (wSize - sizeof(TPacketGCPVPList)) / 4
+
+ } TPacketGCDuelStart;
+
+ 
+
+ typedef struct packet_pvp
+
+@@ -3061,7 +3068,7 @@
+ 
+
+ typedef struct packet_guild_sub_grade
+
+ {
+
+-	char grade_name[GUILD_GRADE_NAME_MAX_LEN + 1]; // 8+1 ±æµåÀå, ±æµå¿ø µîÀÇ ÀÌ¸§
+
++	char grade_name[GUILD_GRADE_NAME_MAX_LEN + 1]; // 8+1 ,   ̸
+
+ 	BYTE auth_flag;
+
+ } TPacketGCGuildSubGrade;
+
+ 
+
+@@ -3102,7 +3109,7 @@
+ 	GUILD_WAR_ON_WAR,
+
+ 	GUILD_WAR_END,
+
+ 
+
+-	GUILD_WAR_DURATION = 2 * 60 * 60, // 2½Ã°£
+
++	GUILD_WAR_DURATION = 2 * 60 * 60, // 2ð
+
+ };
+
+ 
+
+ typedef struct packet_guild_war
+
+@@ -3181,8 +3188,8 @@
+ 	DWORD src_vnum;
+
+ 	DWORD result_vnum;
+
+ 	WORD material_count;
+
+-	int cost; // ¼Ò¿ä ºñ¿ë
+
+-	int prob; // È®·ü
+
++	int cost; // ҿ 
+
++	int prob; // Ȯ
+
+ 	TMaterial materials[REFINE_MATERIAL_MAX_NUM];
+
+ } TRefineTable;
+
+ 
+
+@@ -3224,8 +3231,8 @@
+ 	SE_SUCCESS,
+
+ 	SE_FAIL,
+
+ 	SE_FR_SUCCESS,
+
+-	SE_LEVELUP_ON_14_FOR_GERMANY, //·¹º§¾÷ 14ÀÏ¶§ ( µ¶ÀÏÀü¿ë )
+
+-	SE_LEVELUP_UNDER_15_FOR_GERMANY, //·¹º§¾÷ 15ÀÏ¶§ ( µ¶ÀÏÀü¿ë )
+
++	SE_LEVELUP_ON_14_FOR_GERMANY, // 14϶ (  )
+
++	SE_LEVELUP_UNDER_15_FOR_GERMANY, // 15϶ (  )
+
+ 	SE_PERCENT_DAMAGE1,
+
+ 	SE_PERCENT_DAMAGE2,
+
+ 	SE_PERCENT_DAMAGE3,
+
+@@ -3233,10 +3240,10 @@
+ 	SE_AUTO_HPUP,
+
+ 	SE_AUTO_SPUP,
+
+ 
+
+-	SE_EQUIP_RAMADAN_RING, // ÃÊ½Â´ÞÀÇ ¹ÝÁö¸¦ Âø¿ëÇÏ´Â ¼ø°£¿¡ ¹ßµ¿ÇÏ´Â ÀÌÆåÆ®
+
+-	SE_EQUIP_HALLOWEEN_CANDY, // ÇÒ·ÎÀ© »çÅÁÀ» Âø¿ë(-_-;)ÇÑ ¼ø°£¿¡ ¹ßµ¿ÇÏ´Â ÀÌÆåÆ®
+
+-	SE_EQUIP_HAPPINESS_RING, // Å©¸®½º¸¶½º Çàº¹ÀÇ ¹ÝÁö¸¦ Âø¿ëÇÏ´Â ¼ø°£¿¡ ¹ßµ¿ÇÏ´Â ÀÌÆåÆ®
+
+-	SE_EQUIP_LOVE_PENDANT, // ¹ß·»Å¸ÀÎ »ç¶ûÀÇ ÆÒ´øÆ®(71145) Âø¿ëÇÒ ¶§ ÀÌÆåÆ® (¹ßµ¿ÀÌÆåÆ®ÀÓ, Áö¼ÓÀÌÆåÆ® ¾Æ´Ô)
+
++	SE_EQUIP_RAMADAN_RING, // ʽ´  ϴ  ߵϴ Ʈ
+
++	SE_EQUIP_HALLOWEEN_CANDY, // ҷ  (-_-;)  ߵϴ Ʈ
+
++	SE_EQUIP_HAPPINESS_RING, // ũ ູ  ϴ  ߵϴ Ʈ
+
++	SE_EQUIP_LOVE_PENDANT, // ߷Ÿ  ҴƮ(71145)   Ʈ (ߵƮ, Ʈ ƴ)
+
+ 
+
+ #if defined(ENABLE_ACCE_COSTUME_SYSTEM)
+
+ 	SE_ACCE_SUCESS_ABSORB,
+
+@@ -3650,7 +3657,7 @@
+ } TPacketGCSpecificEffect;
+
+ 
+
+ #if defined(ENABLE_DRAGON_SOUL_SYSTEM)
+
+-// ¿ëÈ¥¼®
+
++// ȥ
+
+ enum EDragonSoulRefineWindowRefineType
+
+ {
+
+ 	DragonSoulRefineWindow_UPGRADE,
+
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -320,7 +320,7 @@
+ 	while (ret)
+
+ 	{
+
+ 		if (dwRecvCount++ >= MAX_RECV_COUNT - 1 && GetRecvBufferSize() < SAFE_RECV_BUFSIZE
+
+-			&& m_strPhase == "Game") // phase_game ÀÌ ¾Æ´Ï¾îµµ ¿©±â·Î µé¾î¿À´Â °æ¿ì°¡ ÀÖ´Ù.
+
++			&& m_strPhase == "Game") // phase_game  ƴϾ   찡 ִ.
+
+ 			break;
+
+ 
+
+ 		if (!CheckPacket(&header))
+
+@@ -338,7 +338,7 @@
+ 
+
+ 			case HEADER_GC_PHASE:
+
+ 				ret = RecvPhasePacket();
+
+-				return; // µµÁß¿¡ Phase °¡ ¹Ù²î¸é ÀÏ´Ü ¹«Á¶°Ç GamePhase Å»Ãâ - [levites]
+
++				return; // ߿ Phase  ٲ ϴ  GamePhase Ż - [levites]
+
+ 
+
+ 			case HEADER_GC_PVP:
+
+ 				ret = RecvPVPPacket();
+
+@@ -1158,9 +1158,9 @@
+ 	rkBgMgr.Warp(lGlobalX, lGlobalY);
+
+ 	rkBgMgr.RefreshShadowLevel();
+
+ 
+
+-	// NOTE : Warp ÇßÀ»¶§ CenterPositionÀÇ Height°¡ 0ÀÌ±â ¶§¹®¿¡ Ä«¸Þ¶ó°¡ ¶¥¹Ù´Ú¿¡ ¹ÚÇôÀÖ°Ô µÊ
+
+-	// ¿òÁ÷ÀÏ¶§¸¶´Ù Height°¡ °»½Å µÇ±â ¶§¹®ÀÌ¹Ç·Î ¸ÊÀ» ÀÌµ¿ÇÏ¸é PositionÀ» °­Á¦·Î ÇÑ¹ø
+
+-	// ¼ÂÆÃÇØÁØ´Ù - [levites]
+
++	// NOTE : Warp  CenterPosition Height 0̱  ī޶ ٴڿ ְ 
+
++	// ϶ Height  Ǳ ̹Ƿ  ̵ϸ Position  ѹ
+
++	// ش - [levites]
+
+ 	LONG lLocalX = lGlobalX;
+
+ 	LONG lLocalY = lGlobalY;
+
+ 	__GlobalPositionToLocalPosition(lLocalX, lLocalY);
+
+@@ -1208,7 +1208,7 @@
+ 	m_phaseProcessFunc.Set(this, &CPythonNetworkStream::GamePhase);
+
+ 	m_phaseLeaveFunc.Set(this, &CPythonNetworkStream::__LeaveGamePhase);
+
+ 
+
+-	// Main Character µî·ÏO
+
++	// Main Character O
+
+ 
+
+ 	IAbstractPlayer& rkPlayer = IAbstractPlayer::GetSingleton();
+
+ 	rkPlayer.SetMainCharacterIndex(GetMainActorVID());
+
+@@ -1294,11 +1294,11 @@
+ 		case PVP_MODE_AGREE:
+
+ 			rkChrMgr.RemovePVPKey(kPVPPacket.dwVIDSrc, kPVPPacket.dwVIDDst);
+
+ 
+
+-			// »ó´ë°¡ ³ª(Dst)¿¡°Ô µ¿ÀÇ¸¦ ±¸ÇßÀ»¶§
+
++			// 밡 (Dst) Ǹ 
+
+ 			if (rkPlayer.IsMainCharacterIndex(kPVPPacket.dwVIDDst))
+
+ 				rkPlayer.RememberChallengeInstance(kPVPPacket.dwVIDSrc);
+
+ 
+
+-			// »ó´ë¿¡°Ô µ¿ÀÇ¸¦ ±¸ÇÑ µ¿¾È¿¡´Â ´ë°á ºÒ´É
+
++			// 뿡 Ǹ  ȿ  Ҵ
+
+ 			if (rkPlayer.IsMainCharacterIndex(kPVPPacket.dwVIDSrc))
+
+ 				rkPlayer.RememberCantFightInstance(kPVPPacket.dwVIDDst);
+
+ 			break;
+
+@@ -1309,11 +1309,11 @@
+ 			DWORD dwKiller = kPVPPacket.dwVIDSrc;
+
+ 			DWORD dwVictim = kPVPPacket.dwVIDDst;
+
+ 
+
+-			// ³»(victim)°¡ »ó´ë¿¡°Ô º¹¼öÇÒ ¼ö ÀÖÀ»¶§
+
++			// (victim) 뿡   
+
+ 			if (rkPlayer.IsMainCharacterIndex(dwVictim))
+
+ 				rkPlayer.RememberRevengeInstance(dwKiller);
+
+ 
+
+-			// »ó´ë(victim)°¡ ³ª¿¡°Ô º¹¼öÇÏ´Â µ¿¾È¿¡´Â ´ë°á ºÒ´É
+
++			// (victim)  ϴ ȿ  Ҵ
+
+ 			if (rkPlayer.IsMainCharacterIndex(dwKiller))
+
+ 				rkPlayer.RememberCantFightInstance(dwVictim);
+
+ 			break;
+
+@@ -1331,7 +1331,7 @@
+ 			break;
+
+ 	}
+
+ 
+
+-	// NOTE : PVP Åä±Û½Ã TargetBoard ¸¦ ¾÷µ¥ÀÌÆ® ÇÕ´Ï´Ù.
+
++	// NOTE : PVP ۽ TargetBoard  Ʈ մϴ.
+
+ 	__RefreshTargetBoardByVID(kPVPPacket.dwVIDSrc);
+
+ 	__RefreshTargetBoardByVID(kPVPPacket.dwVIDDst);
+
+ 
+
+@@ -1384,7 +1384,7 @@
+ 	else if (fDstRot > 360.0f)
+
+ 		fDstRot = fmodf(fDstRot, 360.0f);
+
+ 
+
+-	// TODO: ³ªÁß¿¡ ÆÐÅ¶ÀÌ¸§À» ¹Ù²ÙÀÚ
+
++	// TODO: ߿ Ŷ̸ ٲ
+
+ 	TPacketCGMove kStatePacket;
+
+ 	kStatePacket.bHeader = HEADER_CG_CHARACTER_MOVE;
+
+ 	kStatePacket.bFunc = eFunc;
+
+@@ -1413,7 +1413,7 @@
+ 		return SendSequence();
+
+ }
+
+ 
+
+-// NOTE : SlotIndex´Â ÀÓ½Ã
+
++// NOTE : SlotIndex ӽ
+
+ bool CPythonNetworkStream::SendUseSkillPacket(DWORD dwSkillIndex, DWORD dwTargetVID)
+
+ {
+
+ 	TPacketCGUseSkill UseSkillPacket;
+
+@@ -1575,9 +1575,9 @@
+ 	buf[sizeof(buf) - 1] = '\0';
+
+ #endif
+
+ 
+
+-	// À¯·´ ¾Æ¶ø ¹öÀü Ã³¸®
+
+-	// "ÀÌ¸§: ³»¿ë" ÀÔ·ÂÀ» "³»¿ë: ÀÌ¸§" ¼ø¼­·Î Ãâ·ÂÇÏ±â À§ÇØ ÅÇ(0x08)À» ³ÖÀ½
+
+-	// ÅÇÀ» ¾Æ¶ø¾î ±âÈ£·Î Ã³¸®ÇØ (¿µ¾î1) : (¿µ¾î2) ·Î ÀÔ·ÂµÇ¾îµµ (¿µ¾î2) : (¿µ¾î1) ·Î Ãâ·ÂÇÏ°Ô ¸¸µç´Ù
+
++	//  ƶ  ó
+
++	// "̸: " Է ": ̸"  ϱ  (0x08) 
+
++	//  ƶ ȣ ó (1) : (2)  ԷµǾ (2) : (1)  ϰ 
+
+ 	if (LocaleService_IsEUROPE() && GetDefaultCodePage() == 1256)
+
+ 	{
+
+ 		char* p = strchr(buf, ':');
+
+@@ -1617,11 +1617,11 @@
+ 
+
+ 		switch (kChat.type)
+
+ 		{
+
+-			case CHAT_TYPE_TALKING: /* ±×³É Ã¤ÆÃ */
+
+-			case CHAT_TYPE_PARTY: /* ÆÄÆ¼¸» */
+
+-			case CHAT_TYPE_GUILD: /* ±æµå¸» */
+
+-			case CHAT_TYPE_SHOUT: /* ¿ÜÄ¡±â */
+
+-			case CHAT_TYPE_WHISPER: // ¼­¹ö¿Í´Â ¿¬µ¿µÇÁö ¾Ê´Â Only Client Enum
+
++			case CHAT_TYPE_TALKING: /* ׳ ä */
+
++			case CHAT_TYPE_PARTY: /* Ƽ */
+
++			case CHAT_TYPE_GUILD: /* 帻 */
+
++			case CHAT_TYPE_SHOUT: /* ġ */
+
++			case CHAT_TYPE_WHISPER: // ʹ  ʴ Only Client Enum
+
+ 			{
+
+ 				char* p = strchr(buf, ':');
+
+ 
+
+@@ -1650,9 +1650,9 @@
+ 			}
+
+ 			break;
+
+ 
+
+-			case CHAT_TYPE_COMMAND: /* ¸í·É */
+
+-			case CHAT_TYPE_INFO: /* Á¤º¸ (¾ÆÀÌÅÛÀ» Áý¾ú´Ù, °æÇèÄ¡¸¦ ¾ò¾ú´Ù. µî) */
+
+-			case CHAT_TYPE_NOTICE: /* °øÁö»çÇ× */
+
++			case CHAT_TYPE_COMMAND: /*  */
+
++			case CHAT_TYPE_INFO: /*  ( , ġ . ) */
+
++			case CHAT_TYPE_NOTICE: /*  */
+
+ 			case CHAT_TYPE_BIG_NOTICE:
+
+ #if defined(ENABLE_OX_RENEWAL)
+
+ 			case CHAT_TYPE_BIG_CONTROL_NOTICE:
+
+@@ -1883,7 +1883,7 @@
+ 
+
+ 	CInstanceBase* pInstance = CPythonCharacterManager::Instance().GetMainInstancePtr();
+
+ 
+
+-	// ÀÚ½ÅÀÇ Point°¡ º¯°æµÇ¾úÀ» °æ¿ì..
+
++	// ڽ Point Ǿ ..
+
+ 	if (pInstance)
+
+ 	{
+
+ 		if (PointChange.dwVID == pInstance->GetVirtualID())
+
+@@ -2120,7 +2120,7 @@
+ 		CInstanceBase* pkInstMain = rkChrMgr.GetMainInstancePtr();
+
+ 		if (pkInstMain == pkChrInstSel)
+
+ 		{
+
+-			Tracenf("ÁÖÀÎ°ø »ç¸Á");
+
++			Tracenf("ΰ ");
+
+ 
+
+ 			if (false == pkInstMain->GetDuelMode())
+
+ 				PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "OnGameOver", Py_BuildValue("(ii)", DeadPacket.map_index, DeadPacket.dialog_type));
+
+@@ -2139,7 +2139,7 @@
+ 
+
+ bool CPythonNetworkStream::SendCharacterPositionPacket(BYTE iPosition)
+
+ {
+
+-	TPacketCGPosition PositionPacket;
+
++	TPacketCGPosition PositionPacket{};
+
+ 
+
+ 	PositionPacket.header = HEADER_CG_CHARACTER_POSITION;
+
+ 	PositionPacket.position = iPosition;
+
+@@ -2155,7 +2155,7 @@
+ 
+
+ bool CPythonNetworkStream::SendOnClickPacket(DWORD vid)
+
+ {
+
+-	TPacketCGOnClick OnClickPacket;
+
++	TPacketCGOnClick OnClickPacket{};
+
+ 	OnClickPacket.header = HEADER_CG_ON_CLICK;
+
+ 	OnClickPacket.vid = vid;
+
+ 
+
+@@ -2212,6 +2212,9 @@
+ 
+
+ 	TPacketGCShop packet_shop;
+
+ 	if (!Recv(sizeof(packet_shop), &packet_shop))
+
++		return false;
+
++
+
++	if (packet_shop.size < sizeof(packet_shop))
+
+ 		return false;
+
+ 
+
+ 	int iSize = packet_shop.size - sizeof(packet_shop);
+
+@@ -2226,6 +2229,10 @@
+ 	{
+
+ 		case SHOP_SUBHEADER_GC_START:
+
+ 		{
+
++			const int kMin = (int)(sizeof(DWORD) + sizeof(TPacketGCShopStart));
+
++			if (iSize < kMin)
+
++				return false;
+
++
+
+ 			CPythonShop::Instance().Clear();
+
+ 
+
+ 			DWORD dwVID = *(DWORD*)&vecBuffer[0];
+
+@@ -2253,6 +2260,9 @@
+ 
+
+ 		case SHOP_SUBHEADER_GC_UPDATE_ITEM:
+
+ 		{
+
++			if (iSize < (int)sizeof(TPacketGCShopUpdateItem))
+
++				return false;
+
++
+
+ 			TPacketGCShopUpdateItem* pShopUpdateItemPacket = (TPacketGCShopUpdateItem*)&vecBuffer[0];
+
+ 			CPythonShop::Instance().SetItemData(pShopUpdateItemPacket->pos, pShopUpdateItemPacket->item);
+
+ 			PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "RefreshShop", Py_BuildValue("()"));
+
+@@ -2260,6 +2270,8 @@
+ 		break;
+
+ 
+
+ 		case SHOP_SUBHEADER_GC_UPDATE_PRICE:
+
++			if (iSize < (int)sizeof(int))
+
++				return false;
+
+ 			PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "SetShopSellingPrice", Py_BuildValue("(i)", *(int*)&vecBuffer[0]));
+
+ 			break;
+
+ 
+
+@@ -2930,7 +2942,7 @@
+ 	return SendSequence();
+
+ }
+
+ 
+
+-// PointReset °³ÀÓ½Ã
+
++// PointReset ӽ
+
+ bool CPythonNetworkStream::SendPointResetPacket()
+
+ {
+
+ 	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "StartPointReset", Py_BuildValue("()"));
+
+@@ -3091,7 +3103,7 @@
+ 
+
+ bool CPythonNetworkStream::RecvSkillLevel()
+
+ {
+
+-	assert(!"CPythonNetworkStream::RecvSkillLevel - »ç¿ëÇÏÁö ¾Ê´Â ÇÔ¼ö");
+
++	assert(!"CPythonNetworkStream::RecvSkillLevel -  ʴ Լ");
+
+ 	TPacketGCSkillLevel packet;
+
+ 	if (!Recv(sizeof(TPacketGCSkillLevel), &packet))
+
+ 	{
+
+@@ -3401,7 +3413,7 @@
+ 
+
+ 	__GlobalPositionToLocalPosition(kPacket.lX, kPacket.lY);
+
+ 
+
+-	Tracef("VID [%d]°¡ Å¸°ÙÀ» Ãß°¡ ¼³Á¤\n", kPacket.dwShooterVID);
+
++	Tracef("VID [%d] Ÿ ߰ \n", kPacket.dwShooterVID);
+
+ 
+
+ 	CPythonCharacterManager& rpcm = CPythonCharacterManager::Instance();
+
+ 
+
+@@ -3607,7 +3619,7 @@
+ 
+
+ 	char szName[CHARACTER_NAME_MAX_LEN] = {};
+
+ 	strncpy(szName, c_szName, CHARACTER_NAME_MAX_LEN - 1);
+
+-	szName[CHARACTER_NAME_MAX_LEN - 1] = '\0'; // #720: ¸Þ½ÅÀú ÀÌ¸§ °ü·Ã ¹öÆÛ ¿À¹öÇÃ·Î¿ì ¹ö±× ¼öÁ¤
+
++	szName[CHARACTER_NAME_MAX_LEN - 1] = '\0'; // #720: ޽ ̸   ÷ο  
+
+ 
+
+ 	if (!Send(sizeof(szName), &szName))
+
+ 		return false;
+
+@@ -3712,7 +3724,12 @@
+ 	if (!Recv(sizeof(Packet), &Packet))
+
+ 		return false;
+
+ 
+
++	if (Packet.wSize < sizeof(TPacketGCMessenger))
+
++		return false;
+
++
+
+ 	UINT uiPacketSize = (Packet.wSize - sizeof(TPacketGCMessenger));
+
++	if (uiPacketSize % sizeof(TPacketGCMessengerList) != 0)
+
++		return false;
+
+ 	for (; uiPacketSize > 0; uiPacketSize -= sizeof(TPacketGCMessengerList))
+
+ 	{
+
+ 		TPacketGCMessengerList ListPacket;
+
+@@ -4035,7 +4052,7 @@
+ 
+
+ 	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "UpdatePartyMemberInfo", Py_BuildValue("(i)", kPartyUpdatePacket.pid));
+
+ 
+
+-	// ¸¸¾à ¸®´õ°¡ ¹Ù²î¾ú´Ù¸é, TargetBoard ÀÇ ¹öÆ°À» ¾÷µ¥ÀÌÆ® ÇÑ´Ù.
+
++	//   ٲٸ, TargetBoard  ư Ʈ Ѵ.
+
+ 	DWORD dwVID;
+
+ 	if (CPythonPlayer::Instance().PartyMemberPIDToVID(kPartyUpdatePacket.pid, &dwVID))
+
+ 		if (byOldState != kPartyUpdatePacket.state)
+
+@@ -4427,7 +4444,7 @@
+ 			if (!Recv(sizeof(dwPID), &dwPID))
+
+ 				return false;
+
+ 
+
+-			// Main Player ÀÏ °æ¿ì DeleteGuild
+
++			// Main Player   DeleteGuild
+
+ 			if (CPythonGuild::Instance().IsMainPlayer(dwPID))
+
+ 			{
+
+ 				CPythonGuild::Instance().Destroy();
+
+@@ -5594,7 +5611,7 @@
+ 
+
+ 	//#ifdef _DEBUG
+
+ 	//	char szBuf[256+1];
+
+-	//	_snprintf(szBuf, sizeof(szBuf), "Å¸°ÙÀÌ »ý¼º µÇ¾ú½À´Ï´Ù [%d:%s]", kTargetCreate.lID, kTargetCreate.szTargetName);
+
++	//	_snprintf(szBuf, sizeof(szBuf), "Ÿ  Ǿϴ [%d:%s]", kTargetCreate.lID, kTargetCreate.szTargetName);
+
+ 	//	CPythonChat::Instance().AppendChat(CHAT_TYPE_NOTICE, szBuf);
+
+ 	//	Tracef(" >> RecvTargetCreatePacket %d : %s\n", kTargetCreate.lID, kTargetCreate.szTargetName);
+
+ 	//#endif
+
+@@ -5627,7 +5644,7 @@
+ 
+
+ 	//#ifdef _DEBUG
+
+ 	//	char szBuf[256+1];
+
+-	//	_snprintf(szBuf, sizeof(szBuf), "Ä³¸¯ÅÍ Å¸°ÙÀÌ »ý¼º µÇ¾ú½À´Ï´Ù [%d:%s:%d]", kTargetCreate.lID, kTargetCreate.szTargetName, kTargetCreate.dwVID);
+
++	//	_snprintf(szBuf, sizeof(szBuf), "ĳ Ÿ  Ǿϴ [%d:%s:%d]", kTargetCreate.lID, kTargetCreate.szTargetName, kTargetCreate.dwVID);
+
+ 	//	CPythonChat::Instance().AppendChat(CHAT_TYPE_NOTICE, szBuf);
+
+ 	//	Tracef(" >> RecvTargetCreatePacketNew %d : %d/%d\n", kTargetCreate.lID, kTargetCreate.byType, kTargetCreate.dwVID);
+
+ 	//#endif
+
+@@ -5651,7 +5668,7 @@
+ 
+
+ 	//#ifdef _DEBUG
+
+ 	//	char szBuf[256+1];
+
+-	//	_snprintf(szBuf, sizeof(szBuf), "Å¸°ÙÀÇ À§Ä¡°¡ °»½Å µÇ¾ú½À´Ï´Ù [%d:%d/%d]", kTargetUpdate.lID, kTargetUpdate.lX, kTargetUpdate.lY);
+
++	//	_snprintf(szBuf, sizeof(szBuf), "Ÿ ġ  Ǿϴ [%d:%d/%d]", kTargetUpdate.lID, kTargetUpdate.lX, kTargetUpdate.lY);
+
+ 	//	CPythonChat::Instance().AppendChat(CHAT_TYPE_NOTICE, szBuf);
+
+ 	//	Tracef(" >> RecvTargetUpdatePacket %d : %d, %d\n", kTargetUpdate.lID, kTargetUpdate.lX, kTargetUpdate.lY);
+
+ 	//#endif
+
+@@ -5730,7 +5747,7 @@
+ }
+
+ 
+
+ #if defined(ENABLE_DRAGON_SOUL_SYSTEM)
+
+-// ¿ëÈ¥¼® °­È­
+
++// ȥ ȭ
+
+ bool CPythonNetworkStream::SendDragonSoulRefinePacket(BYTE bRefineType, TItemPos* pos)
+
+ {
+
+ 	TPacketCGDragonSoulRefine pk;
+
+@@ -6493,9 +6510,17 @@
+ 	if (!Recv(sizeof(p), &p))
+
+ 		return false;
+
+ 
+
++	// Safety: prevent unsigned underflow and wraparound loops on malformed sizes
+
++	if (p.wSize < sizeof(TPacketGCMailBox))
+
++		return false;
+
++
+
++	const unsigned int payloadSize = (p.wSize - sizeof(TPacketGCMailBox));
+
++	if (payloadSize % sizeof(TPacketGCMailboxProcessAll) != 0)
+
++		return false;
+
++
+
+ 	PyObject* list = PyList_New(0);
+
+ 
+
+-	unsigned int iPacketSize = (p.wSize - sizeof(TPacketGCMailBox));
+
++	unsigned int iPacketSize = payloadSize;
+
+ 	for (; iPacketSize > 0; iPacketSize -= sizeof(TPacketGCMailboxProcessAll))
+
+ 	{
+
+ 		TPacketGCMailboxProcessAll Index;
+
+@@ -6531,7 +6556,8 @@
+ {
+
+ 	TPacketCGMailboxWriteConfirm p;
+
+ 	p.bHeader = HEADER_CG_MAILBOX_WRITE_CONFIRM;
+
+-	std::strcpy(p.szName, szName);
+
++	strncpy(p.szName, szName, sizeof(p.szName) - 1);
+
++	p.szName[sizeof(p.szName) - 1] = '\0';
+
+ 
+
+ 	if (!Send(sizeof(p), &p))
+
+ 	{
+
+@@ -6640,9 +6666,15 @@
+ {
+
+ 	TPacketCGMailboxWrite p;
+
+ 	p.bHeader = HEADER_CG_MAILBOX_WRITE;
+
+-	std::strcpy(p.szName, szName);
+
+-	std::strcpy(p.szTitle, szTitle);
+
+-	std::strcpy(p.szMessage, szMessage);
+
++	strncpy(p.szName, szName, sizeof(p.szName) - 1);
+
++	p.szName[sizeof(p.szName) - 1] = '\0';
+
++
+
++	strncpy(p.szTitle, szTitle, sizeof(p.szTitle) - 1);
+
++	p.szTitle[sizeof(p.szTitle) - 1] = '\0';
+
++
+
++	strncpy(p.szMessage, szMessage, sizeof(p.szMessage) - 1);
+
++	p.szMessage[sizeof(p.szMessage) - 1] = '\0';
+
++
+
+ 	p.pos = pos;
+
+ 	p.iYang = iYang;
+
+ 	p.iWon = iWon;
+
+@@ -6662,7 +6694,8 @@
+ {
+
+ 	TPacketCGPetHatch packet;
+
+ 	packet.header = HEADER_CG_PET_HATCH;
+
+-	strncpy(packet.name, c_szName, sizeof(packet.name));
+
++	strncpy(packet.name, c_szName, sizeof(packet.name) - 1);
+
++	packet.name[sizeof(packet.name) - 1] = '\0';
+
+ 	packet.eggPos = eggPos;
+
+ 
+
+ 	if (!Send(sizeof(packet), &packet))
+
+@@ -8256,7 +8289,8 @@
+ {
+
+ 	TPacketCGRequestEventQuest Packet;
+
+ 	Packet.bHeader = HEADER_CG_REQUEST_EVENT_QUEST;
+
+-	std::strcpy(Packet.szEventQuest, pszEventQuest);
+
++	strncpy(Packet.szEventQuest, pszEventQuest, sizeof(Packet.szEventQuest) - 1);
+
++	Packet.szEventQuest[sizeof(Packet.szEventQuest) - 1] = '\0';
+
+ 
+
+ 	if (!Send(sizeof(Packet), &Packet))
+
+ 	{
+
+
+--- a/src-client/Client/UserInterface/ServerStateChecker.cpp
++++ b/src-client/Client/UserInterface/ServerStateChecker.cpp
+@@ -44,6 +44,8 @@
+ {
+
+ 	if (m_lstChannel.empty())
+
+ 		return;
+
++	if (!m_poWnd)
+
++		return;
+
+ 
+
+ 	if (!m_kStream.Connect(m_lstChannel.begin()->c_szAddr, m_lstChannel.begin()->uPort))
+
+ 	{
+
+@@ -85,6 +87,17 @@
+ 	if (!m_kStream.Recv(sizeof(nSize), &nSize))
+
+ 		return;
+
+ 
+
++	if (nSize < 0)
+
++	{
+
++		Initialize();
+
++		return;
+
++	}
+
++	if (static_cast<size_t>(nSize) > m_lstChannel.size() || nSize > 64)
+
++	{
+
++		Initialize();
+
++		return;
+
++	}
+
++
+
+ 	for (int i = 0; i < nSize; i++)
+
+ 	{
+
+ 		TChannelStatus channelStatus;
+
+

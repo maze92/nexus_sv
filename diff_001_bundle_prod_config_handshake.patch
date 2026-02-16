@@ -1,0 +1,875 @@
+--- a/client/pack/root/serverinfo.py
++++ b/client/pack/root/serverinfo.py
+@@ -9,11 +9,11 @@
+ 	"host":"192.168.1.50",
+
+ 	"auth1":11150,
+
+ 	"ch1":12101,
+
+-	"ch2":12101,
+
+-	"ch3":12101,
+
+-	"ch4":12101,
+
+-	"ch5":12101,
+
+-	"ch6":12101,
+
++	"ch2":12102,
+
++	"ch3":12103,
+
++	"ch4":12104,
+
++	"ch5":12105,
+
++	"ch6":12106,
+
+ 		}
+
+ 
+
+ STATE_NONE = '|cffff0000OFF'
+
+
+--- a/server/metin2/Server/auth/config.txt
++++ b/server/metin2/Server/auth/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 11250
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ TABLE_POSTFIX:
+
+ ITEM_ID_RANGE: 000000001 000000002
+
+ PASSES_PER_SEC: 25
+
+@@ -14,3 +15,4 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
++log_keep_days: 7
+
+
+--- a/server/metin2/Server/db/config.txt
++++ b/server/metin2/Server/db/config.txt
+@@ -8,6 +8,8 @@
+ TABLE_POSTFIX = ""
+
+ 
+
+ BIND_PORT = 11000
+
++BIND_IP = "127.0.0.1"
+
++LOG_KEEP_DAYS = 7
+
+ DB_SLEEP_MSEC = 10
+
+ CLIENT_HEART_FPS = 10
+
+ HASH_PLAYER_LIFE_SEC = 600
+
+
+--- a/server/metin2/Server/game/channel1/core1/config.txt
++++ b/server/metin2/Server/game/channel1/core1/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12110
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 1 3 4 5 6 21 23 24 25 26 41 43 44 45 46 91 92 93 107 112 201
+
+ #	1		metin2_map_a1
+
+@@ -37,10 +38,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel1/core2/config.txt
++++ b/server/metin2/Server/game/channel1/core2/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12120
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 61 62 67 68 72 73 208 351 352 356
+
+ 
+
+@@ -27,10 +28,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel1/core3/config.txt
++++ b/server/metin2/Server/game/channel1/core3/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12130
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 63 64 65 66 69 70 71 104 108 109 216 217
+
+ 
+
+@@ -29,10 +30,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel1/core4/config.txt
++++ b/server/metin2/Server/game/channel1/core4/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12140
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 301 302 303 304 353 354 358 359 378 379 380 381
+
+ 
+
+@@ -29,10 +30,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel1/core5/config.txt
++++ b/server/metin2/Server/game/channel1/core5/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12150
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 373 374 376 377 382 383 384 385 386 387 388 389 390 391 393 394 395
+
+ 
+
+@@ -34,12 +35,13 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+ 
+
+ 
+
+
+--- a/server/metin2/Server/game/channel1/core6/config.txt
++++ b/server/metin2/Server/game/channel1/core6/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 12160
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 355 357 360 361 362 372 375 396 399
+
+ 
+
+@@ -26,10 +27,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel99/core1/config.txt
++++ b/server/metin2/Server/game/channel99/core1/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 19910
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 81 103 105 110 111 113 114 118 119 120 121 122 123 124 125 126 127 128 130 131 132 133 181 182 183 200 392
+
+ 
+
+@@ -44,10 +45,11 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-POPUP_NOTICE_URL: http://darkmmo.tr
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+
+--- a/server/metin2/Server/game/channel99/core2/config.txt
++++ b/server/metin2/Server/game/channel99/core2/config.txt
+@@ -4,6 +4,7 @@
+ P2P_PORT: 19920
+
+ DB_PORT: 11000
+
+ DB_ADDR: localhost
+
++# bind_ip: 203.0.113.10  # set to your public IPv4 (recommended)
+
+ 
+
+ MAP_ALLOW: 363 364 365 366 367 368 369 370 371 400 401 402 403
+
+ 
+
+@@ -30,11 +31,12 @@
+ COMMON_SQL: localhost mt2 mt2!@# common
+
+ LOG_SQL: localhost mt2 mt2!@# log
+
+ LOCALE_SERVICE: uk
+
+-TEST_SERVER: 1
+
++test_server: 0
+
+ VIEW_RANGE: 8000
+
++log_keep_days: 7
+
+ MAX_LEVEL: 120
+
+ offline_shop_map_allow: 1, 21, 41
+
+ offline_shop_max_per_player: 1
+
+ offline_shop_max_distance: 8000
+
+-
+
++# popup_notice_url: https://your-domain.example/notice  # optional (disabled by default)
+
+ POPUP_NOTICE_URL: http://darkmmo.tr
+
+
+--- a/server/metin2/Source/Server/common/service.h
++++ b/server/metin2/Source/Server/common/service.h
+@@ -1,8 +1,5 @@
+ #if !defined(__INC_COMMON_SERVICE_H__)
+
+ #define __INC_COMMON_SERVICE_H__
+
+-
+
+-#define __LOCALE_SERVICE_EUROPE__
+
+-#define __LOCALE_SERVICE_OWSAP__
+
+ 
+
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+ ///////////////////////////////////////////////////////////////////////// Farques
+
+
+--- a/server/metin2/Source/Server/game/src/main.cpp
++++ b/server/metin2/Source/Server/game/src/main.cpp
+@@ -126,10 +126,10 @@
+ #endif
+
+ 
+
+ // TRAFFIC_PROFILER
+
+-static const DWORD TRAFFIC_PROFILE_FLUSH_CYCLE = 3600; ///< TrafficProfiler ÀÇ Flush cycle. 1½Ã°£ °£°Ý
+
++static const DWORD TRAFFIC_PROFILE_FLUSH_CYCLE = 3600; ///< TrafficProfiler  Flush cycle. 1ð 
+
+ // END_OF_TRAFFIC_PROFILER
+
+ 
+
+-// °ÔÀÓ°ú ¿¬°áµÇ´Â ¼ÒÄÏ
+
++// Ӱ Ǵ 
+
+ volatile int num_events_called = 0;
+
+ int max_bytes_written = 0;
+
+ int current_bytes_written = 0;
+
+@@ -199,9 +199,9 @@
+ 	{
+
+ 		sys_err("ShutdownOnFatalError!!!!!!!!!!");
+
+ 		{
+
+-			SendNotice(LC_STRING("¼­¹ö¿¡ Ä¡¸íÀûÀÎ ¿À·ù°¡ ¹ß»ýÇÏ¿© ÀÚµ¿À¸·Î ÀçºÎÆÃµË´Ï´Ù."));
+
+-			SendNotice(LC_STRING("10ÃÊÈÄ ÀÚµ¿À¸·Î Á¢¼ÓÀÌ Á¾·áµÇ¸ç,"));
+
+-			SendNotice(LC_STRING("5ºÐ ÈÄ¿¡ Á¤»óÀûÀ¸·Î Á¢¼ÓÇÏ½Ç¼ö ÀÖ½À´Ï´Ù."));
+
++			SendNotice(LC_STRING(" ġ  ߻Ͽ ڵ õ˴ϴ."));
+
++			SendNotice(LC_STRING("10 ڵ  Ǹ,"));
+
++			SendNotice(LC_STRING("5 Ŀ  ϽǼ ֽϴ."));
+
+ 		}
+
+ 
+
+ 		g_bShutdown = true;
+
+@@ -257,7 +257,7 @@
+ 
+
+ 	t = get_dword_time();
+
+ 
+
+-	// 1ÃÊ¸¶´Ù
+
++	// 1ʸ
+
+ 	if (!(pulse % ht->passes_per_sec))
+
+ 	{
+
+ 		if (g_bAuthServer && LC_IsBrazil() && !test_server)
+
+@@ -306,14 +306,14 @@
+ 	}
+
+ 
+
+ 	//
+
+-	// 25 PPS(Pulse per second) ¶ó°í °¡Á¤ÇÒ ¶§
+
++	// 25 PPS(Pulse per second)   
+
+ 	//
+
+ 
+
+-	// ¾à 1.16ÃÊ¸¶´Ù
+
++	//  1.16ʸ
+
+ 	if (!(pulse % (passes_per_sec + 4)))
+
+ 		CHARACTER_MANAGER::instance().ProcessDelayedSave();
+
+ 
+
+-	// 4ÃÊ ¸¶´Ù
+
++	// 4 
+
+ #if defined (__FreeBSD__) && defined(__FILEMONITOR__)
+
+ 	if (!(pulse % (passes_per_sec * 5)))
+
+ 	{
+
+@@ -321,7 +321,7 @@
+ 	}
+
+ #endif
+
+ 
+
+-	// ¾à 5.08ÃÊ¸¶´Ù
+
++	//  5.08ʸ
+
+ 	if (!(pulse % (passes_per_sec * 5 + 2)))
+
+ 	{
+
+ 		ITEM_MANAGER::instance().Update();
+
+@@ -858,6 +858,9 @@
+ 	sys_log(0, "<shutdown> CTextFileLoader::DestroySystem()...");
+
+ 	CTextFileLoader::DestroySystem();
+
+ 
+
++	sys_log(0, "<shutdown> PanamaDestroy()...");
+
++	PanamaDestroy();
+
++
+
+ 	sys_log(0, "<shutdown> thecore_destroy()...");
+
+ 	thecore_destroy();
+
+ }
+
+@@ -949,7 +952,7 @@
+ 	LPDESC d;
+
+ 	int num_events, event_idx;
+
+ 
+
+-	DESC_MANAGER::instance().DestroyClosed(); // PHASE_CLOSE ÀÎ Á¢¼ÓµéÀ» ²÷¾îÁØ´Ù.
+
++	DESC_MANAGER::instance().DestroyClosed(); // PHASE_CLOSE  ӵ ش.
+
+ 	DESC_MANAGER::instance().TryConnect();
+
+ 
+
+ 	if ((num_events = fdwatch(fdw, 0)) < 0)
+
+
+--- a/src-client/Client/EterBase/ServiceDefs.h
++++ b/src-client/Client/EterBase/ServiceDefs.h
+@@ -39,8 +39,8 @@
+ 	COMPRESS_KEY_SIZE = COMPRESS_BIRCK_LEN + COMPRESS_BRICK_SIZE + 2,
+
+ };
+
+ 
+
+-static const char* s_strEIX = ".eix"; // EterPack Index
+
+-static const char* s_strEPK = ".epk"; // EterPack
+
++static const char* s_strEIX = ".nex"; // EterPack Index
+
++static const char* s_strEPK = ".npk"; // EterPack
+
+ 
+
+ static std::string s_strEterPackSecurityKey[COMPRESS_BRICK_SIZE] = {
+
+ 	std::string(AY_OBFUSCATE("599220564")),
+
+
+--- a/src-client/Client/ScriptLib/PythonLauncher.cpp
++++ b/src-client/Client/ScriptLib/PythonLauncher.cpp
+@@ -4,9 +4,110 @@
+ 
+
+ #include "PythonLauncher.h"
+
+ 
+
++// ---------------------------------------------------------------------------
+
++// Python import hardening (anti-injection)
+
++// Blocks importing dangerous stdlib modules that allow filesystem/process/net.
+
++// ---------------------------------------------------------------------------
+
++static PyObject* g_poOriginalImport = nullptr;
+
++
+
++static bool IsBlockedPythonModule(const char* name)
+
++{
+
++	if (!name || !*name)
+
++		return true;
+
++
+
++	std::string mod(name);
+
++	const size_t dot = mod.find('.');
+
++	if (dot != std::string::npos)
+
++		mod.resize(dot);
+
++
+
++	static const char* kBlocked[] = {
+
++		"os", "posix", "nt", "_winreg", "winreg", "msvcrt",
+
++		"subprocess", "popen2", "commands",
+
++		"socket", "ssl", "select",
+
++		"ctypes",
+
++		"urllib", "urllib2", "httplib", "ftplib", "telnetlib",
+
++		"shutil", "glob",
+
++		"pickle", "cPickle", "marshal", "imp",
+
++		"multiprocessing", "thread", "threading",
+
++		"resource", "signal"
+
++	};
+
++
+
++	for (size_t i = 0; i < sizeof(kBlocked) / sizeof(kBlocked[0]); ++i)
+
++	{
+
++		if (mod == kBlocked[i])
+
++			return true;
+
++	}
+
++	return false;
+
++}
+
++
+
++static PyObject* RestrictedImport(PyObject*, PyObject* args, PyObject* kwargs)
+
++{
+
++	const char* name = nullptr;
+
++	PyObject* globals = Py_None;
+
++	PyObject* locals  = Py_None;
+
++	PyObject* fromlist = Py_None;
+
++	int level = -1;
+
++
+
++	static char* kwlist[] = { (char*)"name", (char*)"globals", (char*)"locals", (char*)"fromlist", (char*)"level", nullptr };
+
++	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOOi:__import__", kwlist, &name, &globals, &locals, &fromlist, &level))
+
++		return nullptr;
+
++
+
++	if (IsBlockedPythonModule(name))
+
++	{
+
++		PyErr_Format(PyExc_ImportError, "Blocked python module: %s", name);
+
++		return nullptr;
+
++	}
+
++
+
++	if (!g_poOriginalImport)
+
++	{
+
++		PyErr_SetString(PyExc_ImportError, "Original __import__ not available");
+
++		return nullptr;
+
++	}
+
++
+
++	return PyObject_Call(g_poOriginalImport, args, kwargs);
+
++}
+
++
+
++static void InstallRestrictedImport()
+
++{
+
++	PyObject* builtins = PyImport_ImportModule("__builtin__");
+
++	if (!builtins)
+
++	{
+
++		PyErr_Clear();
+
++		return;
+
++	}
+
++
+
++	PyObject* dict = PyModule_GetDict(builtins);
+
++	if (!dict)
+
++	{
+
++		Py_DECREF(builtins);
+
++		return;
+
++	}
+
++
+
++	PyObject* original = PyDict_GetItemString(dict, "__import__");
+
++	if (original)
+
++	{
+
++		g_poOriginalImport = original;
+
++		Py_INCREF(g_poOriginalImport);
+
++	}
+
++
+
++	static PyMethodDef sImportDef = {
+
++		"__import__",
+
++		(PyCFunction)RestrictedImport,
+
++		METH_VARARGS | METH_KEYWORDS,
+
++		"Restricted __import__ (blocks dangerous stdlib modules)"
+
++	};
+
++
+
++	PyObject* importFunc = PyCFunction_New(&sImportDef, nullptr);
+
++	if (importFunc)
+
++		PyDict_SetItemString(dict, "__import__", importFunc);
+
++	Py_XDECREF(importFunc);
+
++	Py_DECREF(builtins);
+
++}
+
++
+
+ CPythonLauncher::CPythonLauncher()
+
+ {
+
+ 	Py_Initialize();
+
++	InstallRestrictedImport();
+
+ }
+
+ 
+
+ CPythonLauncher::~CPythonLauncher()
+
+

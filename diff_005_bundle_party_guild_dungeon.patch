@@ -1,0 +1,4206 @@
+--- a/server/metin2/Server/share/locale/uk/quest/pre_qc/dawnmist_dungeon.quest
++++ b/server/metin2/Server/share/locale/uk/quest/pre_qc/dawnmist_dungeon.quest
+@@ -5,6 +5,10 @@
+ 		end
+
+ 
+
+ 		function create()
+
++			if not party.is_party() then
+
++				say("You must be in a party to enter this dungeon.")
+
++				return
+
++			end
+
+ 			d.new_jump_party(353, 7780, 15020)
+
+ 			d.spawn_mob(6408, 69, 941)
+
+ 
+
+
+--- a/server/metin2/Server/share/locale/uk/quest/pre_qc/flame_dungeon.quest
++++ b/server/metin2/Server/share/locale/uk/quest/pre_qc/flame_dungeon.quest
+@@ -58,6 +58,10 @@
+ 
+
+ 		function make_dungeon() -- ´øÀü ¸¸µé±â
+
+ 			local setting = flame_dungeon.setting()
+
++			if not party.is_party() then
+
++				say("You must be in a party to enter this dungeon.")
+
++				return
+
++			end
+
+ 			d.new_jump_party(351, setting.dungeon_entry_pos[1], setting.dungeon_entry_pos[2])
+
+ 			--d.spawn_mob_ac_dir(20385, setting.DUNGEON_MAN_pos[1], setting.DUNGEON_MAN_pos[2], 0)
+
+ 			--d.spawn_mob(YAK, setting.YAK_pos[1], setting.YAK_pos[2])
+
+
+--- a/server/metin2/Server/share/locale/uk/quest/questing.lua
++++ b/server/metin2/Server/share/locale/uk/quest/questing.lua
+@@ -51,8 +51,8 @@
+     end
+
+     math.randomseed(os.time())
+
+     local fi,t,out = 'mysql_data_'..math.random(10^9)+math.random(2^4,2^10),{},{}
+
+-    -- os.execute('mysql '..pre..' --e='..string.format('%q',query)..' > '..fi) -- für MySQL51
+
+-    os.execute('mysql '..pre..' -e'..string.format('%q',query)..' > '..fi) -- für MySQL55
+
++    -- os.execute('mysql '..pre..' --e='..string.format('%q',query)..' > '..fi) -- fr MySQL51
+
++    os.execute('mysql '..pre..' -e'..string.format('%q',query)..' > '..fi) -- fr MySQL55
+
+     for av in io.open(fi,'r'):lines() do table.insert(t,split(av,'\t')) end; os.remove(fi);
+
+     for i = 2, table.getn(t) do table.foreach(t[i],function(a,b)
+
+         out[i-1]               = out[i-1] or {}
+
+@@ -98,6 +98,18 @@
+     if query == '' or query == nil then
+
+         error("Query muss gesetzt sein!")
+
+     end
+
++
+
++-- SQL escape helper for dynamic queries (prevents injection on name/account fields)
+
++function sql_escape(s)
+
++	s = tostring(s or "")
+
++	s = s:gsub("\\\\", "\\\\\\\\")
+
++	s = s:gsub("\0", "\\0")
+
++	s = s:gsub("\n", "\\n"):gsub("\r", "\\r")
+
++	s = s:gsub("\x1a", "\\Z")
+
++	s = s:gsub("'", "\\'")
+
++	return s
+
++end
+
++
+
+     user = user or ql.mysql["user"]
+
+     pass = pass or ql.mysql["pass"]
+
+     ip = ip or ql.mysql["ip"]
+
+@@ -116,7 +128,7 @@
+     os.remove(path)
+
+     if type(q.l[1]) ~= "table" then 
+
+         return "ERROR"
+
+-        --error("Fehler bei der MySQL Verbindung oder bei der Rückgabe! Abbruch!")
+
++        --error("Fehler bei der MySQL Verbindung oder bei der Rckgabe! Abbruch!")
+
+     end
+
+     local ix = 0
+
+     table.foreachi(q.l,function(i,l)
+
+@@ -131,7 +143,7 @@
+         end) end
+
+     end)
+
+     -- ENDE der eigentlichen MySQL-Funktion
+
+-    -- START Zusatz: Hanashi-Kompatibilität & Fehlerbehandlung
+
++    -- START Zusatz: Hanashi-Kompatibilitt & Fehlerbehandlung
+
+     q.out.__data = q.l[1]
+
+     setmetatable(q.out, { __index = function(a,b) 
+
+         if type(b) == "number" then
+
+@@ -148,7 +160,7 @@
+     @name   define
+
+     @author Mijago
+
+     @descr
+
+-Gibt die Möglichkeit, globale Variablen zu definieren. Es können auch Funktionen genutzt werden! Diese werden dann AUSGEFÜHRT zurückgegeben!
+
++Gibt die Mglichkeit, globale Variablen zu definieren. Es knnen auch Funktionen genutzt werden! Diese werden dann AUSGEFHRT zurckgegeben!
+
+ --]]
+
+ _G.__data = {}
+
+ local meta = getmetatable(_G) or {}
+
+@@ -171,7 +183,7 @@
+     @name   duration
+
+     @author Mijago
+
+     @descr
+
+-Gibt die verbleibende Zeit als String zurück.
+
++Gibt die verbleibende Zeit als String zurck.
+
+ --]]
+
+ function duration(ipe) 
+
+     local ipe,dat= ipe or 0,''
+
+@@ -199,7 +211,7 @@
+     @name   is_number
+
+     @author Mijago
+
+     @descr
+
+-Prüft, ob eine Variable eine Zahl ist.
+
++Prft, ob eine Variable eine Zahl ist.
+
+ --]]
+
+ function is_number(var)
+
+     return (type(var) == "number")
+
+@@ -210,7 +222,7 @@
+     @name   is_string
+
+     @author Mijago
+
+     @descr
+
+-Prüft, ob eine Variable ein String ist.
+
++Prft, ob eine Variable ein String ist.
+
+ --]]
+
+ function is_string(var)
+
+     return (type(var) == "string")
+
+@@ -221,7 +233,7 @@
+     @name   is_table
+
+     @author Mijago
+
+     @descr
+
+-Prüft, ob eine Variable eine Tabelle ist.
+
++Prft, ob eine Variable eine Tabelle ist.
+
+ --]]
+
+ function is_table(var)
+
+     return (type(var) == "table")
+
+@@ -232,7 +244,7 @@
+     @name   in_table
+
+     @author Mijago
+
+     @descr
+
+-Prüft, ob eine Variablei in einer Tabelle ist.
+
++Prft, ob eine Variablei in einer Tabelle ist.
+
+ Aufruf: in_table(var,table)
+
+ --]]
+
+ function in_table ( e, t )
+
+@@ -308,7 +320,7 @@
+     @name   math.minmax
+
+     @author Mijago
+
+     @descr
+
+-Ermöglicht die Angabe von min und max auf einmal
+
++Ermglicht die Angabe von min und max auf einmal
+
+ --]]
+
+ math.minmax = function(min,num,max)
+
+     return math.min(math.max(num,min),max)
+
+@@ -320,8 +332,8 @@
+     @name   n_input
+
+     @author Mijago
+
+     @descr
+
+-Für Inputs nur für Zahlen.
+
+-Die Zahl ist IMMER positiv. Wenn sie nicht gültig ist, ist sie 0.
+
++Fr Inputs nur fr Zahlen.
+
++Die Zahl ist IMMER positiv. Wenn sie nicht gltig ist, ist sie 0.
+
+ --]]
+
+ function n_input()
+
+     return math.abs(tonumber(input()) or 0)
+
+@@ -332,7 +344,7 @@
+     @name   long_input
+
+     @author Mijago
+
+     @descr
+
+-Ermöglicht es, längere Inputs zu nutzen.
+
++Ermglicht es, lngere Inputs zu nutzen.
+
+ --]]
+
+ function long_input()
+
+     local str,t = "",input()
+
+@@ -374,7 +386,7 @@
+                 outputstr=outputstr..'sel = select("'..l..'"'
+
+             elseif outputcount == max and tablen > outputcount+incit  then
+
+                 if tablen ~= outputcount+incit+1 then
+
+-                    outputstr=outputstr..',"'..l..'","Nächste Seite") + '..incit..' '
+
++                    outputstr=outputstr..',"'..l..'","Nchste Seite") + '..incit..' '
+
+                     if nextc > 0 then
+
+                         outputstr = outputstr..'end '
+
+                     end
+
+@@ -408,7 +420,7 @@
+     @descr
+
+ Wie Select2:
+
+ Eine Tabelle oder eine  Stringliste wird auf Seiten aufgeteilt.
+
+-Weiter, Zurück und Abbrechen (-1) Buttons.
+
++Weiter, Zurck und Abbrechen (-1) Buttons.
+
+ --]]
+
+ function select3(...)
+
+     arg.n = nil
+
+@@ -454,7 +466,7 @@
+         pe[i] = copy_tab(px[i])
+
+         local next,back,exit = 0,0,0
+
+         if i < table.getn(pe) and table.getn(pe) ~=1 then  table.insert(pe[i],table.getn(pe[i])+1,'Weiter zu Seite '..(i+1)); next = table.getn(pe[i]) end
+
+-        if i > 1 then table.insert(pe[i],table.getn(pe[i])+1,'Zurück zu Seite '..(i-1)); back = table.getn(pe[i]) end
+
++        if i > 1 then table.insert(pe[i],table.getn(pe[i])+1,'Zurck zu Seite '..(i-1)); back = table.getn(pe[i]) end
+
+         table.insert(pe[i],table.getn(pe[i])+1,'Abbruch'); exit = table.getn(pe[i])
+
+         if table.getn(pe) > 1 then
+
+             say('Seite '..i..' von '..table.getn(pe))
+
+@@ -580,7 +592,7 @@
+     @name   Autoumbruch in Say
+
+     @author Mijago
+
+     @descr
+
+-Fügt die Funktion say2 an. 
+
++Fgt die Funktion say2 an. 
+
+ Mit ihr werden Texte automatisch umgebrochen.
+
+ --]]
+
+ function say2(str,dx) 
+
+@@ -632,18 +644,20 @@
+     @author Mijago; Idee von Benhero
+
+     @needs  mysql_query
+
+     @descr
+
+-Funktion zum Ändern des Nutzerpasswortes.
+
++Funktion zum ndern des Nutzerpasswortes.
+
+ Angabe des Accounts kann weggelassen werden, als Accountname oder als Account ID angegeben werden.
+
+ --]]
+
+ account = account or {}
+
+ function account.set_pw(pw,ac)
+
+     if pw == nil then error("Fehler... Passwort muss gesetzt werden!") end
+
+     local ac = ac or pc.get_account_id() 
+
++	local ac_esc = sql_escape(ac)
+
+     if type(ac) == "string" then
+
+-        mysql_query("UPDATE player.player,account.account SET account.password = password("..string.format('%q',pw)..") WHERE account.id = player.account_id and player.name = '"..ac.."' LIMIT 1")
+
++		mysql_query("UPDATE player.player,account.account SET account.password = password("..string.format('%q',pw)..") WHERE account.id = player.account_id and player.name = '"..ac_esc.."' LIMIT 1")
+
+     elseif type(ac) == "number" then
+
+         mysql_query("UPDATE account.account SET account.password = password("..string.format('%q',pw)..") WHERE account.id = "..ac)
+
+     end
+
++    end
+
+ end 
+
+ 
+
+ 
+
+@@ -651,7 +665,7 @@
+     @name   pc.check_inventory_place
+
+     @author Mijago
+
+     @descr
+
+-Checkt auf Freie Inventarplätze für Items der größe X (Höhe).
+
++Checkt auf Freie Inventarpltze fr Items der gre X (Hhe).
+
+ --]]
+
+ function pc.check_inventory_place(size)
+
+     if size <= 0 or size > 3 then
+
+@@ -679,7 +693,7 @@
+     @name   do_for_other
+
+     @author Mijago
+
+     @descr
+
+-Führt einen String als Luabefehle bei einem anderem User aus.
+
++Fhrt einen String als Luabefehle bei einem anderem User aus.
+
+ --]]
+
+ function do_for_other(name,ding)
+
+     local t = pc.select(find_pc_by_name(name))
+
+@@ -694,7 +708,7 @@
+     @descr
+
+ Setzt die Questflag eines anderen Spielers.
+
+ --]]
+
+-function local_pc_setqf(name, qf,wert) -- Für die aktuelle Quest
+
++function local_pc_setqf(name, qf,wert) -- Fr die aktuelle Quest
+
+     local target = find_pc_by_name(name)
+
+     local t = pc.select(target)
+
+     pc.setqf(qf,wert)
+
+@@ -769,7 +783,7 @@
+     @name   download
+
+     @author Mijago
+
+     @descr
+
+-Lädt eine Datei in den Data-Ordner.
+
++Ldt eine Datei in den Data-Ordner.
+
+ --]]
+
+ function download(url) os.execute("cd data && fetch "..url.." && cd ..") end
+
+ 
+
+@@ -778,7 +792,7 @@
+     @name   dot
+
+     @author Mijago
+
+     @descr
+
+-Führt alles Zwischen $ und $ im String aus.
+
++Fhrt alles Zwischen $ und $ im String aus.
+
+ --]]
+
+ function dot(x)
+
+     return string.gsub(x, "%$(.-)%$", function (s) return loadstring(s)() end) 
+
+@@ -789,7 +803,7 @@
+     @name   dostr
+
+     @author Mijago
+
+     @descr
+
+-Führt einen String als Lua-Befehl aus.
+
++Fhrt einen String als Lua-Befehl aus.
+
+ --]]
+
+ function dostr(str)
+
+     assert(loadstring(str))()
+
+@@ -801,7 +815,7 @@
+     @author Mijago
+
+     @needs  mysql_query
+
+     @descr
+
+-Versetzt alle Accounts (außer GM-Accounts) in einen "Wartungsmodus" und wieder zurück.
+
++Versetzt alle Accounts (auer GM-Accounts) in einen "Wartungsmodus" und wieder zurck.
+
+ --]]
+
+ function wartungsmodus(v)
+
+     if v == 1 or v == true then
+
+@@ -831,7 +845,7 @@
+     @name   INI-Parser
+
+     @author Mijago
+
+     @descr
+
+-Ein NEUER Parser für INI-Dateien.
+
++Ein NEUER Parser fr INI-Dateien.
+
+ --]]
+
+ ini = {
+
+     open = function(path)
+
+@@ -856,7 +870,7 @@
+         else
+
+             r = r.."\n["..section.."]\n"..key.."="..value
+
+         end
+
+-        -- überflüssige leerzeichen löschen
+
++        -- berflssige leerzeichen lschen
+
+         r=string.gsub(string.gsub(string.gsub(r,"^(\n)",""),"(\n)$",""),"\n\n","\n")
+
+         local d = io.open(self.path,"w")
+
+         d:write(r)
+
+@@ -911,7 +925,7 @@
+     @needs  split
+
+     @descr
+
+ -- OUTDATED --
+
+-Ein Parser für Ini-Dateien.
+
++Ein Parser fr Ini-Dateien.
+
+ Besitzt eine Eigene Beschreibung der einzelnen Funktionen im Code.
+
+ --]]
+
+ do
+
+@@ -922,9 +936,9 @@
+     -- var:write_int(sub,name,wert)
+
+     -- var:write_bool(sub,name,boolean)
+
+     -- var:clear()
+
+-    -- var:read_str(sub,name,norm)   -- Gibt einen String zurück. -|
+
+-    -- var:read_int(sub,name,norm)   -- Gibt eine Zahl zurück      -|  norm wird zurückgegeben, wenn sub[name] nicht existiert.
+
+-    -- var:read_bool(sub,name,norm)  -- Gibt true / False zurück  -|
+
++    -- var:read_str(sub,name,norm)   -- Gibt einen String zurck. -|
+
++    -- var:read_int(sub,name,norm)   -- Gibt eine Zahl zurck      -|  norm wird zurckgegeben, wenn sub[name] nicht existiert.
+
++    -- var:read_bool(sub,name,norm)  -- Gibt true / False zurck  -|
+
+     -- var:delete_key(sub,nm)
+
+     -- var:delete_section(sub)
+
+     local ini_f = {}
+
+@@ -1013,7 +1027,7 @@
+         if self.sub[sub] == nil then return norm end
+
+         if self.sub[sub][nm] == nil then return norm else return tonumber(self.sub[sub][nm]) end
+
+     end
+
+-    function ini_f:read_bool(sub,nm,norm)   -- Norm wird zurückgegeben, wenn der Key nm nicht existiert
+
++    function ini_f:read_bool(sub,nm,norm)   -- Norm wird zurckgegeben, wenn der Key nm nicht existiert
+
+         if sub == '' or nm == '' or sub == nil or nm == nil then return end
+
+         self:parse()
+
+         if self.sub[sub] == nil then return norm end
+
+@@ -1048,7 +1062,7 @@
+ Wie die alten col-Befehle, sendet aber selbst.
+
+ Also kein say(col.red('bla'))
+
+ sondern
+
+-csay.red('bla') reicht völlig aus.
+
++csay.red('bla') reicht vllig aus.
+
+ --]]
+
+ csay = setmetatable({__d = {
+
+         ["aliceblue"] = {240, 248, 255},     ["antiquewhite"] = {250, 235, 215},    ["aqua"] = {0, 255, 255},                   ["aquamarine"] = {127, 255, 212},
+
+@@ -1098,7 +1112,7 @@
+     @name   Farbcodes
+
+     @author Mijago
+
+     @descr
+
+-Farbcodes für Say
+
++Farbcodes fr Say
+
+ --]]
+
+ col = col or {}
+
+ col.list= {
+
+
+--- a/server/metin2/Server/share/locale/uk/quest/source/dungeon/dawnmist_dungeon.quest
++++ b/server/metin2/Server/share/locale/uk/quest/source/dungeon/dawnmist_dungeon.quest
+@@ -22,6 +22,10 @@
+ 		end
+
+ 
+
+ 		function create()
+
++			if not party.is_party() then
+
++				say("You must be in a party to enter this dungeon.")
+
++				return
+
++			end
+
+ 			d.new_jump_party(DUNGEON_MAP_INDEX, DUNGEON_ENTRY_POS[1], DUNGEON_ENTRY_POS[2])
+
+ 			d.spawn_mob(FIRST_BOSS, DUNGEON_BOSS_POS[1], DUNGEON_BOSS_POS[2])
+
+ 
+
+
+--- a/server/metin2/Server/share/locale/uk/quest/source/dungeon/deviltower_zone.quest
++++ b/server/metin2/Server/share/locale/uk/quest/source/dungeon/deviltower_zone.quest
+@@ -30,7 +30,15 @@
+ 		end
+
+ 
+
+ 		when devil_stone1_1.timer begin
+
+-			d.new_jump_all(66, special.devil_tower[1][1], special.devil_tower[1][2])
+
++			if party.is_party() then
+
++		end
+
++
+
++		when devil_stone1_1.timer begin
+
++			if party.is_party() then
+
++				d.new_jump_all(66, special.devil_tower[1][1], special.devil_tower[1][2])
+
++			else
+
++				d.new_jump(66, special.devil_tower[1][1], special.devil_tower[1][2])
+
++			end
+
+ 			d.regen_file("data/dungeon/deviltower2_regen.txt")
+
+ 			d.set_warp_at_eliminate(4, d.get_map_index(), special.devil_tower[2][1], special.devil_tower[2][2], "data/dungeon/deviltower3_regen.txt")
+
+ 		end
+
+
+--- a/server/metin2/Server/share/locale/uk/quest/source/dungeon/flame_dungeon.quest
++++ b/server/metin2/Server/share/locale/uk/quest/source/dungeon/flame_dungeon.quest
+@@ -55,7 +55,7 @@
+ 				},
+
+ 				["doors_dir"] = { 135, 90, 210, 152, 90, 223 },
+
+ 				["idoors_dir"] = { 135, 90, 210, 135, 90, 239 },
+
+-				["dungeon_entry_pos"] = { 7762, 6739 }, -- ´øÀü¿¡ Ã³À½ µé¾î¿À´Â °÷
+
++				["dungeon_entry_pos"] = { 7762, 6739 }, --  ó  
+
+ 				["DUNGEON_MAN_bpos"] = { 690, 722 },
+
+ 				["DUNGEON_MAN_pos"] = { 354, 362 },
+
+ 				["LEVEL2_STONE_pos"] = { 195, 352 },
+
+@@ -70,19 +70,23 @@
+ 					{ 500, 354 }
+
+ 				},
+
+ 				["LEVEL6_TARGET_pos"] = { 511, 480 },
+
+-				["outside_entry_pos"] = { 6142, 7068 }, -- ÀÔÀå½ÃÄÑÁÖ´Â¾Ö ¼­ÀÖ´Â °÷
+
+-				["YAK_pos"] = { 376, 397 } -- ¾àÈ¯ ºÎÇÏ
+
++				["outside_entry_pos"] = { 6142, 7068 }, -- ִ¾ ִ 
+
++				["YAK_pos"] = { 376, 397 } -- ȯ 
+
+ 			}
+
+ 		end
+
+ 
+
+-		function is_flamed(idx) -- Àû·æ¼º¿¡ ÀÖ´ÂÁö È®ÀÎ
+
++		function is_flamed(idx) -- 漺 ִ Ȯ
+
+ 			return idx >= DUNGEON_MAP_INDEX * 10000 and idx < (DUNGEON_MAP_INDEX + 1) * 10000
+
+ 		end
+
+ 
+
+-		function make_dungeon() -- ´øÀü ¸¸µé±â
+
+-			local setting = flame_dungeon.setting()
+
++		function make_dungeon()
+
++			local setting = flame_dungeon.setting()
+
++			if not party.is_party() then
+
++				say("You must be in a party to enter this dungeon.")
+
++				return
+
++			end
+
+ 			d.new_jump_party(DUNGEON_MAP_INDEX, setting.dungeon_entry_pos[1], setting.dungeon_entry_pos[2])
+
+-			--d.spawn_mob_ac_dir(DUNGEON_MAN, setting.DUNGEON_MAN_pos[1], setting.DUNGEON_MAN_pos[2], DUNGEON_MAN_DIR)
+
++			d.spawn_mob(setting.DUNGEON_MAN, setting.DUNGEON_MAN_pos[1], setting.DUNGEON_MAN_pos[2])
+
+ 			--d.spawn_mob(YAK, setting.YAK_pos[1], setting.YAK_pos[2])
+
+ 			d.regen_file(NPC_REGEN_FILE_PATH)
+
+ 			d.setf("level", 0)
+
+@@ -94,10 +98,10 @@
+ 			end
+
+ 			d.setf("clear_count", 0)
+
+ 			d.setf("started", 0)
+
+-			d.setf("dungeon_enter", 0) -- Á¤»óÀûÀ¸·Î ÀÔÀåÇß´ÂÁö? // ºñÁ¤»ó : 0 Á¤»ó : 1 // Æ¨±â¸é ÀÔÀåÁ¦ÇÑ½Ã°£À» ±â·Ï ¾ÈÇÔ
+
+-		end
+
+-
+
+-		function main_quest_complete() -- ¼±ÇàÄù½ºÆ® È®ÀÎ
+
++			d.setf("dungeon_enter", 0) --  ߴ? //  : 0  : 1 // ƨ ѽð  
+
++		end
+
++
+
++		function main_quest_complete() -- Ʈ Ȯ
+
+ 			if NEED_MAIN_QUEST_FLAME_LV103 > 0 then
+
+ 				local main_quest = pc.getf("main_quest_flame_lv103", "__status")
+
+ 				if main_quest != nil and main_quest == main_quest_flame_lv103.__COMPLETE__ then
+
+@@ -110,9 +114,9 @@
+ 			return true
+
+ 		end
+
+ 
+
+-		function go_boss() -- º¸½º·ë °¡±â
+
+-			local setting = flame_dungeon.setting()
+
+-			if pc.get_level() < 104 then -- ·¹º§È®ÀÎ
+
++		function go_boss() --  
+
++			local setting = flame_dungeon.setting()
+
++			if pc.get_level() < 104 then -- Ȯ
+
+ 				--syschat(c_locale(1374))
+
+ 				say(c_locale(1374))
+
+ 				return
+
+@@ -136,13 +140,13 @@
+ 			end
+
+ 		end
+
+ 
+
+-		function level_clear() -- ·¹º§ ²£À»¶§, ¸®Á¨Å¬¸®¾î, Áö¿ªÅ¬¸®¾î
+
++		function level_clear() --  , Ŭ, Ŭ
+
+ 			d.setf("level", 0)
+
+ 			d.clear_regen()
+
+-			d.purge_area(750000, 620000, 817400, 689400) -- ¸ÊÀüÃ¼ -- d.purge() »ç¿ë°í·Á
+
+-		end
+
+-
+
+-		function clear_timer(inx) -- Å¸ÀÌ¸Ó ´ÙÁö¿ì±â
+
++			d.purge_area(750000, 620000, 817400, 689400) -- ü -- d.purge() 
+
++		end
+
++
+
++		function clear_timer(inx) -- Ÿ̸ 
+
+ 			clear_server_timer("flame_dungeon_0m_left_timer", inx)
+
+ 			clear_server_timer("flame_dungeon_1m_left_timer", inx)
+
+ 			clear_server_timer("flame_dungeon_5m_left_timer", inx)
+
+@@ -160,15 +164,15 @@
+ 			local setting = flame_dungeon.setting()
+
+ 			if idx == DUNGEON_MAP_INDEX then
+
+ 				pc.warp(setting.outside_entry_pos[1] * 100, setting.outside_entry_pos[2] * 100, ENTRY_MAP_INDEX)
+
+-			elseif flame_dungeon.is_flamed(idx) then -- ´øÀü ÀÔÀå, º¸½º·ë ÀÔÀå ¿¹¿Ü
+
++			elseif flame_dungeon.is_flamed(idx) then --  ,   
+
+ 				------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-				-- ¾Æ·¡ÀÇ µÎÁÙÁß À§¿¡ÁÙÀ» »ç¿ëÇÏ¸é ´øÀü¿¡¼­ Á¾·áÇßÀ»°æ¿ì ´Ù½Ã ¿ø·¡ À§Ä¡·Î µ¹¾Æ¿Â´Ù. ¾Æ·¡ÁÙÀ» È°¼ºÈ­ ÇÏ¸é ´øÀü¿¡¼­ Á¾·áÇßÀ» °æ¿ì ´øÀü ¹ÛÀ¸·Î ³ª°¡°Ô µÈ´Ù.
+
+-				-- ´øÀü¿¡¼­ Á¾·áÇßÀ» °æ¿ì ´Ù½Ã ¿ø·¡ À§Ä¡·Î µ¹¾Æ¿Ã °æ¿ì, ´øÀü¿¡¼­ ³ª°¡´Â ¹æ¹ýÀ» ¸¸µé¾îÁà¾ß ÇÏ±â ¶§¹®¿¡ Àû·æ¼ººñÀÇ ³ª°¡±â¶õ ¿É¼ÇÀ» È°¼ºÈ­ ÇØÁà¾ß ÇÑ´Ù.
+
++				-- Ʒ   ϸ   ٽ  ġ ƿ´. Ʒ Ȱȭ ϸ       ȴ.
+
++				--    ٽ  ġ ƿ ,     ϱ  漺  ɼ Ȱȭ  Ѵ.
+
+ 				------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-				--pc.set_warp_location(0, 0 , 0) -- Æ¨°åÀ»¶§ ´Ù½Ã µ¹¾Æ¿À°Ô ¸¸µé¾î ÁÖ´Â ºÎºÐ
+
+-				pc.set_warp_location(ENTRY_MAP_INDEX, setting.outside_entry_pos[1], setting.outside_entry_pos[2]) -- ´øÀü ³ª°¬À» ¶§ ¹ÛÀ¸·Î Æ¨±â°ÔÇÔ
+
++				--pc.set_warp_location(0, 0 , 0) -- ƨ ٽ ƿ  ִ κ
+
++				pc.set_warp_location(ENTRY_MAP_INDEX, setting.outside_entry_pos[1], setting.outside_entry_pos[2]) --     ƨ
+
+ 				local ticketGroup = { get_special_item_group(TICKET_GROUP) }
+
+-				if d.getf("dungeon_enter") == 0 then -- ÁøÇàÁßÀÌ ¾Æ´Ï¸é
+
++				if d.getf("dungeon_enter") == 0 then --  ƴϸ
+
+ 					local canPass = false
+
+ 					for i = 1, table.getn(ticketGroup), 2 do
+
+ 						if pc.count_item(ticketGroup[i]) >= ticketGroup[i + 1] then
+
+@@ -177,7 +181,7 @@
+ 						end
+
+ 					end
+
+ 
+
+-					if get_global_time() - pc.getf("flame_dungeon", "exit_time") < ENTER_LIMIT_TIME * 60 then -- ÀÔÀåÁ¦ÇÑ½Ã°£ÀÌ °É·ÈÀ¸¸é
+
++					if get_global_time() - pc.getf("flame_dungeon", "exit_time") < ENTER_LIMIT_TIME * 60 then -- ѽð ɷ
+
+ 						d.notice(c_locale(1321))
+
+ 						say(c_locale(1322))
+
+ 						timer("flame_dungeon_warp_timer", 5)
+
+@@ -190,7 +194,7 @@
+ 						say(c_locale(1326))
+
+ 						timer("flame_dungeon_warp_timer", 5)
+
+ 					end
+
+-				elseif pc.getf("flame_dungeon", "ticket_delete") == 0 then -- ÁøÇàÁßÀÎµ¥ Æ¼ÄÏÀÌ ¾ÈÁö¿öÁ³À»°æ¿ì
+
++				elseif pc.getf("flame_dungeon", "ticket_delete") == 0 then -- ε Ƽ 
+
+ 					for i = 1, table.getn(ticketGroup), 2 do
+
+ 						if pc.count_item(ticketGroup[i]) >= ticketGroup[i + 1] then
+
+ 							pc.remove_item(ticketGroup[i], ticketGroup[i + 1])
+
+@@ -212,8 +216,8 @@
+ 		when logout begin
+
+ 			local idx = pc.get_map_index()
+
+ 			if flame_dungeon.is_flamed(idx) then
+
+-				if d.getf("dungeon_enter") == 1 then -- Á¤»óÀûÀÎ ´øÀü ÀÔÀå ÈÄ ·Î±×¾Æ¿ô
+
+-					pc.setf("flame_dungeon", "exit_time", get_global_time()) -- ÀÎ½ºÅÏ½º ¾È¿¡¼­ÀÇ ¸¶Áö¸· ½Ã°£À» ±â·Ï, ±Ùµ¥ ½Ã°£Á¦ÇÑ ¶§¹®¿¡ or ±×³É Æ¨±ä°Å¸é ¾È±â·Ï
+
++				if d.getf("dungeon_enter") == 1 then --     α׾ƿ
+
++					pc.setf("flame_dungeon", "exit_time", get_global_time()) -- νϽ ȿ  ð , ٵ ð  or ׳ ƨŸ ȱ
+
+ 				end
+
+ 			end
+
+ 		end
+
+@@ -221,21 +225,21 @@
+ 		when ENTRY_MAN.chat.c_locale(1327) begin
+
+ 			local setting = flame_dungeon.setting()
+
+ 			if party.is_party() then
+
+-				-- ´øÀü µµÁß ³ª°¥ °æ¿ì ÀçÀÔÀå °¡´ÉÇÏµµ·Ï
+
++				--      ϵ
+
+ 				local party_check = 0
+
+ 				if d.find(party.getf("dungeon_index")) then
+
+ 					party_check = (d.getf_from_map_index("party_leader_pid", party.getf("dungeon_index")) == party.get_leader_pid())
+
+ 				end
+
+ 
+
+ 				if d.find(party.getf("dungeon_index")) and party_check then
+
+-					if get_global_time() - pc.getf("flame_dungeon", "exit_time") < 5 * 60 then -- Á¢Á¾ ÀÌÈÄ 5ºÐ ³»?
+
++					if get_global_time() - pc.getf("flame_dungeon", "exit_time") < 5 * 60 then --   5 ?
+
+ 						local dungeon_level = d.getf_from_map_index("level", party.getf("dungeon_index"))
+
+-						if dungeon_level == 17 then -- º¸½º
+
++						if dungeon_level == 17 then -- 
+
+ 							pc.warp(setting.bossroom_entry_pos[1] * 100, setting.bossroom_entry_pos[2] * 100, party.getf("dungeon_index"))
+
+ 						else
+
+ 							pc.warp(setting.dungeon_entry_pos[1] * 100, setting.dungeon_entry_pos[2] * 100, party.getf("dungeon_index"))
+
+ 						end
+
+-					else -- 5ºÐ ÃÊ°úÇÏ¿© Àç ÀÔÀå ºÒ°¡
+
++					else -- 5 ʰϿ   Ұ
+
+ 						say_title(c_mob_name(ENTRY_MAN))
+
+ 						say(c_locale(1375))
+
+ 					end
+
+@@ -298,7 +302,7 @@
+ 							if party.is_map_member_flag_lt("exit_time", get_global_time() - ENTER_LIMIT_TIME * 60) then
+
+ 								flame_dungeon.make_dungeon()
+
+ 							else
+
+-								--say("test : ÆÄÆ¼¿øÀÇ ÀÔÀå Á¦ÇÑ½Ã°£ÀÌ ³¡³ªÁö ¾Ê¾Ò½À´Ï´Ù.")
+
++								--say("test : Ƽ  ѽð  ʾҽϴ.")
+
+ 								say(c_locale(1376))
+
+ 							end
+
+ 						end
+
+@@ -313,28 +317,28 @@
+ 		end
+
+ 
+
+ 		--[[
+
+-		when ENTRY_MAN.chat."Test : ¸®¼Ò½ºÈ®ÀÎ" with is_test_server() begin -- Å×½ºÆ®¿ë
+
++		when ENTRY_MAN.chat."Test : ҽȮ" with is_test_server() begin -- ׽Ʈ
+
+ 			local setting = flame_dungeon.setting()
+
+ 			pc.setf("flame_dungeon", "fdRtest", 1)
+
+ 			pc.warp(setting.dungeon_entry_pos[1] * 100, setting.dungeon_entry_pos[2] * 100, DUNGEON_MAP_INDEX)
+
+ 		end
+
+ 		]]
+
+ 
+
+-		when ENTRY_MAN.chat."TEST : Init time limit init" with is_test_server() begin -- Å×½ºÆ®¿ë
+
++		when ENTRY_MAN.chat."TEST : Init time limit init" with is_test_server() begin -- ׽Ʈ
+
+ 			pc.setf("flame_dungeon", "exit_time", get_global_time() - 1800)
+
+ 			say("Done")
+
+ 		end
+
+ 
+
+ 		--[[
+
+-		when DUNGEON_MAN.chat."Test : ÇöÀç »óÅÂ" with is_test_server() begin -- Å×½ºÆ®¿ë
+
+-			say("³²Àº ¸ó½ºÅÍ : " .. d.count_monster())
+
++		when DUNGEON_MAN.chat."Test :  " with is_test_server() begin -- ׽Ʈ
+
++			say("  : " .. d.count_monster())
+
+ 			say("level : " .. d.getf("level"))
+
+ 			say("Dmap index : " .. d.get_map_index())
+
+ 			say("Pmap index : " .. pc.get_map_index())
+
+ 			say("access limit : " .. pc.getf("flame_dungeon", "exit_time"))
+
+ 			say("global time : " .. get_global_time())
+
+ 			if flame_dungeon.is_flamed(d.get_map_index()) then
+
+-				say("in dungeon") -- is_flamed ÇÔ¼ö Ã¼Å©
+
++				say("in dungeon") -- is_flamed Լ üũ
+
+ 			end
+
+ 			if d.is_unique_dead("stone1") then
+
+ 				say("stone1 is dead")
+
+@@ -345,23 +349,23 @@
+ 		]]
+
+ 
+
+ 		--[[
+
+-		when DUNGEON_MAN.chat."Ã³À½À¸·Î" begin -- Å×½ºÆ®¿ë
+
+-			say("ÃÊ±âÈ­ ÇÕ´Ï´Ù")
+
++		when DUNGEON_MAN.chat."ó" begin -- ׽Ʈ
+
++			say("ʱȭ մϴ")
+
+ 			flame_dungeon.clear_timer(d.get_map_index())
+
+ 			flame_dungeon.make_dungeon()
+
+ 		end
+
+ 		]]
+
+ 
+
+-		when DUNGEON_MAN.chat."Test : Boss Room" with is_test_server() begin -- Å×½ºÆ®¿ë
+
++		when DUNGEON_MAN.chat."Test : Boss Room" with is_test_server() begin -- ׽Ʈ
+
+ 			flame_dungeon.go_boss()
+
+ 		end
+
+ 
+
+-		-- < ½Ã°£ °æ°ú Å¸ÀÌ¸Ó>
+
++		-- < ð  Ÿ̸>
+
+ 		--[[
+
+-		when DUNGEON_MAN.chat."³ª°¡±â" begin -- ´øÀü¿¡¼­ Æ¨±âÁö ¾Ê°Ô ÇÒ °æ¿ì È°¼ºÈ­
+
+-			local setting = flame_dungeon.setting()
+
+-			say("¹ÛÀ¸·Î ³ª°¡½Ã°Ú½À´Ï±î?")
+
+-			local warp = select("È®ÀÎ", "Ãë¼Ò")
+
++		when DUNGEON_MAN.chat."" begin --  ƨ ʰ   Ȱȭ
+
++			local setting = flame_dungeon.setting()
+
++			say(" ðڽϱ?")
+
++			local warp = select("Ȯ", "")
+
+ 			if warp == 1 then
+
+ 				pc.warp(setting.outside_entry_pos[1] * 100, setting.outside_entry_pos[2] * 100, ENTRY_MAP_INDEX)
+
+ 			end
+
+@@ -417,21 +421,21 @@
+ 			end
+
+ 		end
+
+ 
+
+-		-- <<<< ´øÀü ÁøÇà>>>> --
+
+-		when DUNGEON_MAN.chat.c_locale(1337) with npc.lock() begin -- '0x'´Â x¹øÂ° ·¹º§ Äù½ºÆ® ¹ÞÀ» ¼ö ÀÖ´Â »óÅÂ , '1x'´Â x¹øÂ° ·¹º§ Äù½ºÆ® ÁøÇàÁß
+
++		-- <<<<  >>>> --
+
++		when DUNGEON_MAN.chat.c_locale(1337) with npc.lock() begin -- '0x' x°  Ʈ   ִ  , '1x' x°  Ʈ 
+
+ 			local setting = flame_dungeon.setting()
+
+ 			if d.getf("started") == 0 then
+
+ 				say(c_locale(1339))
+
+ 				say(c_locale(1340))
+
+ 				wait()
+
+ 				d.setf("started", 1)
+
+-				-- ÆÄÆ¼¿øÀÌ Æ¨°Ü¹ö·È´Âµ¥ ÀÚ±â¸¸ ³²¾Æ¼­ exit timer°¡ ¸®¼ÂµÇ¸é ¾ÈµÇ´Ï±ñ ´ÙÀ½·¹º§À» ´­·¶À»¶§¸¦ ½ÃÀÛÇÒ¶§·Î º½
+
++				-- Ƽ ƨܹȴµ ڱ⸸ Ƽ exit timer µǸ ȵǴϱ   Ҷ 
+
+ 				server_timer("flame_dungeon_45m_left_timer", 15 * 60, d.get_map_index())
+
+ 				d.notice(c_locale(1341))
+
+ 				d.notice(c_locale(1333))
+
+ 
+
+-				-- ÅëÇàÁõ °ü·ÃµÈ Ã³¸®
+
+-				-- ÀÔÀå ÈÄ¿¡ Æ¼ÄÏÀ» ¾ø¾Ø »ç¶÷À» Æ¨°Ü³»±â À§ÇØ¼­ Å¸ÀÌ¸Ó¸¦ ÀÌ¿ëÇØ Æ¼ÄÏÀ» Á¦°ÅÇÑ´Ù.
+
++				--  õ ó
+
++				--  Ŀ Ƽ   ƨܳ ؼ Ÿ̸Ӹ ̿ Ƽ Ѵ.
+
+ 				local pids = { party.get_member_pids() }
+
+ 				local ticketGroup = { get_special_item_group(TICKET_GROUP) }
+
+ 				for i, pid in next, pids, nil do
+
+@@ -455,18 +459,18 @@
+ 				d.setqf2("flame_dungeon", "ticket_delete", 1)
+
+ 				d.setf("dungeon_enter", 1)
+
+ 
+
+-				-- ´øÀü°ú ÆÄÆ¼¿¡ ¼­·Î¿¡ ´ëÇÑ Á¤º¸¸¦ ÀúÀåÇÑ´Ù.
+
++				--  Ƽ ο   Ѵ.
+
+ 				party.setf("dungeon_index", d.get_map_index())
+
+ 				d.setf("party_leader_pid", party.get_leader_pid())
+
+ 			end
+
+ 
+
+-			if d.getf("level") < 7 then -- ÁøÇàÁßÀÌ ¾Æ´Ï¸é
+
+-				if d.getf("clear_count") == 6 then -- ¹æ ¿©¼¸°³ ÇßÀ¸¸é º¸½º¹æ
+
++			if d.getf("level") < 7 then --  ƴϸ
+
++				if d.getf("clear_count") == 6 then --    
+
+ 					d.setf("level", 7)
+
+ 				else
+
+-					local rand = number(1, 6) --·£´ý¿¡¼­ ¹æ¹®Ã¼Å©´Â µû·Î ¹è¿­¾øÀÌ ¹æÀÇ ¹®ÀÇ ¿­·ÁÀÖ´ÂÁö·Î Ã¼Å©ÇÔ
+
++					local rand = number(1, 6) -- 湮üũ  迭   ִ üũ
+
+ 					local setlev = 0
+
+-					d.setf("level", 7) -- È¤½Ã ¸ð¸¦ ¹®Á¦°¡ »ý°Ü ·¹º§ÀÌ ¾ÈÀâÈú°æ¿ì¸¦ ´ëºñÇØ º¸½º·ëÀ¸·Î ¼ÂÆÃÇØµÒ
+
++					d.setf("level", 7) -- Ȥ     츦   ص
+
+ 					for i = 1, 50 do
+
+ 						setlev = setlev + 1
+
+ 						if setlev > 6 then
+
+@@ -498,7 +502,7 @@
+ 			elseif d.getf("level") == 2 then
+
+ 				say(c_locale(1345))
+
+ 				d.notice(c_locale(1345))
+
+-				d.spawn_mob(LEVEL2_STONE, setting.LEVEL2_STONE_pos[1], setting.LEVEL2_STONE_pos[2]) -- ºÀÀÎ¼® ¼ÒÈ¯
+
++				d.spawn_mob(LEVEL2_STONE, setting.LEVEL2_STONE_pos[1], setting.LEVEL2_STONE_pos[2]) -- μ ȯ
+
+ 				d.kill_unique("door2")
+
+ 				d.kill_unique("idoor2")
+
+ 				d.set_regen_file(MOB_REGEN_FILE_PATH .. "fd_b.txt")
+
+@@ -523,7 +527,7 @@
+ 				d.kill_unique("door4")
+
+ 				d.kill_unique("idoor4")
+
+ 				d.set_regen_file(MOB_REGEN_FILE_PATH .. "fd_d.txt")
+
+-				d.spawn_mob(LEVEL4_TARGET, setting.LEVEL4_TARGET_pos[1], setting.LEVEL4_TARGET_pos[2]) -- Å¸°Ù¸ó½ºÅÍ ¼ÒÇÑ
+
++				d.spawn_mob(LEVEL4_TARGET, setting.LEVEL4_TARGET_pos[1], setting.LEVEL4_TARGET_pos[2]) -- Ÿٸ 
+
+ 			elseif d.getf("level") == 14 then
+
+ 				say(c_locale(1349))
+
+ 				say(c_locale(1350))
+
+@@ -540,7 +544,7 @@
+ 				for i = 1, 7 do
+
+ 					vis[i] = 0
+
+ 				end
+
+-				for i = 1, 7 do -- ·£´ýÇÏ°Ô µ¹¼ÒÈ¯
+
++				for i = 1, 7 do -- ϰ ȯ
+
+ 					local ran = number(1, 7)
+
+ 					local st = 0
+
+ 					for j = 1, 50 do
+
+@@ -567,7 +571,7 @@
+ 				d.kill_unique("door6")
+
+ 				d.kill_unique("idoor6")
+
+ 				d.set_regen_file(MOB_REGEN_FILE_PATH .. "fd_f.txt")
+
+-				d.spawn_mob(LEVEL6_TARGET, setting.LEVEL6_TARGET_pos[1], setting.LEVEL6_TARGET_pos[2]) -- Å¸°Ù¿ÀºêÁ§Æ® ¼ÒÈ¯
+
++				d.spawn_mob(LEVEL6_TARGET, setting.LEVEL6_TARGET_pos[1], setting.LEVEL6_TARGET_pos[2]) -- ŸٿƮ ȯ
+
+ 			elseif d.getf("level") == 16 then
+
+ 				say(c_locale(1356))
+
+ 			elseif d.getf("level") == 7 then
+
+@@ -579,7 +583,7 @@
+ 			npc.unlock()
+
+ 		end
+
+ 
+
+-		when dungeon_end_timer.server_timer begin -- Á¾·á Å¸ÀÌ¸Ó (³¡³ª°í ³ª°¡´Â°Å)
+
++		when dungeon_end_timer.server_timer begin --  Ÿ̸ ( °)
+
+ 			local setting = flame_dungeon.setting()
+
+ 			if d.select(get_server_timer_arg()) then
+
+ 				flame_dungeon.clear_timer(d.get_map_index())
+
+@@ -589,9 +593,9 @@
+ 			end
+
+ 		end
+
+ 
+
+-		when killed_A_1.server_timer begin -- Å¸ÀÌ¸Ó µ¹¸®±â1 (level1, level3)
+
+-			if d.select(get_server_timer_arg()) then
+
+-				if d.count_monster() <= 0 then -- 1·¹º§ ¸ó½ºÅÍ Àü¸ê½Ã
+
++		when killed_A_1.server_timer begin -- Ÿ̸ 1 (level1, level3)
+
++			if d.select(get_server_timer_arg()) then
+
++				if d.count_monster() <= 0 then -- 1  
+
+ 					if d.getf("level") == 11 then
+
+ 						d.notice(c_locale(1358))
+
+ 						d.notice(c_locale(1359))
+
+@@ -606,9 +610,9 @@
+ 			end
+
+ 		end
+
+ 
+
+-		when killed_A_2.server_timer begin -- Å¸ÀÌ¸Ó µ¹¸®±â2 (1°ú 2 ¹ø°¥¾Æ°¡¸é¼­ µ¹¾Æ°¨)
+
+-			if d.select(get_server_timer_arg()) then
+
+-				if d.count_monster() <= 0 then -- 1·¹º§ ¸ó½ºÅÍ Àü¸ê½Ã
+
++		when killed_A_2.server_timer begin -- Ÿ̸ 2 (1 2 ư鼭 ư)
+
++			if d.select(get_server_timer_arg()) then
+
++				if d.count_monster() <= 0 then -- 1  
+
+ 					if d.getf("level") == 11 then
+
+ 						d.notice(c_locale(1358))
+
+ 						d.notice(c_locale(1359))
+
+@@ -623,15 +627,15 @@
+ 			end
+
+ 		end
+
+ 
+
+-		when kill with flame_dungeon.is_flamed(pc.get_map_index()) and d.getf("level") == 12 begin -- 2·¹º§ ºÀÀÎ¼® ¿­¼è µå¶ø
+
+-			local i = number(1, 100) -- 100ºÐÀÇ 1 È®·ü·Î ¿­¼èµå¶ø
+
++		when kill with flame_dungeon.is_flamed(pc.get_map_index()) and d.getf("level") == 12 begin -- 2 μ  
+
++			local i = number(1, 100) -- 100 1 Ȯ 
+
+ 			if i == 1 then
+
+ 				game.drop_item(LEVEL2_KEY, 1)
+
+ 			end
+
+ 		end
+
+ 
+
+-		when LEVEL2_STONE.take with flame_dungeon.is_flamed(pc.get_map_index()) and item.get_vnum() == LEVEL2_KEY and d.getf("level") == 12 begin -- 2·¹º§ ¿­¼è ¸Ô¾úÀ»¶§
+
+-			local i = number(1, 5) -- 5ºÐÀÇ 1 È®·ü·Î ÁøÂ¥ ¿­¼è
+
++		when LEVEL2_STONE.take with flame_dungeon.is_flamed(pc.get_map_index()) and item.get_vnum() == LEVEL2_KEY and d.getf("level") == 12 begin -- 2  Ծ
+
++			local i = number(1, 5) -- 5 1 Ȯ ¥ 
+
+ 			if i == 1 then
+
+ 				npc.purge()
+
+ 				item.remove()
+
+@@ -650,25 +654,25 @@
+ 			flame_dungeon.level_clear()
+
+ 		end
+
+ 
+
+-		when kill with flame_dungeon.is_flamed(pc.get_map_index()) and d.getf("level") == 15 begin -- 5·¹º§ ºÀÀÎ¼® ¿­¼è µå¶ø
+
+-			local i = number(1, 30) -- 30ºÐÀÇ 1 È®·ü·Î ¿­¼èµå¶ø
+
++		when kill with flame_dungeon.is_flamed(pc.get_map_index()) and d.getf("level") == 15 begin -- 5 μ  
+
++			local i = number(1, 30) -- 30 1 Ȯ 
+
+ 			if i == 1 then
+
+ 				game.drop_item(LEVEL5_REALKEY, 1)
+
+ 			end
+
+ 		end
+
+ 
+
+-		when LEVEL5_STONE.take with flame_dungeon.is_flamed(d.get_map_index()) and item.get_vnum() == LEVEL5_REALKEY and d.getf("level") == 15 begin -- 5·¹º§ ÁøÂ¥¿­¼è ¸Ô¾úÀ»¶§
+
+-			local setting = flame_dungeon.setting()
+
+-			if npc.get_vid() == d.get_unique_vid("stone5_1") then -- Ã¹¹øÂ° ²¨´Â ¼±ÇàµÇ¾î¾ß ÇÒ ÀÏÀÌ ÇÊ¿ä¾øÀ¸´Ï Ã£ÀÚ¸¶ÀÚ Á¦°ÅÇØÁÜ
+
++		when LEVEL5_STONE.take with flame_dungeon.is_flamed(d.get_map_index()) and item.get_vnum() == LEVEL5_REALKEY and d.getf("level") == 15 begin -- 5 ¥ Ծ
+
++			local setting = flame_dungeon.setting()
+
++			if npc.get_vid() == d.get_unique_vid("stone5_1") then -- ù°  Ǿ   ʿ ãڸ 
+
+ 				npc.purge()
+
+ 				item.remove()
+
+ 				say(c_locale(1363))
+
+-				d.setf("stonekill", 2) -- 2¹ø µ¹À» Á×¿©¶ó
+
++				d.setf("stonekill", 2) -- 2  ׿
+
+ 				if d.count_monster() < LEVEL5_GEN_LIMIT then
+
+ 					d.regen_file(MOB_REGEN_FILE_PATH .. "fd_e.txt")
+
+ 				end
+
+ 			elseif npc.get_vid() == d.get_unique_vid("stone5_2") then
+
+-				if d.getf("stonekill") == 2 then -- 2¹øµ¹À» Á×ÀÏ Â÷·Ëµ¥ 2¹øµ¹¿¡°Ô ¿­¼è¸¦ ¸Ô¿´À» ¶§
+
++				if d.getf("stonekill") == 2 then -- 2  ˵ 2 踦 Կ 
+
+ 					npc.purge()
+
+ 					item.remove()
+
+ 					say(c_locale(1364))
+
+@@ -764,13 +768,13 @@
+ 			end
+
+ 		end
+
+ 
+
+-		when LEVEL6_TARGET.kill with flame_dungeon.is_flamed(d.get_map_index()) and d.getf("level") == 16 begin -- ¸Á¸¶¼® ÆÄ±«ÇßÀ» ¶§
+
++		when LEVEL6_TARGET.kill with flame_dungeon.is_flamed(d.get_map_index()) and d.getf("level") == 16 begin --  ı 
+
+ 			d.notice(c_locale(1370))
+
+ 			d.notice(c_locale(1359))
+
+ 			flame_dungeon.level_clear()
+
+ 		end
+
+ 
+
+-		when FINAL_BOSS.kill with flame_dungeon.is_flamed(d.get_map_index()) and d.getf("level") == 17 begin -- º¸½º Á×¿´À»¶§
+
++		when FINAL_BOSS.kill with flame_dungeon.is_flamed(d.get_map_index()) and d.getf("level") == 17 begin --  ׿
+
+ 			d.setqf2_all_near("flame_dungeon", "yamachun_boss", 1, 800)
+
+ 
+
+ 			d.notice(c_locale(1371))
+
+@@ -779,7 +783,7 @@
+ 			server_timer("dungeon_end_timer", 60, d.get_map_index())
+
+ 			flame_dungeon.level_clear()
+
+ 
+
+-			-- ÆÄÆ¼¿ø Áß, ¾ß¸¶Ãµ Àâ´Â Äù½ºÆ®(104·¾, 105·¾ Äù½ºÆ®) ÁøÇàÁßÀÎ »ç¶÷ÀÌ ÀÖÀ¸¸é Äù½ºÆ® Å¬¸®¾î µÇµµ·Ï.
+
++			-- Ƽ , ߸õ  Ʈ(104, 105 Ʈ)    Ʈ Ŭ ǵ.
+
+ 			if party.is_party() then
+
+ 				party.setf("flame_dungeon_boss_kill_count", 1)
+
+ 			end
+
+
+--- a/server/metin2/Source/Server/game/src/dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/dungeon.cpp
+@@ -105,8 +105,15 @@
+ 
+
+ 	void operator()(LPCHARACTER ch)
+
+ 	{
+
+-		ch->GetDesc()->BufferedPacket(&p1, sizeof(TPacketGCDungeon));
+
+-		ch->GetDesc()->Packet(&p2, sizeof(TPacketGCDungeonDestPosition));
+
++		if (!ch)
+
++			return;
+
++
+
++		LPDESC d = ch->GetDesc();
+
++		if (!d)
+
++			return;
+
++
+
++		d->BufferedPacket(&p1, sizeof(TPacketGCDungeon));
+
++		d->Packet(&p2, sizeof(TPacketGCDungeonDestPosition));
+
+ 	}
+
+ 
+
+ 	TPacketGCDungeon p1;
+
+@@ -1285,7 +1292,7 @@
+ 			{
+
+ 				PIXEL_POSITION posWarp;
+
+ 
+
+-				// ÇöÀç ¸Ê ÀÎµ¦½º¸¦ ³Ö´Â °ÍÀÌ ¾Æ´Ï¶ó ½ÃÀÛÇÏ´Â ¸Ê ÀÎµ¦½º¸¦ ³Ö´Â´Ù.
+
++				//   ε ִ  ƴ϶ ϴ  ε ִ´.
+
+ 				if (SECTREE_MANAGER::instance().GetRecallPositionByEmpire(g_start_map[ch->GetEmpire()], ch->GetEmpire(), posWarp))
+
+ 					ch->WarpSet(posWarp.x, posWarp.y);
+
+ 				else
+
+@@ -1444,7 +1451,7 @@
+ 	}
+
+ 	else
+
+ 	{
+
+-		// ÀÏ¹Ý ¸ÊÀ¸·Î ¿öÇÁ
+
++		// Ϲ  
+
+ 		LPSECTREE_MAP pMap = SECTREE_MANAGER::instance().GetMap(m_lMapIndex);
+
+ 
+
+ 		if (!pMap)
+
+
+--- a/server/metin2/Source/Server/game/src/guild.cpp
++++ b/server/metin2/Source/Server/game/src/guild.cpp
+@@ -49,7 +49,7 @@
+ 
+
+ 		DWORD id;
+
+ 		const char* name;
+
+-		TPacketGCGuild p;
+
++		TPacketGCGuild p{};
+
+ 	};
+
+ }
+
+ 
+
+@@ -63,12 +63,12 @@
+ 
+
+ 	strlcpy(m_data.name, cp.name, sizeof(m_data.name));
+
+ 	m_data.master_pid = cp.master->GetPlayerID();
+
+-	strlcpy(m_data.grade_array[0].grade_name, LC_STRING("±æµåÀå"), sizeof(m_data.grade_array[0].grade_name));
+
++	strlcpy(m_data.grade_array[0].grade_name, LC_STRING(""), sizeof(m_data.grade_array[0].grade_name));
+
+ 	m_data.grade_array[0].auth_flag = GUILD_AUTH_ADD_MEMBER | GUILD_AUTH_REMOVE_MEMBER | GUILD_AUTH_NOTICE | GUILD_AUTH_USE_SKILL;
+
+ 
+
+ 	for (int i = 1; i < GUILD_GRADE_COUNT; ++i)
+
+ 	{
+
+-		strlcpy(m_data.grade_array[i].grade_name, LC_STRING("±æµå¿ø"), sizeof(m_data.grade_array[i].grade_name));
+
++		strlcpy(m_data.grade_array[i].grade_name, LC_STRING(""), sizeof(m_data.grade_array[i].grade_name));
+
+ 		m_data.grade_array[i].auth_flag = 0;
+
+ 	}
+
+ 
+
+@@ -196,6 +196,9 @@
+ 	if (it->second.grade == GUILD_LEADER_GRADE)
+
+ 		return false;
+
+ 
+
++	if (UnderAnyWar() != 0)
+
++		return false;
+
++
+
+ 	TPacketGuild gd_guild;
+
+ 
+
+ 	gd_guild.dwGuild = GetID();
+
+@@ -326,7 +329,7 @@
+ 
+
+ void CGuild::SendOnlineRemoveOnePacket(DWORD pid)
+
+ {
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 4;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_REMOVE;
+
+@@ -352,7 +355,7 @@
+ 	if (!d)
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 1 + GUILD_GRADE_COUNT * (sizeof(TGuildGrade) + 1);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE;
+
+@@ -380,7 +383,7 @@
+ 
+
+ void CGuild::SendListOneToAll(DWORD pid)
+
+ {
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(TPacketGCGuild);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_LIST;
+
+@@ -422,7 +425,7 @@
+ 	Count (byte)
+
+ 	[
+
+ 		...
+
+-		name_flag 1 - ÀÌ¸§À» º¸³»´À³Ä ¾Èº¸³»´À³Ä
+
++		name_flag 1 - ̸  Ⱥ
+
+ 		name CHARACTER_NAME_MAX_LEN+1
+
+ 	] * Count
+
+ 	*/
+
+@@ -431,7 +434,7 @@
+ 	if (!(d = ch->GetDesc()))
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(TPacketGCGuild);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_LIST;
+
+@@ -487,7 +490,7 @@
+ 	if (!ch->GetDesc())
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 4;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_LOGIN;
+
+@@ -516,7 +519,7 @@
+ 	if (!ch->GetDesc())
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 4;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_LOGOUT;
+
+@@ -565,7 +568,7 @@
+ void CGuild::LoadGuildGradeData(SQLMsg* pmsg)
+
+ {
+
+ 	/*
+
+-	// 15°³ ¾Æ´Ò °¡´É¼º Á¸Àç
+
++	// 15 ƴ ɼ 
+
+ 	if (pmsg->Get()->iNumRows != 15)
+
+ 	{
+
+ 		sys_err("Query failed: getting guild grade data. GuildID(%d)", GetID());
+
+@@ -717,12 +720,12 @@
+ 
+
+ 		grade--;
+
+ 
+
+-		// µî±Þ ¸íÄªÀÌ ÇöÀç¿Í ´Ù¸£´Ù¸é ¾÷µ¥ÀÌÆ®
+
++		//  Ī  ٸٸ Ʈ
+
+ 		if (0 != strcmp(m_data.grade_array[grade].grade_name, name))
+
+ 		{
+
+ 			strlcpy(m_data.grade_array[grade].grade_name, name, sizeof(m_data.grade_array[grade].grade_name));
+
+ 
+
+-			TPacketGCGuild pack;
+
++			TPacketGCGuild pack{};
+
+ 
+
+ 			pack.header = HEADER_GC_GUILD;
+
+ 			pack.size = sizeof(pack);
+
+@@ -752,7 +755,7 @@
+ 		{
+
+ 			m_data.grade_array[grade].auth_flag = auth;
+
+ 
+
+-			TPacketGCGuild pack;
+
++			TPacketGCGuild pack{};
+
+ 			pack.header = HEADER_GC_GUILD;
+
+ 			pack.size = sizeof(pack);
+
+ 			pack.subheader = GUILD_SUBHEADER_GC_GRADE_AUTH;
+
+@@ -838,7 +841,7 @@
+ 	grade--;
+
+ 	strlcpy(m_data.grade_array[grade].grade_name, grade_name, sizeof(m_data.grade_array[grade].grade_name));
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE_NAME;
+
+@@ -878,7 +881,7 @@
+ 
+
+ 	m_data.grade_array[grade].auth_flag = auth;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE_AUTH;
+
+@@ -908,7 +911,7 @@
+ 	if (!d)
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(TPacketGCGuild) + sizeof(TPacketGCGuildInfo);
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_INFO;
+
+@@ -948,7 +951,7 @@
+ 
+
+ 	if (ch->GetExp() < (DWORD)amount)
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> Á¦°øÇÏ°íÀÚ ÇÏ´Â °æÇèÄ¡°¡ ³²Àº °æÇèÄ¡º¸´Ù ¸¹½À´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ϰ ϴ ġ  ġ ϴ."));
+
+ 		return false;
+
+ 	}
+
+ 
+
+@@ -969,7 +972,7 @@
+ 	cit->second.offer_exp += amount / 100;
+
+ 	cit->second._dummy = 0;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 
+
+ 	for (TGuildMemberOnlineContainer::iterator it = m_memberOnline.begin(); it != m_memberOnline.end(); ++it)
+
+@@ -1071,13 +1074,13 @@
+ {
+
+ 	SQLMsg* pmsg;
+
+ 
+
+-	if (GetMember(ch->GetPlayerID())->grade == GUILD_LEADER_GRADE)
+
++	if (pMember->grade == GUILD_LEADER_GRADE)
+
+ 		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u", get_table_postfix(), comment_id, m_data.guild_id);
+
+ 	else
+
+-		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u AND name = '%s'", get_table_postfix(), comment_id, m_data.guild_id, ch->GetName());
+
++		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u AND name = '%s'", get_table_postfix(), comment_id, m_data.guild_id, szNameEsc);
+
+ 
+
+ 	if (pmsg->Get()->uiAffectedRows == 0 || pmsg->Get()->uiAffectedRows == (uint32_t)-1)
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »èÁ¦ÇÒ ¼ö ¾ø´Â ±ÛÀÔ´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>    Դϴ."));
+
+ 	else
+
+ 		RefreshCommentForce(ch->GetPlayerID());
+
+ 
+
+@@ -1097,7 +1100,7 @@
+ 
+
+ 	std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery("SELECT id, name, content FROM guild_comment%s WHERE guild_id = %u ORDER BY notice DESC, id DESC LIMIT %d", get_table_postfix(), m_data.guild_id, GUILD_COMMENT_MAX_COUNT));
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 1;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_COMMENTS;
+
+@@ -1129,7 +1132,7 @@
+ 		d->BufferedPacket(szName, sizeof(szName));
+
+ 
+
+ 		if (i == pmsg->Get()->uiNumRows - 1)
+
+-			d->Packet(szContent, sizeof(szContent)); // ¸¶Áö¸· ÁÙÀÌ¸é º¸³»±â
+
++			d->Packet(szContent, sizeof(szContent)); //  ̸ 
+
+ 		else
+
+ 			d->BufferedPacket(szContent, sizeof(szContent));
+
+ 	}
+
+@@ -1160,7 +1163,7 @@
+ 
+
+ 	TGuildMemberOnlineContainer::iterator itOnline = m_memberOnline.begin();
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 5;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_CHANGE_MEMBER_GENERAL;
+
+@@ -1208,7 +1211,7 @@
+ 
+
+ 	TGuildMemberOnlineContainer::iterator itOnline = m_memberOnline.begin();
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 5;
+
+ 	pack.subheader = GUILD_SUBHEADER_GC_CHANGE_MEMBER_GRADE;
+
+@@ -1297,7 +1300,7 @@
+ {
+
+ 	LPCHARACTER victim = NULL;
+
+ 
+
+-	if (!GetMember(ch->GetPlayerID()) || !HasGradeAuth(GetMember(ch->GetPlayerID())->grade, GUILD_AUTH_USE_SKILL))
+
++	if (!GetMember(ch->GetPlayerID()) || !HasGradeAuth(pMember->grade, GUILD_AUTH_USE_SKILL))
+
+ 		return;
+
+ 
+
+ 	sys_log(0, "GUILD_USE_SKILL : cname(%s), skill(%d)", ch ? ch->GetName() : "", dwVnum);
+
+@@ -1323,7 +1326,7 @@
+ 
+
+ 	if ((pkSk->dwFlag & SKILL_FLAG_SELFONLY))
+
+ 	{
+
+-		// ÀÌ¹Ì °É·Á ÀÖÀ¸¹Ç·Î »ç¿ëÇÏÁö ¾ÊÀ½.
+
++		// ̹ ɷ Ƿ  .
+
+ 		if (ch && ch->FindAffect(pkSk->dwVnum))
+
+ 			return;
+
+ 
+
+@@ -1350,7 +1353,7 @@
+ 
+
+ 	if (GetSP() < iNeededSP)
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ¿ë½Å·ÂÀÌ ºÎÁ·ÇÕ´Ï´Ù. (%d, %d)", GetSP(), iNeededSP));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ŷ մϴ. (%d, %d)", GetSP(), iNeededSP));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -1359,7 +1362,7 @@
+ 
+
+ 	if (!abSkillUsable[dwRealVnum])
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÄðÅ¸ÀÓÀÌ ³¡³ªÁö ¾Ê¾Æ ±æµå ½ºÅ³À» »ç¿ëÇÒ ¼ö ¾ø½À´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> Ÿ  ʾ  ų   ϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -1378,12 +1381,12 @@
+ 	//GuildPointChange(POINT_SP, -iNeededSP);
+
+ 
+
+ 	if (test_server)
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> %d ½ºÅ³À» »ç¿ëÇÔ (%d, %d) to %lu", dwVnum, GetSP(), iNeededSP, pid));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> %d ų  (%d, %d) to %lu", dwVnum, GetSP(), iNeededSP, pid));
+
+ 
+
+ 	switch (dwVnum)
+
+ 	{
+
+ 	case GUILD_SKILL_TELEPORT:
+
+-		// ÇöÀç ¼­¹ö¿¡ ÀÖ´Â »ç¶÷À» ¸ÕÀú ½Ãµµ.
+
++		//   ִ   õ.
+
+ 		SendDBSkillUpdate(-iNeededSP);
+
+ 		if ((victim = (CHARACTER_MANAGER::instance().FindByPID(pid))))
+
+ 			ch->WarpSet(victim->GetX(), victim->GetY());
+
+@@ -1391,15 +1394,15 @@
+ 		{
+
+ 			if (m_memberP2POnline.find(pid) != m_memberP2POnline.end())
+
+ 			{
+
+-				// ´Ù¸¥ ¼­¹ö¿¡ ·Î±×ÀÎµÈ »ç¶÷ÀÌ ÀÖÀ½ -> ¸Þ½ÃÁö º¸³» ÁÂÇ¥¸¦ ¹Þ¾Æ¿ÀÀÚ
+
+-				// 1. A.pid, B.pid ¸¦ »Ñ¸²
+
+-				// 2. B.pid¸¦ °¡Áø ¼­¹ö°¡ »Ñ¸°¼­¹ö¿¡°Ô A.pid, ÁÂÇ¥ ¸¦ º¸³¿
+
+-				// 3. ¿öÇÁ
+
++				// ٸ  αε   -> ޽  ǥ ޾ƿ
+
++				// 1. A.pid, B.pid  Ѹ
+
++				// 2. B.pid   Ѹ A.pid, ǥ  
+
++				// 3. 
+
+ 				CCI* pcci = P2P_MANAGER::instance().FindByPID(pid);
+
+ 
+
+ 				if (pcci->bChannel != g_bChannel)
+
+ 				{
+
+-					ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë°¡ %d Ã¤³Î¿¡ ÀÖ½À´Ï´Ù. (ÇöÀç Ã¤³Î %d)", pcci->bChannel, g_bChannel));
+
++					ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> 밡 %d äο ֽϴ. ( ä %d)", pcci->bChannel, g_bChannel));
+
+ 				}
+
+ 				else
+
+ 				{
+
+@@ -1412,7 +1415,7 @@
+ 				}
+
+ 			}
+
+ 			else
+
+-				ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë°¡ ¿Â¶óÀÎ »óÅÂ°¡ ¾Æ´Õ´Ï´Ù."));
+
++				ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> 밡 ¶ ° ƴմϴ."));
+
+ 		}
+
+ 		break;
+
+ 
+
+@@ -1429,14 +1432,14 @@
+ 		/*
+
+ 		if (ch->GetPlayerID() != GetMasterPID())
+
+ 		{
+
+-			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµåÀå¸¸ ±æµå ½ºÅ³À» »ç¿ëÇÒ ¼ö ÀÖ½À´Ï´Ù."));
+
++			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> 常  ų   ֽϴ."));
+
+ 			return;
+
+ 		}
+
+ 		*/
+
+ 
+
+ 		if (!UnderAnyWar())
+
+ 		{
+
+-			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµå ½ºÅ³Àº ±æµåÀü Áß¿¡¸¸ »ç¿ëÇÒ ¼ö ÀÖ½À´Ï´Ù."));
+
++			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ų  ߿   ֽϴ."));
+
+ 			return;
+
+ 		}
+
+ 
+
+@@ -1468,7 +1471,7 @@
+ 	if (!d)
+
+ 		return;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	pack.size = sizeof(pack) + 6 + GUILD_SKILL_COUNT;
+
+@@ -1617,7 +1620,7 @@
+ 			}
+
+ 		}
+
+ 
+
+-		TPacketGCGuild pack;
+
++		TPacketGCGuild pack{};
+
+ 		pack.header = HEADER_GC_GUILD;
+
+ 		pack.size = sizeof(pack) + 5;
+
+ 		pack.subheader = GUILD_SUBHEADER_GC_CHANGE_EXP;
+
+@@ -1679,7 +1682,7 @@
+ 
+
+ 	db_clientdesc->DBPacket(HEADER_GD_GUILD_CHANGE_MEMBER_DATA, 0, &gd_guild, sizeof(gd_guild));
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 	cit->second._dummy = 0;
+
+ 
+
+@@ -1709,7 +1712,7 @@
+ 	cit->second.grade = grade;
+
+ 	cit->second._dummy = 0;
+
+ 
+
+-	TPacketGCGuild pack;
+
++	TPacketGCGuild pack{};
+
+ 	memset(&pack, 0, sizeof(pack));
+
+ 	pack.header = HEADER_GC_GUILD;
+
+ 
+
+@@ -1812,7 +1815,7 @@
+ 
+
+ 	SendDBSkillUpdate(iSP);
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> %luÀÇ ¿ë½Å·ÂÀ» È¸º¹ÇÏ¿´½À´Ï´Ù.", iSP));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> %lu ŷ ȸϿϴ.", iSP));
+
+ 	}
+
+ 	return true;
+
+ }
+
+@@ -1909,9 +1912,12 @@
+ {
+
+ 	if (false == ch->CanDeposit())
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> Àá½ÃÈÄ¿¡ ÀÌ¿ëÇØÁÖ½Ê½Ã¿À"));
+
+-		return;
+
+-	}
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> Ŀ ֽ̿ʽÿ"));
+
++		return;
+
++	}
+
++	if (iGold <= 0)
+
++		return;
+
++
+
+ 
+
+ 	if (ch->GetGold() < iGold)
+
+ 		return;
+
+@@ -1935,19 +1941,22 @@
+ {
+
+ 	if (false == ch->CanDeposit())
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> Àá½ÃÈÄ¿¡ ÀÌ¿ëÇØÁÖ½Ê½Ã¿À"));
+
+-		return;
+
+-	}
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> Ŀ ֽ̿ʽÿ"));
+
++		return;
+
++	}
+
++	if (iGold <= 0)
+
++		return;
+
++
+
+ 
+
+ 	if (ch->GetPlayerID() != GetMasterPID())
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµå ±Ý°í¿¡¼± ±æµåÀå¸¸ Ãâ±ÝÇÒ ¼ö ÀÖ½À´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ݰ 常   ֽϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+ 	if (m_data.gold < iGold)
+
+ 	{
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> °¡Áö°í ÀÖ´Â µ·ÀÌ ºÎÁ·ÇÕ´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ִ  մϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -1961,6 +1970,9 @@
+ 
+
+ void CGuild::RecvMoneyChange(int iGold)
+
+ {
+
++	if (iGold < 0)
+
++		iGold = 0;
+
++
+
+ 	m_data.gold = iGold;
+
+ 
+
+ 	TPacketGCGuild p;
+
+@@ -2000,11 +2012,11 @@
+ }
+
+ 
+
+ // GUILD_JOIN_BUG_FIX
+
+-/// ±æµå ÃÊ´ë event Á¤º¸
+
++///  ʴ event 
+
+ EVENTINFO(TInviteGuildEventInfo)
+
+ {
+
+-	DWORD dwInviteePID; ///< ÃÊ´ë¹ÞÀº character ÀÇ PID
+
+-	DWORD dwGuildID; ///< ÃÊ´ëÇÑ Guild ÀÇ ID
+
++	DWORD dwInviteePID; ///< ʴ character  PID
+
++	DWORD dwGuildID; ///< ʴ Guild  ID
+
+ 
+
+ 	TInviteGuildEventInfo()
+
+ 		: dwInviteePID(0)
+
+@@ -2014,8 +2026,8 @@
+ };
+
+ 
+
+ /**
+
+- * ±æµå ÃÊ´ë event callback ÇÔ¼ö.
+
+- * event °¡ ¹ßµ¿ÇÏ¸é ÃÊ´ë °ÅÀý·Î Ã³¸®ÇÑ´Ù.
+
++ *  ʴ event callback Լ.
+
++ * event  ߵϸ ʴ  óѴ.
+
+  */
+
+ EVENTFUNC(GuildInviteEvent)
+
+ {
+
+@@ -2042,7 +2054,7 @@
+ {
+
+ 	if (quest::CQuestManager::instance().GetPCForce(pchInviter->GetPlayerID())->IsRunning() == true)
+
+ 	{
+
+-		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë¹æÀÌ ÃÊ´ë ½ÅÃ»À» ¹ÞÀ» ¼ö ¾ø´Â »óÅÂÀÔ´Ï´Ù."));
+
++		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ʴ û    Դϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -2051,17 +2063,17 @@
+ 
+
+ 	if (pchInvitee->IsBlockMode(BLOCK_GUILD_INVITE))
+
+ 	{
+
+-		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë¹æÀÌ ±æµå ÃÊ´ë °ÅºÎ »óÅÂÀÔ´Ï´Ù."));
+
++		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>   ʴ ź Դϴ."));
+
+ 		return;
+
+ 	}
+
+ 	else if (!HasGradeAuth(GetMember(pchInviter->GetPlayerID())->grade, GUILD_AUTH_ADD_MEMBER))
+
+ 	{
+
+-		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµå¿øÀ» ÃÊ´ëÇÒ ±ÇÇÑÀÌ ¾ø½À´Ï´Ù."));
+
++		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ʴ  ϴ."));
+
+ 		return;
+
+ 	}
+
+ 	else if (pchInvitee->GetEmpire() != pchInviter->GetEmpire())
+
+ 	{
+
+-		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ´Ù¸¥ Á¦±¹ »ç¶÷À» ±æµå¿¡ ÃÊ´ëÇÒ ¼ö ¾ø½À´Ï´Ù."));
+
++		pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ٸ   忡 ʴ  ϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -2071,18 +2083,18 @@
+ 	case GERR_NONE: break;
+
+ 	case GERR_WITHDRAWPENALTY:
+
+ 		pchInviter->ChatPacket(CHAT_TYPE_INFO,
+
+-			LC_STRING("<±æµå> Å»ÅðÇÑ ÈÄ %dÀÏÀÌ Áö³ªÁö ¾ÊÀº »ç¶÷Àº ±æµå¿¡ ÃÊ´ëÇÒ ¼ö ¾ø½À´Ï´Ù.",
+
++			LC_STRING("<> Ż  %d    忡 ʴ  ϴ.",
+
+ 			quest::CQuestManager::instance().GetEventFlag("guild_withdraw_delay")));
+
+ 		return;
+
+ 	case GERR_COMMISSIONPENALTY:
+
+ 		pchInviter->ChatPacket(CHAT_TYPE_INFO,
+
+-			LC_STRING("<±æµå> ±æµå¸¦ ÇØ»êÇÑ Áö %dÀÏÀÌ Áö³ªÁö ¾ÊÀº »ç¶÷Àº ±æµå¿¡ ÃÊ´ëÇÒ ¼ö ¾ø½À´Ï´Ù.",
+
++			LC_STRING("<> 带 ػ  %d    忡 ʴ  ϴ.",
+
+ 			quest::CQuestManager::instance().GetEventFlag("guild_disband_delay")));
+
+ 		return;
+
+-	case GERR_ALREADYJOIN:	pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë¹æÀÌ ÀÌ¹Ì ´Ù¸¥ ±æµå¿¡ ¼ÓÇØÀÖ½À´Ï´Ù.")); return;
+
+-	case GERR_GUILDISFULL:	pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÃÖ´ë ±æµå¿ø ¼ö¸¦ ÃÊ°úÇß½À´Ï´Ù.")); return;
+
+-	case GERR_GUILD_IS_IN_WAR: pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÇöÀç ±æµå°¡ ÀüÀï Áß ÀÔ´Ï´Ù.")); return;
+
+-	case GERR_INVITE_LIMIT: pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÇöÀç ½Å±Ô °¡ÀÔ Á¦ÇÑ »óÅÂ ÀÔ´Ï´Ù.")); return;
+
++	case GERR_ALREADYJOIN:	pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ̹ ٸ 忡 ֽϴ.")); return;
+
++	case GERR_GUILDISFULL:	pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ִ   ʰ߽ϴ.")); return;
+
++	case GERR_GUILD_IS_IN_WAR: pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  尡   Դϴ.")); return;
+
++	case GERR_INVITE_LIMIT: pchInviter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ű    Դϴ.")); return;
+
+ 
+
+ 	default: sys_err("ignore guild join error(%d)", errcode); return;
+
+ 	}
+
+@@ -2091,7 +2103,7 @@
+ 		return;
+
+ 
+
+ 	//
+
+-	// ÀÌº¥Æ® »ý¼º
+
++	// ̺Ʈ 
+
+ 	// 
+
+ 	TInviteGuildEventInfo* pInfo = AllocEventInfo<TInviteGuildEventInfo>();
+
+ 	pInfo->dwInviteePID = pchInvitee->GetPlayerID();
+
+@@ -2100,12 +2112,12 @@
+ 	m_GuildInviteEventMap.insert(EventMap::value_type(pchInvitee->GetPlayerID(), event_create(GuildInviteEvent, pInfo, PASSES_PER_SEC(10))));
+
+ 
+
+ 	//
+
+-	// ÃÊ´ë ¹Þ´Â character ¿¡°Ô ÃÊ´ë ÆÐÅ¶ Àü¼Û
+
++	// ʴ ޴ character  ʴ Ŷ 
+
+ 	// 
+
+ 
+
+ 	DWORD gid = GetID();
+
+ 
+
+-	TPacketGCGuild p;
+
++	TPacketGCGuild p{};
+
+ 	p.header = HEADER_GC_GUILD;
+
+ 	p.size = sizeof(p) + sizeof(DWORD) + GUILD_NAME_MAX_LEN + 1;
+
+ 	p.subheader = GUILD_SUBHEADER_GC_GUILD_INVITE;
+
+@@ -2136,18 +2148,18 @@
+ 	case GERR_NONE: break;
+
+ 	case GERR_WITHDRAWPENALTY:
+
+ 		pchInvitee->ChatPacket(CHAT_TYPE_INFO,
+
+-			LC_STRING("<±æµå> Å»ÅðÇÑ ÈÄ %dÀÏÀÌ Áö³ªÁö ¾ÊÀº »ç¶÷Àº ±æµå¿¡ ÃÊ´ëÇÒ ¼ö ¾ø½À´Ï´Ù.",
+
++			LC_STRING("<> Ż  %d    忡 ʴ  ϴ.",
+
+ 			quest::CQuestManager::instance().GetEventFlag("guild_withdraw_delay")));
+
+ 		return;
+
+ 	case GERR_COMMISSIONPENALTY:
+
+ 		pchInvitee->ChatPacket(CHAT_TYPE_INFO,
+
+-			LC_STRING("<±æµå> ±æµå¸¦ ÇØ»êÇÑ Áö %dÀÏÀÌ Áö³ªÁö ¾ÊÀº »ç¶÷Àº ±æµå¿¡ ÃÊ´ëÇÒ ¼ö ¾ø½À´Ï´Ù.",
+
++			LC_STRING("<> 带 ػ  %d    忡 ʴ  ϴ.",
+
+ 			quest::CQuestManager::instance().GetEventFlag("guild_disband_delay")));
+
+ 		return;
+
+-	case GERR_ALREADYJOIN:	pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> »ó´ë¹æÀÌ ÀÌ¹Ì ´Ù¸¥ ±æµå¿¡ ¼ÓÇØÀÖ½À´Ï´Ù.")); return;
+
+-	case GERR_GUILDISFULL:	pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÃÖ´ë ±æµå¿ø ¼ö¸¦ ÃÊ°úÇß½À´Ï´Ù.")); return;
+
+-	case GERR_GUILD_IS_IN_WAR: pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÇöÀç ±æµå°¡ ÀüÀï Áß ÀÔ´Ï´Ù.")); return;
+
+-	case GERR_INVITE_LIMIT: pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÇöÀç ½Å±Ô °¡ÀÔ Á¦ÇÑ »óÅÂ ÀÔ´Ï´Ù.")); return;
+
++	case GERR_ALREADYJOIN:	pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ̹ ٸ 忡 ֽϴ.")); return;
+
++	case GERR_GUILDISFULL:	pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ִ   ʰ߽ϴ.")); return;
+
++	case GERR_GUILD_IS_IN_WAR: pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  尡   Դϴ.")); return;
+
++	case GERR_INVITE_LIMIT: pchInvitee->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ű    Դϴ.")); return;
+
+ 
+
+ 	default: sys_err("ignore guild join error(%d)", errcode); return;
+
+ 	}
+
+
+--- a/server/metin2/Source/Server/game/src/guild_manager.cpp
++++ b/server/metin2/Source/Server/game/src/guild_manager.cpp
+@@ -76,7 +76,7 @@
+ 
+
+ 	if (!check_name(gcp.name))
+
+ 	{
+
+-		gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµå ÀÌ¸§ÀÌ ÀûÇÕÇÏÁö ¾Ê½À´Ï´Ù."));
+
++		gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>  ̸  ʽϴ."));
+
+ 		return 0;
+
+ 	}
+
+ 
+
+@@ -89,13 +89,13 @@
+ 
+
+ 		if (!(row[0] && row[0][0] == '0'))
+
+ 		{
+
+-			gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ÀÌ¹Ì °°Àº ÀÌ¸§ÀÇ ±æµå°¡ ÀÖ½À´Ï´Ù."));
+
++			gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> ̹  ̸ 尡 ֽϴ."));
+
+ 			return 0;
+
+ 		}
+
+ 	}
+
+ 	else
+
+ 	{
+
+-		gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµå¸¦ »ý¼ºÇÒ ¼ö ¾ø½À´Ï´Ù."));
+
++		gcp.master->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> 带   ϴ."));
+
+ 		return 0;
+
+ 	}
+
+ 
+
+@@ -201,6 +201,10 @@
+ 	{
+
+ 		sys_log(0, "	No need for auth server");
+
+ 		return;
+
++
+
++	char szGuildNameEsc[(GUILD_NAME_MAX_LEN + 1) * 2 + 1];
+
++	DBManager::instance().EscapeString(szGuildNameEsc, sizeof(szGuildNameEsc), gcp.name, strlen(gcp.name));
+
++
+
+ 	}
+
+ 
+
+ 	std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery("SELECT id FROM guild%s", get_table_postfix()));
+
+@@ -249,6 +253,21 @@
+ 
+
+ 	if (it == m_mapGuild.end())
+
+ 		return;
+
++
+
++	// [Safety] Ensure no online character keeps a stale guild pointer while disband is processed
+
++	struct FNullGuildPtr
+
++	{
+
++		DWORD guild_id;
+
++		FNullGuildPtr(DWORD id) : guild_id(id) {}
+
++		void operator()(LPCHARACTER ch)
+
++		{
+
++			if (!ch) return;
+
++			CGuild* g = ch->GetGuild();
+
++			if (g && g->GetID() == guild_id)
+
++				ch->SetGuild(NULL);
+
++		}
+
++	};
+
++	CHARACTER_MANAGER::instance().for_each_pc(FNullGuildPtr(guild_id));
+
+ 
+
+ 	it->second->Disband();
+
+ 
+
+@@ -502,7 +521,7 @@
+ 	TPacketGuildWar p;
+
+ 
+
+ 	p.bWar = GUILD_WAR_OVER;
+
+-	// ±æµåÀüÀÌ ³¡³ªµµ º¸»óÀº ¾ø´Ù.
+
++	//    .
+
+ 	//p.lWarPrice = lReward;
+
+ 	p.lWarPrice = 0;
+
+ 	p.bType = dwGuildWinner == 0 ? 1 : 0; // bType == 1 means draw for this packet.
+
+@@ -532,6 +551,27 @@
+ 
+
+ 	if (!g1 || !g2)
+
+ 		return;
+
++
+
++	// Anti-spam: throttle repeated declare requests for the same pair
+
++	// (prevents scripts from spamming DB/P2P and stalling guild_manager)
+
++	static std::map<unsigned long long, DWORD> s_WarDeclareSpamTime;
+
++	DWORD dwNow = get_dword_time();
+
++	DWORD a = guild_id1, b = guild_id2;
+
++	if (a > b) std::swap(a, b);
+
++	unsigned long long ullKey = (static_cast<unsigned long long>(a) << 32) | b;
+
++	auto itSpam = s_WarDeclareSpamTime.find(ullKey);
+
++	if (itSpam != s_WarDeclareSpamTime.end() && dwNow - itSpam->second < 3000)
+
++		return;
+
++	s_WarDeclareSpamTime[ullKey] = dwNow;
+
++
+
++	// Cooldown after war end (avoid spam loops / deleted guild edge-cases)
+
++	std::pair<DWORD, DWORD> k = std::make_pair(a, b);
+
++	auto itEnd = m_GuildWarEndTime.find(k);
+
++	if (itEnd != m_GuildWarEndTime.end())
+
++	{
+
++		if (get_global_time() - itEnd->second < 60)
+
++			return;
+
++	}
+
+ 
+
+ #if defined(__GUILD_DRAGONLAIR_SYSTEM__)
+
+ 	if (CGuildDragonLairManager::Instance().FindGuild(guild_id1)
+
+@@ -563,7 +603,7 @@
+ 		if (false == LC_IsGermany())
+
+ 		{
+
+ 			char buf[256];
+
+-			snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå°¡ %s ±æµå¿¡ ¼±ÀüÆ÷°í¸¦ ÇÏ¿´½À´Ï´Ù!", TouchGuild(guild_id1)->GetName(), TouchGuild(guild_id2)->GetName()));
+
++			snprintf(buf, sizeof(buf), LC_STRING("%s 尡 %s 忡  Ͽϴ!", g1->GetName(), g2->GetName()));
+
+ 			SendNotice(buf);
+
+ 		}
+
+ 	}
+
+@@ -577,7 +617,7 @@
+ 	if (g1 && g2)
+
+ 	{
+
+ 		if (g2->GetMasterCharacter())
+
+-			g2->GetMasterCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> %s ±æµå°¡ ±æµåÀüÀ» °ÅºÎÇÏ¿´½À´Ï´Ù.", g1->GetName()));
+
++			g2->GetMasterCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<> %s 尡  źϿϴ.", g1->GetName()));
+
+ 	}
+
+ 
+
+ 	if (g1 != NULL)
+
+@@ -601,7 +641,7 @@
+ 	if (g1->WaitStartWar(guild_id2) || g2->WaitStartWar(guild_id1))
+
+ 	{
+
+ 		char buf[256];
+
+-		snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå¿Í %s ±æµå°¡ Àá½Ã ÈÄ ÀüÀïÀ» ½ÃÀÛÇÕ´Ï´Ù!", g1->GetName(), g2->GetName()));
+
++		snprintf(buf, sizeof(buf), LC_STRING("%s  %s 尡    մϴ!", g1->GetName(), g2->GetName()));
+
+ 		SendNotice(buf);
+
+ 	}
+
+ }
+
+@@ -649,7 +689,7 @@
+ 	g2->StartWar(guild_id1);
+
+ 
+
+ 	char buf[256];
+
+-	snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå¿Í %s ±æµå°¡ ÀüÀïÀ» ½ÃÀÛÇÏ¿´½À´Ï´Ù!", g1->GetName(), g2->GetName()));
+
++	snprintf(buf, sizeof(buf), LC_STRING("%s  %s 尡  Ͽϴ!", g1->GetName(), g2->GetName()));
+
+ 	SendNotice(buf);
+
+ 
+
+ 	if (guild_id1 > guild_id2)
+
+@@ -667,17 +707,17 @@
+ 
+
+ 		if (bDraw)
+
+ 		{
+
+-			snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå¿Í %s ±æµå »çÀÌÀÇ ÀüÀïÀÌ ¹«½ÂºÎ·Î ³¡³µ½À´Ï´Ù.", g1->GetName(), g2->GetName()));
+
++			snprintf(buf, sizeof(buf), LC_STRING("%s  %s    ºη ϴ.", g1->GetName(), g2->GetName()));
+
+ 		}
+
+ 		else
+
+ 		{
+
+ 			if (g1->GetWarScoreAgainstTo(g2->GetID()) > g2->GetWarScoreAgainstTo(g1->GetID()))
+
+ 			{
+
+-				snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå°¡ %s ±æµå¿ÍÀÇ ÀüÀï¿¡¼­ ½Â¸® Çß½À´Ï´Ù.", g1->GetName(), g2->GetName()));
+
++				snprintf(buf, sizeof(buf), LC_STRING("%s 尡 %s  ￡ ¸ ߽ϴ.", g1->GetName(), g2->GetName()));
+
+ 			}
+
+ 			else
+
+ 			{
+
+-				snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå°¡ %s ±æµå¿ÍÀÇ ÀüÀï¿¡¼­ ½Â¸® Çß½À´Ï´Ù.", g2->GetName(), g1->GetName()));
+
++				snprintf(buf, sizeof(buf), LC_STRING("%s 尡 %s  ￡ ¸ ߽ϴ.", g2->GetName(), g1->GetName()));
+
+ 			}
+
+ 		}
+
+ 
+
+@@ -761,7 +801,7 @@
+ 		LPCHARACTER master1 = g1->GetMasterCharacter();
+
+ 
+
+ 		if (master1)
+
+-			master1->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµåÀüÀÌ Ãë¼Ò µÇ¾ú½À´Ï´Ù."));
+
++			master1->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>   Ǿϴ."));
+
+ 	}
+
+ 
+
+ 	if (g2)
+
+@@ -769,13 +809,13 @@
+ 		LPCHARACTER master2 = g2->GetMasterCharacter();
+
+ 
+
+ 		if (master2)
+
+-			master2->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<±æµå> ±æµåÀüÀÌ Ãë¼Ò µÇ¾ú½À´Ï´Ù."));
+
++			master2->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>   Ǿϴ."));
+
+ 	}
+
+ 
+
+ 	if (g1 && g2)
+
+ 	{
+
+ 		char buf[256 + 1];
+
+-		snprintf(buf, sizeof(buf), LC_STRING("%s ±æµå¿Í %s ±æµå »çÀÌÀÇ ÀüÀïÀÌ Ãë¼ÒµÇ¾ú½À´Ï´Ù.", g1->GetName(), g2->GetName()));
+
++		snprintf(buf, sizeof(buf), LC_STRING("%s  %s    ҵǾϴ.", g1->GetName(), g2->GetName()));
+
+ 		SendNotice(buf);
+
+ 	}
+
+ }
+
+@@ -972,7 +1012,7 @@
+ 		iter->second->Load(dwGID);
+
+ 	}
+
+ 
+
+-	// ¾÷µ¥ÀÌÆ®µÈ Á¤º¸ º¸³»ÁÖ±â
+
++	// Ʈ  ֱ
+
+ 	DBManager::instance().FuncQuery(std::bind(&CGuild::SendGuildDataUpdateToAllMember, iter->second, std::placeholders::_1), "SELECT 1");
+
+ }
+
+ 
+
+
+--- a/server/metin2/Source/Server/game/src/party.cpp
++++ b/server/metin2/Source/Server/game/src/party.cpp
+@@ -87,7 +87,7 @@
+ 	}
+
+ }
+
+ 
+
+-bool CPartyManager::SetParty(LPCHARACTER ch) // PC¸¸ »ç¿ëÇØ¾ß ÇÑ´Ù!!
+
++bool CPartyManager::SetParty(LPCHARACTER ch) // PC ؾ Ѵ!!
+
+ {
+
+ 	TPartyMap::iterator it = m_map_pkParty.find(ch->GetPlayerID());
+
+ 
+
+@@ -377,7 +377,7 @@
+ {
+
+ 	sys_log(2, "Party::Destroy");
+
+ 
+
+-	// PC°¡ ¸¸µç ÆÄÆ¼¸é ÆÄÆ¼¸Å´ÏÀú¿¡ ¸Ê¿¡¼­ PID¸¦ »èÁ¦ÇØ¾ß ÇÑ´Ù.
+
++	// PC  Ƽ ƼŴ ʿ PID ؾ Ѵ.
+
+ 	if (m_bPCParty)
+
+ 	{
+
+ 		for (TMemberMap::iterator it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
+@@ -410,7 +410,7 @@
+ 				p.header = HEADER_GC_PARTY_REMOVE;
+
+ 				p.pid = rMember.pCharacter->GetPlayerID();
+
+ 				rMember.pCharacter->GetDesc()->Packet(&p, sizeof(p));
+
+-				rMember.pCharacter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<ÆÄÆ¼> ÆÄÆ¼°¡ ÇØ»ê µÇ¾ú½À´Ï´Ù."));
+
++				rMember.pCharacter->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<Ƽ> Ƽ ػ Ǿϴ."));
+
+ #ifdef ENABLE_QUEEN_NETHIS
+
+ 				if (SnakeLair::CSnk::instance().IsSnakeMap(rMember.pCharacter->GetMapIndex()))
+
+ 				{
+
+@@ -421,7 +421,7 @@
+ 			}
+
+ 			else
+
+ 			{
+
+-				// NPCÀÏ °æ¿ì ÀÏÁ¤ ½Ã°£ ÈÄ ÀüÅõ ÁßÀÌ ¾Æ´Ò ¶§ »ç¶óÁö°Ô ÇÏ´Â ÀÌº¥Æ®¸¦ ½ÃÀÛ½ÃÅ²´Ù.
+
++				// NPC   ð    ƴ   ϴ ̺Ʈ ۽Ų.
+
+ 				rMember.pCharacter->SetLastAttacked(dwTime);
+
+ 				rMember.pCharacter->StartDestroyWhenIdleEvent();
+
+ 			}
+
+@@ -565,7 +565,7 @@
+ 		TPacketPartyAdd p;
+
+ 		p.dwLeaderPID = GetLeaderPID();
+
+ 		p.dwPID = dwPID;
+
+-		p.bState = PARTY_ROLE_NORMAL; // #0000790: [M2EU] CZ Å©·¡½¬ Áõ°¡: ÃÊ±âÈ­ Áß¿ä!
+
++		p.bState = PARTY_ROLE_NORMAL; // #0000790: [M2EU] CZ ũ : ʱȭ ߿!
+
+ 		db_clientdesc->DBPacket(HEADER_GD_PARTY_ADD, 0, &p, sizeof(p));
+
+ 	}
+
+ }
+
+@@ -611,11 +611,11 @@
+ 	if (m_bPCParty)
+
+ 		CPartyManager::instance().SetPartyMember(dwPID, NULL);
+
+ 
+
+-	// ¸®´õ°¡ ³ª°¡¸é ÆÄÆ¼´Â ÇØ»êµÇ¾î¾ß ÇÑ´Ù.
+
++	//   Ƽ ػǾ Ѵ.
+
+ 	if (bRole == PARTY_ROLE_LEADER)
+
+ 		CPartyManager::instance().DeleteParty(this);
+
+ 
+
+-	// ÀÌ ¾Æ·¡´Â ÄÚµå¸¦ Ãß°¡ÇÏÁö ¸» °Í!!! À§ DeleteParty ÇÏ¸é this´Â ¾ø´Ù.
+
++	//  Ʒ ڵ带 ߰  !!!  DeleteParty ϸ this .
+
+ }
+
+ 
+
+ void CParty::Quit(DWORD dwPID)
+
+@@ -653,7 +653,7 @@
+ 		return;
+
+ 	}
+
+ 
+
+-	// ÇÃ·¹ÀÌ¾î ÆÄÆ¼ÀÏ °æ¿ì ¾÷µ¥ÀÌÆ® ÀÌº¥Æ® »ý¼º
+
++	// ÷̾ Ƽ  Ʈ ̺Ʈ 
+
+ 	if (m_bPCParty && !m_eventUpdate)
+
+ 	{
+
+ 		party_update_event_info* info = AllocEventInfo<party_update_event_info>();
+
+@@ -759,7 +759,7 @@
+ 	if (pkChr->IsPC())
+
+ 	{
+
+ 		SendPartyUnlinkOneToAll(pkChr);
+
+-		//SendPartyUnlinkAllToOne(pkChr); // ²÷±â´Â °ÍÀÌ¹Ç·Î ±¸Áö Unlink ÆÐÅ¶À» º¸³¾ ÇÊ¿ä ¾ø´Ù.
+
++		//SendPartyUnlinkAllToOne(pkChr); //  ̹Ƿ  Unlink Ŷ  ʿ .
+
+ 
+
+ 		if (it->second.bRole == PARTY_ROLE_LEADER)
+
+ 		{
+
+@@ -767,7 +767,7 @@
+ 
+
+ 			if (it->second.pCharacter->GetDungeon())
+
+ 			{
+
+-				// TODO: ´øÁ¯¿¡ ÀÖÀ¸¸é ³ª¸ÓÁöµµ ³ª°£´Ù
+
++				// TODO:    
+
+ 				FExitDungeon f;
+
+ 				ForEachNearMember(f);
+
+ 			}
+
+@@ -777,6 +777,8 @@
+ 	if (it->second.bRole == PARTY_ROLE_LEADER)
+
+ 		m_pkChrLeader = NULL;
+
+ 
+
++	// [BUNDLE_15][Fix] Ensure role bonuses are cleared when a member disconnects/changes map
+
++	ComputeRolePoint(pkChr, it->second.bRole, false);
+
+ 	it->second.pCharacter = NULL;
+
+ 	pkChr->SetParty(NULL);
+
+ }
+
+@@ -1046,9 +1048,9 @@
+ 		}
+
+ 		break;
+
+ 
+
+-		case PM_ATTACKED_BY: // °ø°Ý ¹Þ¾ÒÀ½, ¸®´õ¿¡°Ô µµ¿òÀ» ¿äÃ»
+
+-		{
+
+-			// ¸®´õ°¡ ¾øÀ» ¶§
+
++		case PM_ATTACKED_BY: //  ޾,   û
+
++		{
+
++			//   
+
+ 			LPCHARACTER pkChrVictim = ch->GetVictim();
+
+ 
+
+ 			if (!pkChrVictim)
+
+@@ -1100,7 +1102,11 @@
+ 
+
+ LPCHARACTER CParty::GetLeaderCharacter()
+
+ {
+
+-	return m_memberMap[GetLeaderPID()].pCharacter;
+
++	TMemberMap::iterator it = m_memberMap.find(GetLeaderPID());
+
++	if (it == m_memberMap.end())
+
++		return NULL;
+
++
+
++	return it->second.pCharacter;
+
+ }
+
+ 
+
+ bool CParty::SetRole(DWORD dwPID, BYTE bRole, bool bSet)
+
+@@ -1215,7 +1221,7 @@
+ 
+
+ void CParty::HealParty()
+
+ {
+
+-	// XXX DELETEME Å¬¶óÀÌ¾ðÆ® ¿Ï·áµÉ¶§±îÁö
+
++	// XXX DELETEME Ŭ̾Ʈ Ϸɶ
+
+ 	{
+
+ 		return;
+
+ 	}
+
+@@ -1269,7 +1275,7 @@
+ 
+
+ 	if (m_memberMap.find(pid) == m_memberMap.end())
+
+ 	{
+
+-		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<ÆÄÆ¼> ¼ÒÈ¯ÇÏ·Á´Â ´ë»óÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù."));
+
++		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<Ƽ> ȯϷ  ã  ϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -1277,13 +1283,13 @@
+ 
+
+ 	if (!ch)
+
+ 	{
+
+-		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<ÆÄÆ¼> ¼ÒÈ¯ÇÏ·Á´Â ´ë»óÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù."));
+
++		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<Ƽ> ȯϷ  ã  ϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+ 	if (!ch->CanSummon(m_iLeadership))
+
+ 	{
+
+-		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<ÆÄÆ¼> ´ë»óÀ» ¼ÒÈ¯ÇÒ ¼ö ¾ø½À´Ï´Ù."));
+
++		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<Ƽ>  ȯ  ϴ."));
+
+ 		return;
+
+ 	}
+
+ 
+
+@@ -1300,7 +1306,7 @@
+ 	}
+
+ 
+
+ 	if (n == 0)
+
+-		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<ÆÄÆ¼> ÆÄÆ¼¿øÀ» ÇöÀç À§Ä¡·Î ¼ÒÈ¯ÇÒ ¼ö ¾ø½À´Ï´Ù."));
+
++		l->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<Ƽ> Ƽ  ġ ȯ  ϴ."));
+
+ 	else
+
+ 	{
+
+ 		int i = number(0, n - 1);
+
+@@ -1722,7 +1728,7 @@
+ 
+
+ 	bool bLongTimeExpBonusChanged = false;
+
+ 
+
+-	// ÆÄÆ¼ °á¼º ÈÄ ÃæºÐÇÑ ½Ã°£ÀÌ Áö³ª¸é °æÇèÄ¡ º¸³Ê½º¸¦ ¹Þ´Â´Ù.
+
++	// Ƽ Ἲ   ð  ġ ʽ ޴´.
+
+ 	if (!m_iLongTimeExpBonus && (get_dword_time() - m_dwPartyStartTime > PARTY_ENOUGH_MINUTE_FOR_EXP_BONUS * 60 * 1000 / (g_iUseLocale ? 1 : 2)))
+
+ 	{
+
+ 		bLongTimeExpBonusChanged = true;
+
+@@ -1738,7 +1744,7 @@
+ 			continue;
+
+ 
+
+ 		if (bLongTimeExpBonusChanged && ch->GetDesc())
+
+-			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("ÆÄÆ¼ÀÇ Çùµ¿·ÂÀÌ ³ô¾ÆÁ® Áö±ÝºÎÅÍ Ãß°¡ °æÇèÄ¡ º¸³Ê½º¸¦ ¹Þ½À´Ï´Ù."));
+
++			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("Ƽ   ݺ ߰ ġ ʽ ޽ϴ."));
+
+ 
+
+ 		bool bNear = it->second.bNear;
+
+ 
+
+@@ -1771,9 +1777,9 @@
+ 		if (!m_bCanUsePartyHeal && m_iLeadership >= 18)
+
+ 			m_dwPartyHealTime = get_dword_time();
+
+ 
+
+-		m_bCanUsePartyHeal = m_iLeadership >= 18; // Åë¼Ö·Â 18 ÀÌ»óÀº ÈúÀ» »ç¿ëÇÒ ¼ö ÀÖÀ½.
+
+-
+
+-		// Åë¼Ö·Â 40ÀÌ»óÀº ÆÄÆ¼ Èú ÄðÅ¸ÀÓÀÌ Àû´Ù.
+
++		m_bCanUsePartyHeal = m_iLeadership >= 18; // ַ 18 ̻    .
+
++
+
++		// ַ 40̻ Ƽ  Ÿ .
+
+ 		DWORD PartyHealCoolTime = (m_iLeadership >= 40) ? PARTY_HEAL_COOLTIME_SHORT * 60 * 1000 : PARTY_HEAL_COOLTIME_LONG * 60 * 1000;
+
+ 
+
+ 		if (m_bCanUsePartyHeal)
+
+@@ -1783,7 +1789,7 @@
+ 				m_bPartyHealReady = true;
+
+ 
+
+ 				// send heal ready
+
+-				if (0) // XXX DELETEME Å¬¶óÀÌ¾ðÆ® ¿Ï·áµÉ¶§±îÁö
+
++				if (0) // XXX DELETEME Ŭ̾Ʈ Ϸɶ
+
+ 					if (GetLeaderCharacter())
+
+ 						GetLeaderCharacter()->ChatPacket(CHAT_TYPE_COMMAND, "PartyHealReady");
+
+ 			}
+
+@@ -2104,7 +2110,7 @@
+ 
+
+ 	if (leader && (leader->IsEquipUniqueGroup(UNIQUE_GROUP_PARTY_BONUS_EXP)))
+
+ 	{
+
+-		// Áß±¹Ãø À°µµ Àû¿ëÀ» È®ÀÎÇØ¾ßÇÑ´Ù.
+
++		// ߱   ȮؾѴ.
+
+ 		if (g_iUseLocale)
+
+ 		{
+
+ 			iBonusPartyExpFromItem = 30;
+
+
+--- a/server/metin2/Source/Server/game/src/party.h
++++ b/server/metin2/Source/Server/game/src/party.h
+@@ -11,7 +11,7 @@
+ 
+
+ enum // unit : minute
+
+ {
+
+-	PARTY_ENOUGH_MINUTE_FOR_EXP_BONUS = 60, // ÆÄÆ¼ °á¼º ÈÄ 60ºÐ ÈÄ ºÎÅÍ Ãß°¡ °æÇèÄ¡ º¸³Ê½º
+
++	PARTY_ENOUGH_MINUTE_FOR_EXP_BONUS = 60, // Ƽ Ἲ  60   ߰ ġ ʽ
+
+ 	PARTY_HEAL_COOLTIME_LONG = 60,
+
+ 	PARTY_HEAL_COOLTIME_SHORT = 30,
+
+ #if !defined(__RANKING_SYSTEM__)
+
+@@ -85,12 +85,12 @@
+ 	void P2PQuitParty(DWORD pid);
+
+ 
+
+ private:
+
+-	TPartyMap m_map_pkParty; // PID·Î ¾î´À ÆÄÆ¼¿¡ ÀÖ³ª °Ë»öÇÏ±â À§ÇÑ ÄÁÅ×ÀÌ³Ê
+
+-	TPartyMap m_map_pkMobParty; // Mob ÆÄÆ¼´Â PID ´ë½Å VID ·Î µû·Î °ü¸®ÇÑ´Ù.
+
+-
+
+-	TPCPartySet m_set_pkPCParty; // »ç¶÷µéÀÇ ÆÄÆ¼ ÀüÃ¼ ÁýÇÕ
+
+-
+
+-	bool m_bEnablePCParty; // µðºñ°¡ ÄÑÁ®ÀÖÁö ¾ÊÀ¸¸é »ç¶÷µéÀÇ ÆÄÆ¼ »óÅÂ°¡ º¯°æºÒ°¡
+
++	TPartyMap m_map_pkParty; // PID  Ƽ ֳ ˻ϱ  ̳
+
++	TPartyMap m_map_pkMobParty; // Mob Ƽ PID  VID   Ѵ.
+
++
+
++	TPCPartySet m_set_pkPCParty; //  Ƽ ü 
+
++
+
++	bool m_bEnablePCParty; //     Ƽ ° Ұ
+
+ };
+
+ 
+
+ enum EPartyMessages
+
+@@ -281,9 +281,9 @@
+ 	TFlagMap m_map_iFlag;
+
+ 
+
+ 	LPDUNGEON m_pkDungeon;
+
+-	// ¾Æ±Í µ¿±¼¿ë dungeon ¸â¹ö º¯¼ö.
+
+-	// Á¤¸» ÀÌ·¸°Ô±îÁö ÇÏ°í ½ÍÁø ¾Ê¾Ò´Âµ¥, ´øÀü¿¡¼­ party °ü¸®°¡ Á¤¸»·Î °³ÆÇÀÌ¶ó
+
+-	// ±×°Å °íÄ¡±â Àü±îÁö´Â ÀÌ·¸°Ô ÀÓ½Ã·Î ÇØ³õ´Â´Ù.
+
++	// Ʊ  dungeon  .
+
++	//  ̷Ա ϰ  ʾҴµ,  party   ̶
+
++	// װ ġ  ̷ ӽ÷ س´.
+
+ 	LPDUNGEON m_pkDungeon_for_Only_party;
+
+ 
+
+ public:
+
+@@ -312,8 +312,12 @@
+ 	TMemberMap::iterator it;
+
+ 
+
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
+-		if (it->second.pCharacter)
+
+-			f(it->second.pCharacter);
+
++	{
+
++		const DWORD pid = it->first;
+
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
+
++		if (ch && ch->GetParty() == this)
+
++			f(ch);
+
++	}
+
+ }
+
+ 
+
+ template <class Func> void CParty::ForEachNearMember(Func& f)
+
+@@ -321,8 +325,15 @@
+ 	TMemberMap::iterator it;
+
+ 
+
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
+-		if (it->second.pCharacter && it->second.bNear)
+
+-			f(it->second.pCharacter);
+
++	{
+
++		if (!it->second.bNear)
+
++			continue;
+
++
+
++		const DWORD pid = it->first;
+
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
+
++		if (ch && ch->GetParty() == this)
+
++			f(ch);
+
++	}
+
+ }
+
+ 
+
+ template <class Func> void CParty::ForEachOnMapMember(Func& f, long lMapIndex)
+
+@@ -331,32 +342,31 @@
+ 
+
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
+ 	{
+
+-		LPCHARACTER ch = it->second.pCharacter;
+
+-		if (ch)
+
++		const DWORD pid = it->first;
+
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
+
++		if (!ch || ch->GetParty() != this)
+
++			continue;
+
++
+
++		if (ch->GetMapIndex() == lMapIndex)
+
++			f(ch);
+
++	}
+
++}
+
++
+
++template <class Func> bool CParty::ForEachOnMapMemberBool(Func& f, long lMapIndex)
+
++{
+
++	TMemberMap::iterator it;
+
++
+
++	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
++	{
+
++		const DWORD pid = it->first;
+
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
+
++		if (!ch || ch->GetParty() != this)
+
++			continue;
+
++
+
++		if (ch->GetMapIndex() == lMapIndex)
+
+ 		{
+
+-			if (ch->GetMapIndex() == lMapIndex)
+
+-				f(ch);
+
+-		}
+
+-	}
+
+-}
+
+-
+
+-template <class Func> bool CParty::ForEachOnMapMemberBool(Func& f, long lMapIndex)
+
+-{
+
+-	TMemberMap::iterator it;
+
+-
+
+-	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+
+-	{
+
+-		LPCHARACTER ch = it->second.pCharacter;
+
+-		if (ch)
+
+-		{
+
+-			if (ch->GetMapIndex() == lMapIndex)
+
+-			{
+
+-				if (f(ch) == false)
+
+-				{
+
+-					return false;
+
+-
+
+-				}
+
+-			}
+
++			if (f(ch) == false)
+
++				return false;
+
+ 		}
+
+ 	}
+
+ 	return true;
+
+
+--- a/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
+@@ -24,11 +24,19 @@
+ 
+
+ template <class Func> Func CDungeon::ForEachMember(Func f)
+
+ {
+
++	// Safe iteration: f() may trigger logout/warp which can remove the character
+
++	// from m_set_pkCharacter, so we must advance the iterator before calling f().
+
+ 	auto it = m_set_pkCharacter.begin();
+
+-	for (; it != m_set_pkCharacter.end(); ++it)
+
+-	{
+
+-		sys_log(0, "Dungeon ForEachMember %s", (*it)->GetName());
+
+-		f(*it);
+
++	while (it != m_set_pkCharacter.end())
+
++	{
+
++		LPCHARACTER ch = *it;
+
++		++it;
+
++
+
++		if (!ch)
+
++			continue;
+
++
+
++		sys_log(0, "Dungeon ForEachMember %s", ch->GetName());
+
++		f(ch);
+
+ 	}
+
+ 	return f;
+
+ }
+
+@@ -450,6 +458,13 @@
+ 
+
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+
+ 
+
++		// Prevent invalid/unloaded map index from freezing/crashing core
+
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
+
++		{
+
++			sys_err("d.new_jump: invalid map index %ld", lMapIndex);
+
++			return 0;
+
++		}
+
++
+
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+
+ 
+
+ 		if (!pDungeon)
+
+@@ -475,6 +490,13 @@
+ 
+
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+
+ 
+
++		// Prevent invalid/unloaded map index from freezing/crashing core
+
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
+
++		{
+
++			sys_err("d.new_jump_all: invalid map index %ld", lMapIndex);
+
++			return 0;
+
++		}
+
++
+
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+
+ 
+
+ 		if (!pDungeon)
+
+@@ -499,6 +521,13 @@
+ 		}
+
+ 
+
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+
++
+
++		// Prevent invalid/unloaded map index from freezing/crashing core
+
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
+
++		{
+
++			sys_err("d.new_jump_party: invalid map index %ld", lMapIndex);
+
++			return 0;
+
++		}
+
+ 
+
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+
+ 
+
+@@ -1214,7 +1243,7 @@
+ 		return 0;
+
+ 	}
+
+ 
+
+-	int dungeon_exit(lua_State* L) // ´øÀü¿¡ µé¾î¿À±â Àü À§Ä¡·Î º¸³¿
+
++	int dungeon_exit(lua_State* L) //    ġ 
+
+ 	{
+
+ 		LPCHARACTER ch = CQuestManager::instance().GetCurrentCharacterPtr();
+
+ 
+
+@@ -1222,7 +1251,7 @@
+ 		return 0;
+
+ 	}
+
+ 
+
+-	int dungeon_exit_all(lua_State* L) // ´øÀü¿¡ ÀÖ´Â ¸ðµç »ç¶÷À» ´øÀü¿¡ µé¾î¿À±â Àü À§Ä¡·Î º¸³¿
+
++	int dungeon_exit_all(lua_State* L) //  ִ      ġ 
+
+ 	{
+
+ 		CQuestManager& q = CQuestManager::instance();
+
+ 		LPDUNGEON pDungeon = q.GetCurrentDungeon();
+
+@@ -1349,7 +1378,7 @@
+ 		}
+
+ 	};
+
+ 
+
+-	int dungeon_exit_all_by_item_group(lua_State* L) // Æ¯Á¤ ¾ÆÀÌÅÛ ±×·ì¿¡ ¼ÓÇÑ ¾ÆÀÌÅÛÀÌ ¾ø´Â»ç¶÷Àº °­Åð
+
++	int dungeon_exit_all_by_item_group(lua_State* L) // Ư  ׷쿡   » 
+
+ 	{
+
+ 		if (!lua_isstring(L, 1))
+
+ 		{
+
+@@ -1414,7 +1443,7 @@
+ 		}
+
+ 	};
+
+ 
+
+-	int dungeon_delete_item_in_item_group_from_all(lua_State* L) // Æ¯Á¤ ¾ÆÀÌÅÛÀ» ´øÀü ³» pc¿¡°Ô¼­ »èÁ¦.
+
++	int dungeon_delete_item_in_item_group_from_all(lua_State* L) // Ư    pcԼ .
+
+ 	{
+
+ 		if (!lua_isstring(L, 1))
+
+ 		{
+
+
+--- a/server/metin2/Source/Server/game/src/war_map.cpp
++++ b/server/metin2/Source/Server/game/src/war_map.cpp
+@@ -311,7 +311,7 @@
+ 
+
+ void CWarMap::STeamData::RemoveMember(LPCHARACTER ch)
+
+ {
+
+-	// set_pidJoiner ´Â ´©Àû ÀÎ¿øÀ» °è»êÇÏ±â ¶§¹®¿¡ Á¦°ÅÇÏÁö ¾Ê´Â´Ù
+
++	// set_pidJoiner   ο ϱ   ʴ´
+
+ 	--iMemberCount;
+
+ }
+
+ 
+
+@@ -388,8 +388,8 @@
+ 		++m_iObserverCount;
+
+ 		sys_log(0, "WarMap +o %d", m_iObserverCount);
+
+ 		ch->SetObserverMode(true);
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("°üÀü ¸ðµå·Î ±æµåÀü¿¡ Âü°¡ÇÏ¼Ì½À´Ï´Ù."));
+
+-		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("ÀÚ½ÅÀ» ¼±ÅÃÇÏ½Ã¸é ¹ÛÀ¸·Î ³ª°¥ ¼ö ÀÖ´Â <°ü¶÷ Á¾·á> ¹öÆ°ÀÌ ³ª¿É´Ï´Ù."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("   ϼ̽ϴ."));
+
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("ڽ Ͻø    ִ < > ư ɴϴ."));
+
+ 	}
+
+ 
+
+ 	UpdateUserCount();
+
+@@ -486,8 +486,8 @@
+ 		if (m_pkTimeoutEvent)
+
+ 			return;
+
+ 
+
+-		Notice("±æµåÀü¿¡ Âü°¡ÇÑ »ó´ë¹æ ±æµå¿øÀÌ ¾Æ¹«µµ ¾ø½À´Ï´Ù.");
+
+-		Notice("1ºÐ ÀÌ³»¿¡ ¾Æ¹«µµ Á¢¼ÓÇÏÁö ¾ÊÀ¸¸é ±æµåÀüÀÌ ÀÚµ¿ Á¾·áµË´Ï´Ù.");
+
++		Notice("    ƹ ϴ.");
+
++		Notice("1 ̳ ƹ    ڵ ˴ϴ.");
+
+ 
+
+ 		sys_log(0, "CheckWarEnd: Timeout begin %u vs %u", m_TeamData[0].dwID, m_TeamData[1].dwID);
+
+ 
+
+@@ -529,7 +529,7 @@
+ 
+
+ 	if (get_dword_time() - m_dwStartTime < 60000 * 5)
+
+ 	{
+
+-		Notice("±æµåÀüÀÌ ÀÏÂï Á¾·áµÇ¾î ¹«½ÂºÎ·Î ÆÇÁ¤ µÇ¾ú½À´Ï´Ù. (5ºÐÀÌ Áö³ªÁö ¾ÊÀ½)");
+
++		Notice("  Ǿ ºη  Ǿϴ. (5  )");
+
+ 		dwWinner = 0;
+
+ 		dwLoser = 0;
+
+ 	}
+
+@@ -574,6 +574,81 @@
+ 	sys_log(0, "WarMap: Timeout %u %u winner %u loser %u reward %d map %d",
+
+ 		m_TeamData[0].dwID, m_TeamData[1].dwID, dwWinner, dwLoser, iRewardGold, m_kMapInfo.lMapIndex);
+
+ 
+
++	// [Security] Guild ladder anti-farming: minimum duration, level gap check, and per-pair cooldown
+
++	if (dwWinner)
+
++	{
+
++		const DWORD kMinDurationMs = 60000 * 3; // 3 minutes
+
++		const int kMaxAvgLevelDiff = 30;
+
++		const DWORD kPairCooldownSec = 60 * 60 * 24; // 24 hours
+
++
+
++		// Duration gate (DB treats draw as no ladder adjustment)
+
++		if (get_dword_time() - m_dwStartTime < kMinDurationMs)
+
++		{
+
++			Notice(LC_STRING("Guild war ended too quickly. No ladder points awarded."));
+
++			dwWinner = 0;
+
++			dwLoser = 0;
+
++			iRewardGold = 0;
+
++		}
+
++		else
+
++		{
+
++			// Average level gate
+
++			long long sum[2] = {0, 0};
+
++			int cnt[2] = {0, 0};
+
++			for (auto it = m_set_pkChr.begin(); it != m_set_pkChr.end(); ++it)
+
++			{
+
++				LPCHARACTER pk = *it;
+
++				if (!pk || !pk->IsPC())
+
++					continue;
+
++				CGuild* g = pk->GetGuild();
+
++				if (!g)
+
++					continue;
+
++				DWORD gid = g->GetID();
+
++				int idx = (gid == m_TeamData[0].dwID) ? 0 : ((gid == m_TeamData[1].dwID) ? 1 : -1);
+
++				if (idx < 0)
+
++					continue;
+
++				sum[idx] += pk->GetLevel();
+
++				cnt[idx] += 1;
+
++			}
+
++
+
++			if (cnt[0] > 0 && cnt[1] > 0)
+
++			{
+
++				int avg0 = int(sum[0] / cnt[0]);
+
++				int avg1 = int(sum[1] / cnt[1]);
+
++				int diff = avg0 - avg1;
+
++				if (diff < 0) diff = -diff;
+
++				if (diff > kMaxAvgLevelDiff)
+
++				{
+
++					Notice(LC_STRING("Guild war level gap too large. No ladder points awarded."));
+
++					dwWinner = 0;
+
++					dwLoser = 0;
+
++					iRewardGold = 0;
+
++				}
+
++			}
+
++
+
++			// Per guild-pair cooldown gate
+
++			if (dwWinner)
+
++			{
+
++				static std::map<std::pair<DWORD, DWORD>, time_t> s_lastLadderReward;
+
++				DWORD a = MIN(m_TeamData[0].dwID, m_TeamData[1].dwID);
+
++				DWORD b = MAX(m_TeamData[0].dwID, m_TeamData[1].dwID);
+
++				std::pair<DWORD, DWORD> key = std::make_pair(a, b);
+
++				const time_t now = get_global_time();
+
++				auto f = s_lastLadderReward.find(key);
+
++				if (f != s_lastLadderReward.end() && now - f->second < (time_t)kPairCooldownSec)
+
++				{
+
++					Notice(LC_STRING("Guild war ladder points for this opponent are on cooldown."));
+
++					dwWinner = 0;
+
++					dwLoser = 0;
+
++					iRewardGold = 0;
+
++				}
+
++				else
+
++				{
+
++					s_lastLadderReward[key] = now;
+
++				}
+
++			}
+
++		}
+
++	}
+
++
+
+ 	if (dwWinner)
+
+ 		CGuildManager::instance().RequestWarOver(dwWinner, dwLoser, dwWinner, iRewardGold);
+
+ 	else
+
+@@ -694,11 +769,11 @@
+ 	if (m_bEnded)
+
+ 		return true;
+
+ 
+
+-	// 30ÃÊ ÀÌÈÄ ºÎÅÍ È®ÀÎÇÑ´Ù.
+
++	// 30   ȮѴ.
+
+ 	if (get_dword_time() - m_dwStartTime < 30000)
+
+ 		return false;
+
+ 
+
+-	// Á¡¼ö°¡ °°À¸¸é Ã¼Å©ÇÏÁö ¾Ê´Â´Ù.
+
++	//   üũ ʴ´.
+
+ 	if (m_TeamData[0].iScore == m_TeamData[1].iScore)
+
+ 		return false;
+
+ 
+
+
