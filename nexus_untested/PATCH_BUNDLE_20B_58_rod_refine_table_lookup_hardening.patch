@@ -1,0 +1,46 @@
+--- server/metin2/Source/Server/game/src/char_item.cpp
++++ server/metin2/Source/Server/game/src/char_item.cpp
+@@ -1466,6 +1466,14 @@
+ 		return false;
+ 	}
+ 
++	// HARDENING: block spoofed refine packets on fishing rods (rods use dedicated upgrade logic)
++	if (item && item->GetType() == ITEM_ROD)
++	{
++		ChatPacket(CHAT_TYPE_INFO, LC_STRING("\xc0\xcc \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xba \xb0\xb3\xb7\xae\xc7\xd2 \xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9."));
++		ClearRefineMode();
++		return false;
++	}
++
+ 	//개량 시간제한 : upgrade_refine_scroll.quest 에서 개량후 5분이내에 일반 개량을
+ 	//진행할수 없음
+ 	if (quest::CQuestManager::instance().GetEventFlag("update_refine_time") != 0)
+@@ -2162,6 +2170,14 @@
+ 	if (!item)
+ 		return false;
+ 
++	// HARDENING: fishing rods do not use refine_proto (avoid spoofed REFINE packets)
++	if (item->GetType() == ITEM_ROD)
++	{
++		ChatPacket(CHAT_TYPE_INFO, LC_STRING("\xc0\xcc \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xba \xb0\xb3\xb7\xae\xc7\xd2 \xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9."));
++		ClearRefineMode();
++		return false;
++	}
++
+ 	// REFINE_COST
+ 	if (bType == REFINE_TYPE_MONEY_ONLY && !GetQuestFlag("deviltower_zone.can_refine"))
+ 	{
+@@ -2297,6 +2313,13 @@
+ 	if (!CanHandleItem())
+ 		return false;
+ 
++	// HARDENING: prevent applying refine/scroll logic to fishing rods
++	if (pkTarget && pkTarget->GetType() == ITEM_ROD)
++	{
++		ChatPacket(CHAT_TYPE_INFO, LC_STRING("\xc0\xcc \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xba \xb0\xb3\xb7\xae\xc7\xd2 \xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9."));
++		return false;
++	}
++
+ 	if (pkItem->GetSubType() == USE_TUNING)
+ 	{
+ 		// XXX 성능, 소켓 개량서는 사라졌습니다...
