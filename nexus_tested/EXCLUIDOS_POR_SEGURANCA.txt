@@ -1,0 +1,28 @@
+Patches excluídos deste SAFE bundle (para não introduzir erros/inconsistências):
+- diff_001_mixed_server_core_security.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 30:  	int iDam = 0;
+- diff_002_mixed_client_security.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 132: 
+- diff_003_mixed_production_config_and_serverinfo.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 21: @@ -14,3 +15,4 @@ COMMON_SQL: localhost mt2 mt2!@# common
+- diff_004_server_quest_security.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 91: @@ -81,6 +81,10 @@
+- diff_005_game_packet_flood_and_input_hardening.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/desc.h
+- diff_006_db_db_overflow_and_flag_safety.patch :: HUNK_FAILED :: patch: **** unexpected '***' at line 24: *** a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+- diff_007_game_server_sql_buffer_packet_hardening.patch :: HUNK_FAILED :: patch: **** Only garbage was found in the patch input.
+- diff_010_game_memory_ub_buffer_sweep.patch :: HUNK_FAILED :: patch: **** Only garbage was found in the patch input.
+- diff_011_game_leaks_and_query_overflow_clean.patch :: APPLY_FAILED :: patching file server/metin2/Source/Server/game/src/growth_pet.cpp
+- diff_012_game_gameplay_logic_and_economy_safety.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/exchange.cpp
+- diff_014_game_security_hotfixes_minimal.patch :: APPLY_FAILED :: patching file server/metin2/Source/Server/game/src/char_item.cpp
+- diff_015_game_security_combat_and_magic_hotfixes_minimal.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 11: 
+- diff_016_game_dragon_soul_shop_party_poly_security_minimal.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/input_main.cpp
+- diff_017_game_security_exploits_and_stat_safety_minimal.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 16: 
+- diff_020_game_security_p2p_bowmorph_remoteexchange_cube_windowoverlap_horsename_mini.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/desc_p2p.cpp
+- diff_021_game_security_p2p_exchange_horsename_marriage_syncposition_minimal.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/char.h
+- diff_022_db_item_id_range_allocator_atomic.patch :: PATH_NOT_FOUND :: checking file server/metin2/Source/Server/db/src/ItemIDRangeManager.cpp
+- diff_031_game_messenger_removeall_safe_iteration.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/messenger_manager.cpp
+- diff_032_game_dword_time_wrap_safe.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 11: 
+- diff_033_game_affect_count_cap.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 11: 
+- diff_034_game_dice_cooldown.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 11: 
+- diff_037_db_delete_character_marriage_cleanup.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+- diff_039_game_unknown_header_flush_input_buffer.patch :: MALFORMED_DIFF :: patch: **** malformed patch at line 11: 
+- diff_043_game_double_login_no_save_on_loading.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/char.cpp
+- diff_048_game_equip_swap_cooldown_guard.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/char.h
+- diff_052_game_pet_name_sanitize_and_escape.patch :: HUNK_FAILED :: checking file server/metin2/Source/Server/game/src/growth_pet.cpp
+- diff_053_client_client_mss_motion_io_optimization_minimal.patch :: PATH_NOT_FOUND :: can't find file to patch at input line 3

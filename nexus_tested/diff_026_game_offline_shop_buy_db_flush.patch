@@ -1,0 +1,25 @@
+--- a/server/metin2/Source/Server/game/src/OfflineShop.cpp
++++ b/server/metin2/Source/Server/game/src/OfflineShop.cpp
+@@ -2087,6 +2087,10 @@
+ 		return;
+ 	}
+ 
++	// Reduce duplication window: push shop DB writes (item removal / gold update) before granting the item.
++	if (db_clientdesc)
++		db_clientdesc->FlushOutput();
++
+ #if defined(__SELL_HISTORY__)
+ 	CShopSearchManager::AddToSellHistory(GetOwnerPid(), item->GetVnum(), item->GetCount(), buyer->GetName(),
+ #if defined(__ITEM_APPLY_RANDOM__
+@@ -2106,6 +2110,11 @@
+ #endif
+ 
+ 	buyer->SetProtectTime("offline_shop_buy", get_global_time() + 2);
++
++	// Persist buyer changes quickly (gold/inventory) to minimize crash-based inconsistencies.
++	buyer->Save();
++	if (db_clientdesc)
++		db_clientdesc->FlushOutput();
+ }
+ 
+ LPITEM COfflineShop::BuyItem(DWORD buyerPID, uint16_t shopPosition)
