@@ -1,0 +1,95 @@
+Nexus OS — Changelog Geral (integração total)
+
+Integração aplicada (origem de patches)
+A) nexus_sv-main.zip / nexus-main.zip (bundles principais):
+- PATCH_BUNDLE_01_server_core_security.patch
+- PATCH_BUNDLE_02_client_security.patch
+- PATCH_BUNDLE_03_production_config_and_serverinfo.patch
+- PATCH_BUNDLE_04_quest_security.patch
+- PATCH_BUNDLE_05_packet_flood_and_input_hardening.patch
+- PATCH_BUNDLE_06_db_overflow_and_flag_safety.patch
+- PATCH_BUNDLE_07A_server_sql_buffer_packet_hardening.patch
+- PATCH_BUNDLE_07B_sql_escape_and_query_builder_safety_rebased.patch
+- PATCH_BUNDLE_08A_packet_header_alignment_packet_h_only.patch
+- PATCH_BUNDLE_09_memory_ub_buffer_sweep.patch
+- PATCH_BUNDLE_10_leaks_and_query_overflow_clean.patch
+- PATCH_BUNDLE_11_gameplay_logic_and_economy_safety.patch
+- PATCH_BUNDLE_12_inventory_tabs_slot_mapping_and_extend_inven_safety.patch
+- PATCH_BUNDLE_13_security_hotfixes_minimal.patch
+- PATCH_BUNDLE_14_security_combat_and_magic_hotfixes_minimal.patch
+- PATCH_BUNDLE_15_dragon_soul_shop_party_poly_security_minimal.patch
+- PATCH_BUNDLE_16_security_exploits_and_stat_safety_minimal.patch
+- PATCH_BUNDLE_17_security_windows_and_guildladder_minimal.patch
+- PATCH_BUNDLE_18_minimal_hunks.patch
+- PATCH_BUNDLE_19_security_p2p_bowmorph_remoteexchange_cube_windowoverlap_horsename_minimal.patch
+- PATCH_BUNDLE_20_security_p2p_exchange_horsename_marriage_syncposition_minimal.patch
+
+B) nexus_news_bundles.zip (PATCH_BUNDLE_20B_*):
+- PATCH_BUNDLE_20B_02_item_id_range_allocator_atomic.patch
+- PATCH_BUNDLE_20B_03_dangling_descriptor_bind_null.patch
+- PATCH_BUNDLE_20B_04_party_invite_packet_sanity.patch
+- PATCH_BUNDLE_20B_05_dungeon_events_null_guard.patch
+- PATCH_BUNDLE_20B_06_offline_shop_buy_db_flush.patch
+- PATCH_BUNDLE_20B_07_exchange_display_pos_bounds.patch
+- PATCH_BUNDLE_20B_08_warmap_cleanup_on_destroy.patch
+- PATCH_BUNDLE_20B_09_sectree_move_paranoid_guards.patch
+- PATCH_BUNDLE_20B_10_lua_alert_protected_call.patch
+- PATCH_BUNDLE_20B_11_messenger_removeall_safe_iteration.patch
+- PATCH_BUNDLE_20B_12_dword_time_wrap_safe.patch
+- PATCH_BUNDLE_20B_13_affect_count_cap.patch
+- PATCH_BUNDLE_20B_14_dice_cooldown.patch
+- PATCH_BUNDLE_20B_15_shop_tax_overflow_64bit.patch
+- PATCH_BUNDLE_20B_16_db_table_postfix_sanitize.patch
+- PATCH_BUNDLE_20B_17_delete_character_marriage_cleanup.patch
+- PATCH_BUNDLE_20B_18_item_award_inflight_lock.patch
+- PATCH_BUNDLE_20B_19_unknown_header_flush_input_buffer.patch
+- PATCH_BUNDLE_20B_21_guild_ladder_underflow_clamp.patch
+- PATCH_BUNDLE_20B_22_myshop_sign_sanitize.patch
+- PATCH_BUNDLE_20B_23_target_follow_safe_resolution.patch
+- PATCH_BUNDLE_20B_client_mss_motion_io_optimization_minimal.patch
+
+Entrega: apenas diffs (unified) agrupados por bundles + 1 changelog geral.
+Aplica os patches por ordem (diff_001 → diff_010) sobre a base do Nexus OS-Files.zip.
+
+diff_001_bundle_db_integrity_security.patch
+- DB hardening: allocator atómico/persistente de ItemID ranges + DDL SQL.
+- Sanitização do table postfix (anti-injection via config).
+- Locks/guards DB (item_award inflight, clamp ladder points, cleanup marriage em delete).
+- Ajustes adicionais em headers/common ligados ao DB.
+
+diff_002_bundle_network_packet_sanity.patch
+- Hardening do parser de pacotes: flush + close em header desconhecido (anti loop/log spam).
+- Sanitização de MyShop sign + bounds check em Exchange display_pos.
+
+diff_003_bundle_character_lifecycle_and_targeting.patch
+- Lifecyle: BindCharacter(NULL) no Disconnect + cleanup de WarMap no destroy.
+- Targeting: resolução segura por VID (evita deref de ponteiros stale).
+- Timers wrap-safe (DWORD wrap) em checks críticos (movement/attack/drop/battlepass).
+
+diff_004_bundle_affect_limits_and_cooldowns.patch
+- Cap de affects por personagem (anti-spam/memory blowup) + truncation segura no save/add.
+- /dice implementado com cooldown wrap-safe (anti-spam).
+
+diff_005_bundle_economy_offline_shop.patch
+- OfflineShop: flush do DB output antes de grant (reduz janela de duplicação).
+- Shop: overflow-safe em preço/taxa.
+
+diff_006_bundle_client_cpp_all.patch
+- Ajustes client-side C++ (estabilidade/compatibilidade/perf), incluindo short-circuit de sound scripts inexistentes.
+
+diff_007_bundle_lua_hardening.patch
+- Lua: callalert protegido com lua_pcall + handling de erro (evita crash se _ALERT falhar).
+
+diff_008_bundle_client_root.patch
+- Integração/ajustes em client/pack/root (serverinfo, net, UI scripts) conforme bundles principais.
+
+diff_009_bundle_server_runtime_and_quests.patch
+- Ajustes em configs runtime (auth/db/game) + quests/locale (dungeons/questing) conforme bundles principais.
+
+diff_010_bundle_game_src_remaining.patch
+- Restante integração de segurança/robustez no game core (subsistemas adicionais fora dos bundles acima).
+
+Validação de “Efeito Borboleta” (checks efetuados)
+- Dependências: apenas headers standard C/C++ (<cctype>, <climits>, <limits>, <set>); sem libs externas, sem alterações em makefiles.
+- Consistência interna: alterações de API/estado (m_dwTargetVID, GetTargetSafe, cooldown) com init e chamadas atualizadas.
+- Fail-safe: allocator DB e postfix sanitize não bloqueiam startup (fallback/empty postfix se falhar).
