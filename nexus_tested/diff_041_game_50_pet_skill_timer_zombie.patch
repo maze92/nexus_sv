@@ -1,0 +1,302 @@
+--- server/metin2/Source/Server/game/src/growth_pet.cpp
++++ server/metin2/Source/Server/game/src/growth_pet.cpp
+@@ -20,12 +20,34 @@
+ extern bool	battle_is_attackable(LPCHARACTER ch, LPCHARACTER victim);
+
+ extern int passes_per_sec;
+
+ 
+
++// Harden growth-pet related events against use-after-free by resolving the pet at runtime.
+
++static LPGROWTH_PET ResolveGrowthPetFromEvent(DWORD dwOwnerVID, DWORD dwPetID)
+
++{
+
++	if (dwOwnerVID == 0 || dwPetID == 0)
+
++		return nullptr;
+
++
+
++	LPCHARACTER owner = CHARACTER_MANAGER::Instance().Find(dwOwnerVID);
+
++	if (!owner)
+
++		return nullptr;
+
++
+
++	LPGROWTH_PET pet = owner->GetGrowthPet(dwPetID);
+
++	if (!pet)
+
++		return nullptr;
+
++
+
++	if (pet->GetOwner() != owner)
+
++		return nullptr;
+
++
+
++	return pet;
+
++}
+
++
+
++
+
+ ///////////////////////////////////////////////////////////////////////////////////////
+
+ //  CGrowthPet ~ Events
+
+ ///////////////////////////////////////////////////////////////////////////////////////
+
+ EVENTINFO(growthpet_update_event_info)
+
+ {
+
+-	LPGROWTH_PET pet;
+
++	DWORD	dwOwnerVID;
+
++	DWORD	dwPetID;
+
+ };
+
+ 
+
+ EVENTFUNC(growthpet_update_event)
+
+@@ -37,7 +59,7 @@
+ 		return 0;
+
+ 	}
+
+ 
+
+-	LPGROWTH_PET pPet = info->pet;
+
++	LPGROWTH_PET pPet = ResolveGrowthPetFromEvent(info->dwOwnerVID, info->dwPetID);
+
+ 
+
+ 	if (!pPet)
+
+ 		return 0;
+
+@@ -88,10 +110,11 @@
+ 
+
+ EVENTINFO(gyeonggong_boom_event_info)
+
+ {
+
+-	LPGROWTH_PET	pPet;
+
+-	DWORD			dwX;
+
+-	DWORD			dwY;
+
+-	WORD			wDamage;
+
++	DWORD		dwOwnerVID;
+
++	DWORD		dwPetID;
+
++	DWORD		dwX;
+
++	DWORD		dwY;
+
++	WORD		wDamage;
+
+ };
+
+ 
+
+ EVENTFUNC(gyeonggong_boom_event)
+
+@@ -103,20 +126,23 @@
+ 		return 0;
+
+ 	}
+
+ 
+
+-	if (!info->pPet || !info->pPet->GetGrowthPet())
+
++	LPGROWTH_PET pPet = ResolveGrowthPetFromEvent(info->dwOwnerVID, info->dwPetID);
+
++
+
++	if (!pPet || !pPet->GetGrowthPet())
+
+ 		return 0;
+
+ 
+
+-	FuncGyeonggongBoom f(info->wDamage, info->dwX, info->dwY, info->pPet->GetOwner());
+
+-
+
+-	if (info->pPet->GetGrowthPet()->GetSectree())
+
+-		info->pPet->GetGrowthPet()->GetSectree()->ForEachAround(f);
+
++	FuncGyeonggongBoom f(info->wDamage, info->dwX, info->dwY, pPet->GetOwner());
+
++
+
++	if (pPet->GetGrowthPet()->GetSectree())
+
++		pPet->GetGrowthPet()->GetSectree()->ForEachAround(f);
+
+ 
+
+ 	return 0;
+
+ }
+
+ 
+
+ EVENTINFO(feather_skill_event_info)
+
+ {
+
+-	LPGROWTH_PET	pPet;
+
++	DWORD		dwOwnerVID;
+
++	DWORD		dwPetID;
+
+ 	CPoly*			pSkillPoly;
+
+ 	BYTE			bSkillLevel;
+
+ 	DWORD			dwDuration;
+
+@@ -131,29 +157,31 @@
+ 		return 0;
+
+ 	}
+
+ 
+
+-	if (!info->pPet)
+
++	LPGROWTH_PET pPet = ResolveGrowthPetFromEvent(info->dwOwnerVID, info->dwPetID);
+
++	if (!pPet)
+
+ 		return 0;
+
+ 
+
+ 	if (info->dwDuration < time(0))
+
+ 	{
+
+-		info->pPet->CancelFeatherWalk();
+
++		pPet->CancelFeatherWalk();
+
+ 		return 0;
+
+ 	}
+
+ 
+
+-	if (info->pPet->GetGrowthPet())
+
+-	{
+
+-		info->pPet->GetGrowthPet()->EffectPacket(SE_GYEONGGONG_BOOM);
+
+-
+
+-		const DWORD dwPetLevel = info->pPet->GetPetPoint(POINT_UPBRINGING_PET_LEVEL) - 81;
+
++	if (pPet->GetGrowthPet())
+
++	{
+
++		pPet->GetGrowthPet()->EffectPacket(SE_GYEONGGONG_BOOM);
+
++
+
++		const DWORD dwPetLevel = pPet->GetPetPoint(POINT_UPBRINGING_PET_LEVEL) - 81;
+
+ 		info->pSkillPoly->SetVar("lv", dwPetLevel);
+
+ 		info->pSkillPoly->SetVar("k", info->bSkillLevel);
+
+ 		WORD wSkillValue = (WORD)info->pSkillPoly->Eval();
+
+ 		wSkillValue = MIN(number(wSkillValue, wSkillValue * 2), 1400);
+
+ 
+
+ 		gyeonggong_boom_event_info* info2 = AllocEventInfo<gyeonggong_boom_event_info>();
+
+-		info2->pPet = info->pPet;
+
+-		info2->dwX = info->pPet->GetGrowthPet()->GetX();
+
+-		info2->dwY = info->pPet->GetGrowthPet()->GetY();
+
++		info2->dwOwnerVID = info->dwOwnerVID;
+
++		info2->dwPetID = info->dwPetID;
+
++		info2->dwX = pPet->GetGrowthPet()->GetX();
+
++		info2->dwY = pPet->GetGrowthPet()->GetY();
+
+ 		info2->wDamage = wSkillValue;
+
+ 
+
+ 		event_create(gyeonggong_boom_event, info2, PASSES_PER_SEC(1) * 0.65);
+
+@@ -315,7 +343,8 @@
+ 	m_pOwner->ComputePoints();
+
+ 
+
+ 	growthpet_update_event_info* info = AllocEventInfo<growthpet_update_event_info>();
+
+-	info->pet = this;
+
++	info->dwOwnerVID = m_pOwner ? m_pOwner->GetVID() : 0;
+
++	info->dwPetID = m_dwID;
+
+ 
+
+ 	m_pUpdateEvent = event_create(growthpet_update_event, info, PASSES_PER_SEC(1));
+
+ 
+
+@@ -2124,7 +2153,8 @@
+ 				const BYTE dwSkillDuration = (BYTE)pSkillProto->kDurationPoly.Eval() / 10;
+
+ 
+
+ 				feather_skill_event_info* info = AllocEventInfo<feather_skill_event_info>();
+
+-				info->pPet = this;
+
++				info->dwOwnerVID = m_pOwner ? m_pOwner->GetVID() : 0;
+
++				info->dwPetID = m_dwID;
+
+ 				info->pSkillPoly = pSkillPoly;
+
+ 				info->bSkillLevel = bSkillLevel;
+
+ 				info->dwDuration = dwSkillDuration + time(0);
+
+

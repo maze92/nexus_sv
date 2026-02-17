@@ -1,0 +1,18 @@
+--- a/server/metin2/Source/Server/game/src/item.cpp
++++ b/server/metin2/Source/Server/game/src/item.cpp
+@@ -1551,7 +1551,14 @@
+ 
+ void CItem::SetSocket(int i, long v, bool bLog)
+ {
+-	assert(i < ITEM_SOCKET_MAX_NUM);
++	// Defensive hardening: never trust the socket index.
++	// In release builds, assert() is compiled out; without a runtime check this becomes an OOB write primitive.
++	if (i < 0 || i >= ITEM_SOCKET_MAX_NUM)
++	{
++		sys_err("CItem::SetSocket: out of range index=%d (max=%d) item=%s(%u) id=%u", i, ITEM_SOCKET_MAX_NUM, GetName(), GetVnum(), GetID());
++		return;
++	}
++
+ 	m_alSockets[i] = v;
+ 	UpdatePacket();
+ 	Save();

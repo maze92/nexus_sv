@@ -1,0 +1,93 @@
+--- /tmp/battle.cpp.orig	2026-02-17 03:11:07.972458390 +0000
++++ server/metin2/Source/Server/game/src/battle.cpp	2026-02-17 03:22:13.959487959 +0000
+@@ -895,7 +895,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_SWORD) - pkAttacker->GetPoint(POINT_ATTBONUS_SWORD))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_SWORD) - pkAttacker->GetPoint(POINT_ATTBONUS_SWORD);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_SWORD)) / 100;
+ #else
+@@ -908,7 +912,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_TWOHAND) - pkAttacker->GetPoint(POINT_ATTBONUS_TWOHAND))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_TWOHAND) - pkAttacker->GetPoint(POINT_ATTBONUS_TWOHAND);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_TWOHAND)) / 100;
+ #else
+@@ -921,7 +929,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_DAGGER) - pkVictim->GetPoint(POINT_ATTBONUS_DAGGER))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_DAGGER) - pkAttacker->GetPoint(POINT_ATTBONUS_DAGGER);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_DAGGER)) / 100;
+ #else
+@@ -934,7 +946,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_BELL) - pkAttacker->GetPoint(POINT_ATTBONUS_BELL))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_BELL) - pkAttacker->GetPoint(POINT_ATTBONUS_BELL);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_BELL)) / 100;
+ #else
+@@ -947,7 +963,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_FAN) - pkAttacker->GetPoint(POINT_ATTBONUS_FAN))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_FAN) - pkAttacker->GetPoint(POINT_ATTBONUS_FAN);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_FAN)) / 100;
+ #else
+@@ -960,7 +980,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_BOW) - pkAttacker->GetPoint(POINT_ATTBONUS_BOW))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_BOW) - pkAttacker->GetPoint(POINT_ATTBONUS_BOW);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_BOW)) / 100;
+ #else
+@@ -973,7 +997,11 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_CLAW) - pkAttacker->GetPoint(POINT_ATTBONUS_CLAW))) / 100;
++				{
++					int iResist = pkVictim->GetPoint(POINT_RESIST_CLAW) - pkAttacker->GetPoint(POINT_ATTBONUS_CLAW);
++					iResist = MINMAX(0, iResist, 100);
++					iDam = iDam * (100 - iResist) / 100;
++				}
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_CLAW)) / 100;
+ #else

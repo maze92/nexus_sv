@@ -1,0 +1,25 @@
+--- a/server/metin2/Source/Server/game/src/cmd_gm.cpp
++++ b/server/metin2/Source/Server/game/src/cmd_gm.cpp
+@@ -5880,7 +5880,22 @@
+ 	}
+ 
+ 	if (pTargetChar && pTargetChar->IsPC())
++	{
++		// Defensive hardening: avoid reading equipment while the target is transitioning (warp/teleport/loading).
++		if (pTargetChar->IsDead() || pTargetChar->IsWarping() || !pTargetChar->GetSectree())
++		{
++			ch->ChatPacket(CHAT_TYPE_INFO, "%s is not in a stable state (warping/dead).", szArg1);
++			return;
++		}
++
++		if (pTargetChar->GetMapIndex() != ch->GetMapIndex())
++		{
++			ch->ChatPacket(CHAT_TYPE_INFO, "%s is not in your map.", szArg1);
++			return;
++		}
++
+ 		pTargetChar->SendEquipment(ch);
++	}
+ 	else
+ 		ch->ChatPacket(CHAT_TYPE_INFO, "%s is not online or doesn't exist.", szArg1);
+ }

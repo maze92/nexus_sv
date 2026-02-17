@@ -1,0 +1,17 @@
+--- a/fishing.cpp
++++ b/fishing.cpp
+@@ -498,6 +498,14 @@
+ 
+ 		if (!ch)
+ 			return 0;
++			// During disconnect the CHARACTER may still exist while DESC is already detached.
++			// Avoid dereferencing a NULL DESC from this event tick.
++			if (!ch->GetDesc())
++			{
++				ch->m_pkFishingEvent = NULL;
++				return 0;
++			}
++
+ 
+ 		if (ch->IsRiding())
+ 		{
