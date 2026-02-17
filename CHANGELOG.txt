@@ -1,0 +1,48 @@
+CHANGELOGS
+
+17.02.2026
+[OPT] 001 - diff_001 - Otimização de carregamento de motions/efeitos (evita I/O repetido em ficheiros inexistentes) no client (src-client/Client/GameLib/RaceMotionData.cpp, src-client/Client/EffectLib/EffectData.cpp);
+[FIX] 002 - diff_002 - Hardening de SQL: escaping consistente + builders seguros em queries de player e Lua no server (server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp, server/metin2/Source/Server/game/src/questlua.cpp (+3));
+[FIX] 003 - diff_003 - Packing/alinhamento consistente + validação de headers/opcodes no packet.h (server/metin2/Source/Server/game/src/packet.h);
+[FIX] 004 - diff_004 - Correção de mapeamento de slots/tabs + suporte extend inven no inventário (UI client) (client/pack/root/uiinventory.py, client/pack/root/uiscript/inventorywindow.py (+1));
+[FIX] 005 - diff_005 - Validação de janelas/inputs + reforço de checks no sistema GuildLadder (server/metin2/Source/Server/game/src/input_main.cpp, server/metin2/Source/Server/game/src/char.h (+2));
+[FIX] 006 - diff_006 - Bloqueio do exploit mob-puller + clamp de EXP/valores para impedir overflow no char_battle (server/metin2/Source/Server/game/src/char_battle.cpp);
+[FIX] 007 - diff_007 - Sanity-check de packet/IDs para impedir crash/abuso no convite de party (server/metin2/Source/Server/game/src/input_main.cpp);
+[FIX] 008 - diff_008 - Null-guards em handlers para impedir crash em eventos de dungeon (server/metin2/Source/Server/game/src/dungeon.cpp);
+[FIX] 009 - diff_009 - Bounds-check de display_pos para impedir OOB/memory corruption no exchange (server/metin2/Source/Server/game/src/exchange.cpp);
+[FIX] 010 - diff_010 - Guards extra de coords/sectree para impedir estados inválidos no sectree_move (server/metin2/Source/Server/game/src/entity.h, server/metin2/Source/Server/game/src/entity_view.cpp (+1));
+[FIX] 011 - diff_011 - Chamada protegida (pcall) para impedir crash por script no Lua alert (server/metin2/Source/Server/liblua/src/lib/lauxlib.c);
+[FIX] 012 - diff_012 - 64-bit + clamps para impedir overflow nos cálculos de shop/tax (server/metin2/Source/Server/game/src/shop.cpp);
+[FIX] 013 - diff_013 - Sanitize/whitelist para impedir injection e postfix inválido no DB table postfix (server/metin2/Source/Server/db/src/Main.cpp);
+[FIX] 014 - diff_014 - Lock inflight por sessão para impedir dupla atribuição no item_award (server/metin2/Source/Server/db/src/ClientManager.cpp);
+[FIX] 015 - diff_015 - Clamp de underflow/negativos para estabilizar ranking/pontos no GuildLadder (server/metin2/Source/Server/db/src/GuildManager.cpp);
+[FIX] 016 - diff_016 - Sanitize de string (tamanho/charset) para impedir injection/crash no MyShop sign (server/metin2/Source/Server/game/src/input_main.cpp);
+[FIX] 017 - diff_017 - Resolução segura de target (null/id guard) no target follow (server/metin2/Source/Server/game/src/char.h, server/metin2/Source/Server/game/src/char.cpp);
+[FIX] 018 - diff_018 - Lock ao adicionar item para reduzir race/dup em operações concorrentes no Attr67 (server/metin2/Source/Server/game/src/char_item.cpp, server/metin2/Source/Server/game/src/questlua_attr67add.cpp);
+[FIX] 019 - diff_019 - Sanitize de ranges para impedir under/overflow e estados inválidos na stamina do horse (server/metin2/Source/Server/game/src/horse_rider.cpp);
+[FIX] 020 - diff_020 - Limpeza coerente de skills/affects para evitar desync no reskill (server/metin2/Source/Server/game/src/char_skill.cpp);
+[FIX] 021 - diff_021 - Validação de quantidade/stack para impedir dupe e OOB no split-stack do safebox (server/metin2/Source/Server/game/src/safebox.cpp);
+[FIX] 022 - diff_022 - 64-bit + clamps contra overflow/underflow no Alignment (server/metin2/Source/Server/game/src/char_battle.cpp);
+[FIX] 023 - diff_023 - Validação de money changes (overflow/negativos) + bloqueio de remoções em war no Guild bank (server/metin2/Source/Server/game/src/guild.cpp);
+[FIX] 024 - diff_024 - Bloqueio de mover/remover itens locked no safebox (server/metin2/Source/Server/game/src/safebox.cpp);
+[FIX] 025 - diff_025 - Persistência/estado de janelas de warehouse para evitar dessync no guild/warehouse (server/metin2/Source/Server/game/src/guild.cpp);
+[FIX] 026 - diff_026 - Reset de estado do observer no login para evitar flags/states presos (server/metin2/Source/Server/game/src/input_login.cpp);
+[FIX] 027 - diff_027 - Guard em swap/refine para bloquear operações inválidas no DragonSoul deck (server/metin2/Source/Server/game/src/char.h, server/metin2/Source/Server/game/src/char.cpp (+2));
+[FIX] 028 - diff_028 - Clamp do tamanho do nome de flag para evitar overflow/strings inválidas no quest system (server/metin2/Source/Server/game/src/questlua_pc.cpp);
+[FIX] 029 - diff_029 - Hardening de lookup/tabelas de refine para evitar acesso inválido no refine (rod) (server/metin2/Source/Server/game/src/char_item.cpp);
+[FIX] 030 - diff_030 - Ajustes de robustez e validações no char_change_empire (server/metin2/Source/Server/game/src/char_change_empire.cpp);
+[FIX] 031 - diff_031 - Hardening de lookup/tabelas de refine para evitar acesso inválido no refine (rod) (server/metin2/Source/Server/game/src/char_battle.cpp);
+[FIX] 032 - diff_032 - Sanity-check de packets/inputs para bloquear dados malformados no login/input (server/metin2/Source/Server/game/src/input_main.cpp);
+[FIX] 033 - diff_033 - Ajustes de robustez e validações no db.h"	2026-02-17 05:21:46 ("/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/db.h"	2026-02-17 05:21:46.002902935 +0000);
+[FIX] 034 - diff_034 - Sanity-check de packets/inputs para bloquear dados malformados no login/input ("/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/char.h"	2026-02-17 05:22:00.231902022 +0000, "/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/char.cpp"	2026-02-17 05:23:26.241316079 +0000 (+1));
+[FIX] 035 - diff_035 - Ajustes de robustez e validações no entity.cpp"	2026-02-17 05:22:05 ("/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/entity.cpp"	2026-02-17 05:22:05.652524195 +0000);
+[FIX] 036 - diff_036 - Ajustes de robustez e validações no GrpDetector.cpp"	2026-02-17 05:22:23 ("/mnt/data/nexus_src/Nexus OS/src-client/Client/EterLib/GrpDetector.cpp"	2026-02-17 05:22:23.443592839 +0000);
+[FIX] 037 - diff_037 - Ajustes de robustez e validações no SoundManager.cpp"	2026-02-17 05:22:33 ("/mnt/data/nexus_src/Nexus OS/src-client/Client/MilesLib/SoundManager.cpp"	2026-02-17 05:22:33.744874038 +0000);
+[FIX] 038 - diff_038 - Sanity-check de packets/inputs para bloquear dados malformados no char_item (Server/game/src/char_item.cpp);
+[FIX] 039 - diff_039 - Clamp do tamanho do nome de flag para evitar overflow/strings inválidas no quest system (Server/game/src/char.h, Server/game/src/char.cpp (+1));
+[FIX] 040 - diff_040 - Clamps/validações contra over/underflow no GrpTextInstance (Client/EterLib/GrpTextInstance.cpp, Client/EterLib/GrpTextInstance.h (+1));
+[FIX] 041 - diff_041 - Sanity-check de packets/inputs para bloquear dados malformados no PeerBase (server/metin2/Source/Server/db/src/PeerBase.cpp, server/metin2/Source/Server/game/src/desc.cpp (+1));
+[FIX] 042 - diff_042 - Ajustes de robustez e validações no FileBase (src-client/Client/EterBase/FileBase.cpp, src-client/Client/EterBase/FileBase.h);
+[FIX] 043 - diff_043 - Sanity-check de packets/inputs para bloquear dados malformados no dungeon (server/metin2/Source/Server/game/src/dungeon.cpp, server/metin2/Source/Server/game/src/dungeon.h);
+[FIX] 044 - diff_044 - Guards de tamanho/mínimos para evitar leitura inválida no proto (server/metin2/Source/Server/game/src/item.h);
+[FIX] 045 - diff_045 - Frustum + distance culling para reduzir custo CPU em shadows/effects no MapOutdoorRender/Area (src-client/Client/GameLib/MapOutdoorRender.cpp, src-client/Client/GameLib/Area.cpp);

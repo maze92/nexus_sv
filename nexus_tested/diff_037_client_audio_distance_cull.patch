@@ -1,0 +1,41 @@
+--- /mnt/data/_patch_orig/soundmanager_cpp_SoundManager.cpp	2026-02-11 12:12:02.000000000 +0000
++++ "/mnt/data/nexus_src/Nexus OS/src-client/Client/MilesLib/SoundManager.cpp"	2026-02-17 05:22:33.744874038 +0000
+@@ -329,6 +329,12 @@
+ 	return TRUE;
+ }
+ 
++
++
++// Distance culling to reduce Miles/MSS overload in crowded fights.
++static const float kMax3DSoundDistanceSq = 2000.0f * 2000.0f;
++static const float kMaxAmbienceSoundDistanceSq = 6000.0f * 6000.0f;
++
+ void CSoundManager::PlaySound2D(const char* c_szFileName, float fVolume)
+ {
+ 	if (0.0f == GetSoundVolume())
+@@ -350,6 +356,12 @@
+ 	if (0.0f == GetSoundVolume())
+ 		return;
+ 
++	// Skip far sounds (prevents audio thread overload / deadlocks in large battles)
++	float fdx = (fx - m_fxPosition) * (fx - m_fxPosition);
++	float fdy = (fy - m_fyPosition) * (fy - m_fyPosition);
++	if (fdx + fdy > kMax3DSoundDistanceSq)
++		return;
++
+ 	int iIndex = ms_SoundManager3D.SetInstance(c_szFileName);
+ 	if (-1 == iIndex)
+ 		return;
+@@ -371,6 +383,12 @@
+ 	if (0.0f == GetSoundVolume())
+ 		return -1;
+ 
++	// Skip far ambience sounds
++	float fdx = (fx - m_fxPosition) * (fx - m_fxPosition);
++	float fdy = (fy - m_fyPosition) * (fy - m_fyPosition);
++	if (fdx + fdy > kMaxAmbienceSoundDistanceSq)
++		return -1;
++
+ 	int iIndex = ms_SoundManager3D.SetInstance(c_szFileName);
+ 	if (-1 == iIndex)
+ 		return -1;
