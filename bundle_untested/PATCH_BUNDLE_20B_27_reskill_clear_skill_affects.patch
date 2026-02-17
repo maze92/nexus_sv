@@ -1,0 +1,31 @@
+--- /mnt/data/pristine_20B/Server/game/src/char_skill.cpp	2025-06-13 15:13:58.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/char_skill.cpp	2026-02-17 01:08:11.503504816 +0000
+@@ -973,6 +973,28 @@
+ 
+ 	memset(m_pSkillLevels, 0, sizeof(TPlayerSkill) * SKILL_MAX_NUM);
+ 
++	// Skill reset: clear active skill-origin affects to avoid "permanent buff" exploits.
++	{
++		auto ShouldKeepSkillAffect = [&vec](DWORD dwType) -> bool {
++			for (const auto& p : vec)
++				if (p.first == dwType)
++					return true;
++			return false;
++		};
++
++		for (AffectContainerList::iterator itAffect = m_list_pkAffect.begin(); itAffect != m_list_pkAffect.end(); )
++		{
++			CAffect* pkAff = *itAffect;
++			++itAffect;
++			if (!pkAff)
++				continue;
++
++			// In this codebase, skill affects use dwType == skill vnum (< AFFECT_MOV_SPEED).
++			if (pkAff->dwType < AFFECT_MOV_SPEED && !ShouldKeepSkillAffect(pkAff->dwType))
++				RemoveAffect(pkAff);
++		}
++	}
++
+ 	std::vector<std::pair<DWORD, TPlayerSkill>>::const_iterator iter = vec.begin();
+ 
+ 	while (iter != vec.end())

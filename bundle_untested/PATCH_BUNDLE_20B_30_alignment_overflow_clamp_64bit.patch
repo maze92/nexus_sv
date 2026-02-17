@@ -1,0 +1,17 @@
+--- /mnt/data/pristine_20B/Server/game/src/char_battle.cpp	2025-06-28 12:30:22.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/char_battle.cpp	2026-02-17 01:14:16.009566670 +0000
+@@ -3914,7 +3914,13 @@
+ 
+ 	int i = m_iAlignment / 10;
+ 
+-	m_iRealAlignment = MINMAX(-200000, m_iRealAlignment + iAmount, 200000);
++	// Avoid 32-bit signed overflow/underflow on long-running servers or malformed packets.
++	long long llNewAlignment = (long long)m_iRealAlignment + (long long)iAmount;
++	if (llNewAlignment > 200000LL)
++		llNewAlignment = 200000LL;
++	else if (llNewAlignment < -200000LL)
++		llNewAlignment = -200000LL;
++	m_iRealAlignment = (int)llNewAlignment;
+ 
+ 	if (bShow)
+ 	{

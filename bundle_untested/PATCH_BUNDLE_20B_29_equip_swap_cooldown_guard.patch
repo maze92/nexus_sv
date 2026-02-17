@@ -1,0 +1,72 @@
+--- /mnt/data/pristine_20B/Server/game/src/char.h	2025-06-28 14:12:32.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/char.h	2026-02-17 01:10:08.142467218 +0000
+@@ -2042,6 +2042,7 @@
+ private:
+ 	bool m_bDisableCooltime;
+ 	DWORD m_dwLastSkillTime; ///< 마지막으로 skill 을 쓴 시간(millisecond).
++	DWORD m_dwLastEquipChangeTime; ///< last equip/unequip time (ms), anti-spam & stat desync guard.
+ 	// End of Skill
+ 
+ 	// MOB_SKILL
+--- /mnt/data/pristine_20B/Server/game/src/char.cpp	2025-06-29 08:39:18.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/char.cpp	2026-02-17 01:11:37.460651830 +0000
+@@ -469,6 +469,7 @@
+ 
+ 	// EQUIP_LAST_SKILL_DELAY
+ 	m_dwLastSkillTime = get_dword_time();
++	m_dwLastEquipChangeTime = 0;
+ 	// END_OF_EQUIP_LAST_SKILL_DELAY
+ 
+ 	// MOB_SKILL_COOLTIME
+--- /mnt/data/pristine_20B/Server/game/src/char_item.cpp	2025-06-29 08:39:34.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/char_item.cpp	2026-02-17 01:13:37.090249530 +0000
+@@ -9131,6 +9131,14 @@
+ 	if (false == CanUnequipNow(item))
+ 		return false;
+ 
++	const int iWearCell = item->FindEquipCell(this);
++	if (iWearCell != WEAR_ARROW)
++	{
++		const DWORD dwNow = get_dword_time();
++		if (dwNow - m_dwLastEquipChangeTime < 500)
++			return false;
++	}
++
+ #if defined(__MOUNT_COSTUME_SYSTEM__)
+ 	if (item->IsCostumeMount() && item->IsEquipped())
+ 		UnMount();
+@@ -9166,6 +9174,9 @@
+ 
+ 	CheckMaximumPoints();
+ 
++	if (iWearCell != WEAR_ARROW)
++		m_dwLastEquipChangeTime = get_dword_time();
++
+ 	return true;
+ }
+ 
+@@ -9188,6 +9199,14 @@
+ 	if (iWearCell < 0)
+ 		return false;
+ 
++	// Anti-spam: avoid rapid equip/unequip desync that can lead to stat stacking.
++	if (iWearCell != WEAR_ARROW)
++	{
++		const DWORD dwNow = get_dword_time();
++		if (dwNow - m_dwLastEquipChangeTime < 500)
++			return false;
++	}
++
+ 	// 무언가를 탄 상태에서 턱시도 입기 금지
+ 	if (iWearCell == WEAR_BODY && IsRiding() && (item->GetVnum() >= 11901 && item->GetVnum() <= 11904))
+ 	{
+@@ -11787,6 +11806,9 @@
+ 		// @ attr67add_collect (handling)
+ 	}
+ 
++	if (iWearCell != WEAR_ARROW)
++		m_dwLastEquipChangeTime = get_dword_time();
++
+ 	return true;
+ }
+ #endif

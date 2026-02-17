@@ -1,0 +1,35 @@
+--- /mnt/data/pristine_20B/Server/game/src/guild.cpp	2024-12-27 19:09:36.000000000 +0000
++++ /mnt/data/work_20B/Server/game/src/guild.cpp	2026-02-17 01:15:19.724877895 +0000
+@@ -1907,6 +1907,16 @@
+ 
+ void CGuild::RequestDepositMoney(LPCHARACTER ch, int iGold)
+ {
++	if (!ch)
++		return;
++	if (iGold <= 0)
++		return;
++	// Prevent negative/overflow deposits (guild bank max is 2,000,000,000 Yang).
++	const long long llMaxGuildGold = 2000000000LL;
++	const long long llNewGold = (long long)m_data.gold + (long long)iGold;
++	if (llNewGold > llMaxGuildGold || llNewGold < 0)
++		return;
++
+ 	if (false == ch->CanDeposit())
+ 	{
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<길드> 잠시후에 이용해주십시오"));
+@@ -1933,6 +1943,15 @@
+ 
+ void CGuild::RequestWithdrawMoney(LPCHARACTER ch, int iGold)
+ {
++	if (!ch)
++		return;
++	if (iGold <= 0)
++		return;
++	// Prevent negative/overflow withdrawals.
++	const long long llMaxGuildGold = 2000000000LL;
++	if ((long long)iGold > (long long)m_data.gold || (long long)m_data.gold > llMaxGuildGold)
++		return;
++
+ 	if (false == ch->CanDeposit())
+ 	{
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<길드> 잠시후에 이용해주십시오"));
