@@ -1,0 +1,144 @@
+--- server/metin2/Source/Server/game/src/building.cpp
++++ server/metin2/Source/Server/game/src/building.cpp
+@@ -518,6 +518,15 @@
+ 	sys_log(0, "RequestCreateObject(vnum=%u, map=%d, pos=(%d,%d), rot=(%.1f,%.1f,%.1f) region(%d,%d ~ %d,%d)",
+
+ 		dwVnum, lMapIndex, x, y, xRot, yRot, zRot, r->sx, r->sy, r->ex, r->ey);
+
+ 
+
++
+
++	// Packet hardening: reject negative or absurd coordinates before applying map-region offsets.
+
++	if (x < 0 || y < 0 || x > (long)m_data.width || y > (long)m_data.height)
+
++	{
+
++		sys_err("RequestCreateObject invalid coords: land %u map %d pos=(%ld,%ld) landSize=(%d,%d)",
+
++			m_data.dwID, lMapIndex, x, y, m_data.width, m_data.height);
+
++		return false;
+
++	}
+
++
+
+ 	x += r->sx;
+
+ 	y += r->sy;
+
+ 
+
+@@ -834,6 +843,34 @@
+ 
+
+ 	sys_log(0, "OBJ: id %u vnum %u map %d pos %dx%d", pTable->dwID, pTable->dwVnum, pTable->lMapIndex, pTable->x, pTable->y);
+
+ 
+
++	const TMapRegion* region = SECTREE_MANAGER::instance().GetMapRegion(pTable->lMapIndex);
+
++	if (!region)
+
++	{
+
++		sys_err("Cannot find map region for object id %u (map %d)", pTable->dwID, pTable->lMapIndex);
+
++		if (!isBoot)
+
++			pkLand->RequestDeleteObject(pTable->dwID);
+
++		return false;
+
++	}
+
++
+
++	// Reject corrupted/out-of-range coordinates early to prevent sectree NULL and crash loops on boot.
+
++	if (pTable->x < region->sx || pTable->x > region->ex || pTable->y < region->sy || pTable->y > region->ey)
+
++	{
+
++		sys_err("Invalid object position id %u map %d pos %dx%d (region %d,%d ~ %d,%d)",
+
++			pTable->dwID, pTable->lMapIndex, pTable->x, pTable->y, region->sx, region->sy, region->ex, region->ey);
+
++		if (!isBoot)
+
++			pkLand->RequestDeleteObject(pTable->dwID);
+
++		return false;
+
++	}
+
++
+
++	if (!SECTREE_MANAGER::instance().Get(pTable->lMapIndex, pTable->x, pTable->y))
+
++	{
+
++		sys_err("Cannot find sectree for object id %u (map %d pos %dx%d)", pTable->dwID, pTable->lMapIndex, pTable->x, pTable->y);
+
++		if (!isBoot)
+
++			pkLand->RequestDeleteObject(pTable->dwID);
+
++		return false;
+
++	}
+
++
+
++
+
+ 	LPOBJECT pkObj = M2_NEW CObject(pTable, pkProto);
+
+ 
+
+ 	DWORD dwVID = CHARACTER_MANAGER::instance().AllocVID();
+
+@@ -845,7 +882,14 @@
+ 	pkLand->InsertObject(pkObj);
+
+ 
+
+ 	if (!isBoot)
+
+-		pkObj->Show(pTable->lMapIndex, pTable->x, pTable->y);
+
++		if (!pkObj->Show(pTable->lMapIndex, pTable->x, pTable->y))
+
++		{
+
++			sys_err("Failed to show object id %u (map %d pos %dx%d); deleting corrupted object",
+
++				pTable->dwID, pTable->lMapIndex, pTable->x, pTable->y);
+
++			pkLand->RequestDeleteObject(pTable->dwID);
+
++			pkLand->DeleteObject(pTable->dwID);
+
++			return false;
+
++		}
+
+ 	else
+
+ 	{
+
+ 		pkObj->SetMapIndex(pTable->lMapIndex);
+
+@@ -1260,4 +1304,4 @@
+ 		iter++;
+
+ 	}
+
+ }
+
+-// END_BUILD_WALL
+
++// END_BUILD_WALL
+

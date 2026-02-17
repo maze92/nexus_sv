@@ -1,0 +1,20 @@
+--- /tmp/char_skill.cpp.orig	2026-02-17 03:11:07.988958773 +0000
++++ server/metin2/Source/Server/game/src/char_skill.cpp	2026-02-17 03:16:18.003083554 +0000
+@@ -3324,12 +3324,11 @@
+ 
+ 	if (IS_SET(pkSk->dwFlag, SKILL_FLAG_SELFONLY))
+ 		ComputeSkill(dwVnum, this);
+-	else if (IS_SET(pkSk->dwFlag, SKILL_FLAG_PARTY))
+-	{
+-		ComputeSkillParty(dwVnum, this);
+-
+-		if (pkVictim)
+-			ComputeSkill(dwVnum, pkVictim);
++	else if (IS_SET(pkSk->dwFlag, SKILL_FLAG_PARTY))
++	{
++		// Party skills must apply to near party members only.
++		// Avoid applying directly to a selected target (party UI) which can be out-of-map/loading and also duplicates the effect.
++		ComputeSkillParty(dwVnum, this);
+ 	}
+ 	else if (!IS_SET(pkSk->dwFlag, SKILL_FLAG_ATTACK))
+ 		ComputeSkill(dwVnum, pkVictim);

@@ -1,0 +1,46 @@
+--- a/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
+@@ -331,7 +331,22 @@
+ 		LPDUNGEON pDungeon = q.GetCurrentDungeon();
+ 
+ 		if (pDungeon)
++		{
++			// Anti-abuse hardening: prevent regen spam from spawning thousands of entities and freezing the core.
++			// 1) Block if too many monsters already exist in the dungeon.
++			// 2) Add a small server-side cooldown between regen calls.
++			const int c_iMonsterLimit = 100;
++			const int c_iCooldownSec = 2;
++			const int now = get_global_time();
++			const int last = pDungeon->GetFlag("sys.regen_last");
++			if (last > 0 && now - last < c_iCooldownSec)
++				return 0;
++			if (pDungeon->CountMonster() > c_iMonsterLimit)
++				return 0;
++
++			pDungeon->SetFlag("sys.regen_last", now);
+ 			pDungeon->SpawnRegen(lua_tostring(L, 1));
++		}
+ 
+ 		return 0;
+ 	}
+@@ -347,7 +362,20 @@
+ 		LPDUNGEON pDungeon = q.GetCurrentDungeon();
+ 
+ 		if (pDungeon)
++		{
++			// Same anti-spam guard as regen_file().
++			const int c_iMonsterLimit = 100;
++			const int c_iCooldownSec = 2;
++			const int now = get_global_time();
++			const int last = pDungeon->GetFlag("sys.regen_last");
++			if (last > 0 && now - last < c_iCooldownSec)
++				return 0;
++			if (pDungeon->CountMonster() > c_iMonsterLimit)
++				return 0;
++
++			pDungeon->SetFlag("sys.regen_last", now);
+ 			pDungeon->SpawnRegen(lua_tostring(L, 1), false);
++		}
+ 		return 0;
+ 	}
+ 

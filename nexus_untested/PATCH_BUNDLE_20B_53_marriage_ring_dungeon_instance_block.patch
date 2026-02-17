@@ -1,0 +1,68 @@
+--- server/metin2/Source/Server/game/src/char_item.cpp
++++ server/metin2/Source/Server/game/src/char_item.cpp
+@@ -4321,6 +4321,27 @@
+ 									}
+
+ 								}
+
+ 
+
++
+
++							LPCHARACTER chOther = NULL;
+
++							if (pMarriage->ch1 && pMarriage->ch1->GetPlayerID() != GetPlayerID())
+
++								chOther = pMarriage->ch1;
+
++							else if (pMarriage->ch2 && pMarriage->ch2->GetPlayerID() != GetPlayerID())
+
++								chOther = pMarriage->ch2;
+
++
+
++							// Block marriage-ring warps into active dungeon instances (instance jacking / script bypass).
+
++							if (chOther && chOther->GetDungeon() != NULL)
+
++							{
+
++								ChatPacket(CHAT_TYPE_INFO, LC_STRING(" ߿ ̿   ǰԴϴ."));
+
++								break;
+
++							}
+
++
+
++							// Safety: avoid warping to targets during transfer/death states.
+
++							if (chOther && (chOther->IsDead() || chOther->IsWarping()))
+
++							{
+
++								ChatPacket(CHAT_TYPE_INFO, LC_STRING(" ߿ ̿   ǰԴϴ."));
+
++								break;
+
++							}
+
++
+
+ 								int consumeSP = CalculateConsumeSP(this);
+
+ 
+
+ 								if (consumeSP < 0)
+
+@@ -12271,4 +12292,4 @@
+ 		return pItemWeapon->GetRefineElementApplyType();
+
+ 	return 0;
+
+ }
+
+-#endif
+
++#endif
+
