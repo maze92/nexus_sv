@@ -130,7 +130,7 @@
 [FIX] 095 - hardening/bugfix conforme diff (13+/0-) (src-client/Client/UserInterface/ServerStateChecker.cpp).
 
 
-📦 NOME DO BUNDLE: [NEWS20B_DB_HARDENING]
+📦 NOME DO BUNDLE: [DB_HARDENING]
 
 📜 CHANGELOG (One-Line-Style):
 [FIX] 096 - ItemIDRange allocator atomic + SQL safe-range update (server/metin2/Source/Server/db/src/ItemIDRangeManager.cpp; SQL/player.sql).
@@ -139,7 +139,7 @@
 [FIX] 099 - Lock/guard de inflight no fluxo de ItemAward para evitar race/duplicação (server/metin2/Source/Server/db/src/ClientManager.cpp).
 [FIX] 100 - Clamp de underflow no ladder/guild (server/metin2/Source/Server/db/src/GuildManager.cpp).
 
-📦 NOME DO BUNDLE: [NEWS20B_GAME_HARDENING]
+📦 NOME DO BUNDLE: [GAME_HARDENING]
 
 📜 CHANGELOG (One-Line-Style):
 [FIX] 101 - Null-guards e correções defensivas em char/descriptor binding e warmap cleanup (server/metin2/Source/Server/game/src/char.cpp).
@@ -153,7 +153,7 @@
 [FIX] 109 - Proteção contra wrap de time (DWORD) em char_state/party/char_item/input_main/battlepass/char (server/metin2/Source/Server/game/src/*.cpp).
 [FIX] 110 - Cap de affects + cooldown do dice + tax overflow 64-bit + myshop sign sanitize + target follow safe (server/metin2/Source/Server/game/src/*.cpp; *.h).
 
-📦 NOME DO BUNDLE: [NEWS20B_CLIENT_IO_OPT]
+📦 NOME DO BUNDLE: [CLIENT_IO_OPT]
 
 📜 CHANGELOG (One-Line-Style):
 [OPT] 111 - Otimização minimal de IO de motion/effects via EterPack manager (src-client/Client/GameLib/RaceMotionData.cpp; src-client/Client/EffectLib/EffectData.cpp).
