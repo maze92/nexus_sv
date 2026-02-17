@@ -1,0 +1,48 @@
+--- a/src-client/Client/EffectLib/EffectData.cpp
++++ b/src-client/Client/EffectLib/EffectData.cpp
+@@ -1,4 +1,5 @@
+ #include "StdAfx.h"
++#include "../EterPack/EterPackManager.h"
+ #include "EffectData.h"
+ 
+ CDynamicPool<CEffectData> CEffectData::ms_kPool;
+@@ -98,14 +99,16 @@
+ 
+ bool CEffectData::LoadSoundScriptData(const char* c_szFileName)
+ {
++	// [Perf] Avoid repeated I/O for missing sound scripts
++	if (!CEterPackManager::Instance().isExist(c_szFileName))
++		return true;
++
+ 	NSound::TSoundDataVector SoundDataVector;
+ 
+-	if (NSound::LoadSoundInformationPiece(c_szFileName, SoundDataVector))
+-	{
+-		NSound::DataToInstance(SoundDataVector, &m_SoundInstanceVector);
++	if (!NSound::LoadSoundInformationPiece(c_szFileName, SoundDataVector))
+ 		return false;
+-	}
+ 
++	NSound::DataToInstance(SoundDataVector, &m_SoundInstanceVector);
+ 	return true;
+ }
+ 
+--- a/src-client/Client/GameLib/RaceMotionData.cpp
++++ b/src-client/Client/GameLib/RaceMotionData.cpp
+@@ -1,4 +1,5 @@
+ #include "StdAfx.h"
++#include "../EterPack/EterPackManager.h"
+ #include "../EffectLib/EffectManager.h"
+ #include "FlyingObjectManager.h"
+ #include "RaceMotionData.h"
+@@ -504,6 +505,10 @@
+ 
+ bool CRaceMotionData::LoadSoundScriptData(const char* c_szFileName)
+ {
++	// [Perf] Avoid repeated I/O and parser work for missing sound scripts
++	if (!CEterPackManager::Instance().isExist(c_szFileName))
++		return true;
++
+ 	NSound::TSoundDataVector SoundDataVector;
+ 	if (!NSound::LoadSoundInformationPiece(c_szFileName, SoundDataVector))
+ 	{

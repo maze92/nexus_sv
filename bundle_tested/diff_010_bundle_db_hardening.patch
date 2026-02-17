@@ -1,0 +1,480 @@
+--- a/SQL/player.sql
++++ b/SQL/player.sql
+@@ -3217,3 +3217,11 @@
+ -- ----------------------------
+ 
+ SET FOREIGN_KEY_CHECKS = 1;
++-- PATCH_BUNDLE_20B: Persistent allocator to avoid duplicated item ID ranges across concurrent requests / DB restarts.
++CREATE TABLE IF NOT EXISTS `item_id_range_allocator` (
++  `id` TINYINT UNSIGNED NOT NULL PRIMARY KEY,
++  `next_index` INT UNSIGNED NOT NULL
++) ENGINE=InnoDB;
++
++INSERT IGNORE INTO `item_id_range_allocator` (`id`, `next_index`) VALUES (1, 0);
++
+--- a/server/metin2/Source/Server/db/src/ClientManager.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManager.cpp
+@@ -1,4 +1,5 @@
+ #include "stdafx.h"
+
++#include <set>
+
+ 
+
+ #include "../../common/building.h"
+
+ #include "../../common/VnumHelper.h"
+
+@@ -726,6 +727,37 @@
+ 		CreateItemTableFromRes(msg->Get()->pSQLResult, &s_items, pi->account_id);
+
+ 
+
+ 		ItemAwardSet* pSet = ItemAwardManager::instance().GetByLogin(pi->login);
+
++
+
++		// Anti-dupe hardening: prevent duplicate/concurrent processing of item_award for the same login.
+
++		struct _ItemAwardCheckoutGuard
+
++		{
+
++			static std::set<std::string>& Set()
+
++			{
+
++				static std::set<std::string> s_inflight;
+
++				return s_inflight;
+
++			}
+
++			std::string login;
+
++			bool active;
+
++			_ItemAwardCheckoutGuard(const char* szLogin) : login(szLogin ? szLogin : ""), active(false)
+
++			{
+
++				auto& s = Set();
+
++				if (!login.empty() && s.insert(login).second)
+
++					active = true;
+
++			}
+
++			~_ItemAwardCheckoutGuard()
+
++			{
+
++				if (!active) return;
+
++				auto& s = Set();
+
++				s.erase(login);
+
++			}
+
++			operator bool() const { return active; }
+
++		};
+
++		_ItemAwardCheckoutGuard _award_guard(pi->login);
+
++		if (pSet && !_award_guard)
+
++		{
+
++			sys_log(0, "ItemAward checkout skipped (already in progress): %s", pi->login);
+
++			pSet = NULL;
+
++		}
+
+ 
+
+ 		if (pSet && !m_vec_itemTable.empty())
+
+ 		{
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+@@ -1,6 +1,7 @@
+ #include "stdafx.h"
+
+ 
+
+ #include "ClientManager.h"
+
++#include "Marriage.h"
+
+ 
+
+ #include "Main.h"
+
+ #include "QID.h"
+
+@@ -1009,6 +1010,7 @@
+ 		if (dwPID == 0)
+
+ 			str_to_number(dwPID, row[0]);
+
+ 
+
++
+
+ 		str_to_number(r.dwType, row[1]);
+
+ 		str_to_number(r.wApplyOn, row[2]);
+
+ 		str_to_number(r.lApplyValue, row[3]);
+
+@@ -1635,6 +1637,13 @@
+ 		DWORD dwPID = 0;
+
+ 		str_to_number(dwPID, row[0]);
+
+ 
+
++		// Robustness: if a married character is deleted, force marriage cleanup so the online partner
+
++		// does not keep stale relationship state/pointers in memory.
+
++		if (auto* pMarriage = marriage::CManager::instance().Get(dwPID))
+
++		{
+
++			marriage::CManager::instance().Remove(pMarriage->pid1, pMarriage->pid2);
+
++		}
+
++
+
+ 		int deletedLevelLimit = 0;
+
+ 		str_to_number(deletedLevelLimit, row[1]);
+
+ 
+
+@@ -1660,6 +1669,7 @@
+ 		char queryStr[QUERY_MAX_LEN];
+
+ 
+
+ 		snprintf(queryStr, sizeof(queryStr), "INSERT INTO player_deleted%s SELECT * FROM player%s WHERE `id` = %d",
+
++
+
+ 			GetTablePostfix(), GetTablePostfix(), pi->player_id);
+
+ 		std::unique_ptr<SQLMsg> pIns(CDBManager::instance().DirectQuery(queryStr));
+--- a/server/metin2/Source/Server/db/src/GuildManager.cpp
++++ b/server/metin2/Source/Server/db/src/GuildManager.cpp
+@@ -5,6 +5,7 @@
+ #include "QID.h"
+ #include "Config.h"
+ #include <math.h>
++#include <climits>
+ 
+ extern std::string g_stLocale;
+ 
+@@ -721,10 +722,16 @@
+ 
+ 	TGuild& r = it->second;
+ 
+-	r.ladder_point += change;
++	r.ladder_point = [&]()
++	{
++		const int64_t llNewPoint = static_cast<int64_t>(r.ladder_point) + static_cast<int64_t>(change);
++		if (llNewPoint < 0)
++			return 0;
++		if (llNewPoint > INT_MAX)
++			return INT_MAX;
++		return static_cast<int>(llNewPoint);
++	}();
+ 
+-	if (r.ladder_point < 0)
+-		r.ladder_point = 0;
+ 
+ 	char buf[1024];
+ 	snprintf(buf, sizeof(buf), "UPDATE guild%s SET `ladder_point` = %d WHERE `id` = %u", GetTablePostfix(), r.ladder_point, GID);
+--- a/server/metin2/Source/Server/db/src/ItemIDRangeManager.cpp
++++ b/server/metin2/Source/Server/db/src/ItemIDRangeManager.cpp
+@@ -5,6 +5,141 @@
+ #include "ClientManager.h"
+ #include "Peer.h"
+ 
++namespace
++{
++	// Persistent range allocator (prevents duplicated ITEM ID ranges across simultaneous requests and DB restarts).
++	// Uses an atomic counter in the player DB. If the table cannot be created/used, code falls back to legacy scan-based ranges.
++	static const char* kItemIDRangeAllocatorTable = "item_id_range_allocator";
++	static const DWORD kRangeStep = 10000000UL;       // must match CItemIDRangeManager::cs_dwMinimumRange
++	static const DWORD kMaxItemID = 4290000000UL;     // must match CItemIDRangeManager::cs_dwMaxItemID
++
++	inline bool RangeOverlaps(DWORD aMin, DWORD aMax, DWORD bMin, DWORD bMax)
++	{
++		return (aMin <= bMax) && (bMin <= aMax);
++	}
++
++	DWORD GetCurrentMaxItemID()
++	{
++		char szQuery[256];
++		DWORD dwItemMaxID = 0;
++		SQLMsg* pMsg = NULL;
++		MYSQL_ROW row;
++
++		snprintf(szQuery, sizeof(szQuery), "SELECT MAX(id) FROM item%s", GetTablePostfix());
++		pMsg = CDBManager::instance().DirectQuery(szQuery);
++
++		if (pMsg != NULL)
++		{
++			if (pMsg->Get()->uiNumRows > 0)
++			{
++				row = mysql_fetch_row(pMsg->Get()->pSQLResult);
++				str_to_number(dwItemMaxID, row[0]);
++			}
++			delete pMsg;
++		}
++
++		return dwItemMaxID;
++	}
++
++	DWORD ComputeInitialNextIndex()
++	{
++		// next_index is the next segment index to allocate (0 => first range starts at 10,000,001).
++		const DWORD dwMaxID = GetCurrentMaxItemID();
++		if (dwMaxID == 0)
++			return 0;
++
++		// Ensure next range starts after current max id (round up to the next segment).
++		return (dwMaxID - 1) / kRangeStep;
++	}
++
++	bool EnsureAllocatorTable(DWORD dwInitialNextIndex)
++	{
++		static bool s_bTried = false;
++		static bool s_bOk = false;
++
++		if (s_bTried)
++			return s_bOk;
++
++		s_bTried = true;
++
++		char szQuery[512];
++		SQLMsg* pMsg = NULL;
++
++		// InnoDB + single row counter = atomic increments via LAST_INSERT_ID().
++		snprintf(szQuery, sizeof(szQuery),
++			"CREATE TABLE IF NOT EXISTS `%s` ("
++			"`id` TINYINT UNSIGNED NOT NULL PRIMARY KEY, "
++			"`next_index` INT UNSIGNED NOT NULL"
++			") ENGINE=InnoDB",
++			kItemIDRangeAllocatorTable);
++
++		pMsg = CDBManager::instance().DirectQuery(szQuery);
++		if (!pMsg)
++			return false;
++		delete pMsg;
++
++		snprintf(szQuery, sizeof(szQuery),
++			"INSERT IGNORE INTO `%s` (`id`, `next_index`) VALUES (1, %u)",
++			kItemIDRangeAllocatorTable, dwInitialNextIndex);
++
++		pMsg = CDBManager::instance().DirectQuery(szQuery);
++		if (!pMsg)
++			return false;
++		delete pMsg;
++
++		snprintf(szQuery, sizeof(szQuery),
++			"UPDATE `%s` SET `next_index` = GREATEST(`next_index`, %u) WHERE `id` = 1",
++			kItemIDRangeAllocatorTable, dwInitialNextIndex);
++
++		pMsg = CDBManager::instance().DirectQuery(szQuery);
++		if (!pMsg)
++			return false;
++		delete pMsg;
++
++		s_bOk = true;
++		return true;
++	}
++
++	bool AllocateNextIndex(DWORD& dwOutIndex)
++	{
++		char szQuery[256];
++		SQLMsg* pMsg = NULL;
++		MYSQL_ROW row;
++
++		// Atomically increment and stash new value into LAST_INSERT_ID().
++		snprintf(szQuery, sizeof(szQuery),
++			"UPDATE `%s` SET `next_index` = LAST_INSERT_ID(`next_index` + 1) WHERE `id` = 1",
++			kItemIDRangeAllocatorTable);
++
++		pMsg = CDBManager::instance().DirectQuery(szQuery);
++		if (!pMsg)
++			return false;
++		delete pMsg;
++
++		pMsg = CDBManager::instance().DirectQuery("SELECT LAST_INSERT_ID()");
++		if (!pMsg)
++			return false;
++
++		if (pMsg->Get()->uiNumRows == 0)
++		{
++			delete pMsg;
++			return false;
++		}
++
++		row = mysql_fetch_row(pMsg->Get()->pSQLResult);
++		DWORD dwNext = 0;
++		str_to_number(dwNext, row[0]);
++		delete pMsg;
++
++		if (dwNext == 0)
++			return false;
++
++		// dwNext is the post-increment value; allocated index is the previous value.
++		dwOutIndex = dwNext - 1;
++		return true;
++	}
++}
++
+ CItemIDRangeManager::CItemIDRangeManager()
+ {
+ 	m_listData.clear();
+@@ -64,6 +199,42 @@
+ 	ret.dwMax = 0;
+ 	ret.dwUsableItemIDMin = 0;
+ 
++	// Prefer a persistent, atomic allocator table to prevent duplicated ranges across concurrent requests and DB restarts.
++	// If unavailable (permissions / older schema), fall back to the legacy scan-based allocator.
++	const DWORD dwInitialNextIndex = ComputeInitialNextIndex();
++	if (EnsureAllocatorTable(dwInitialNextIndex))
++	{
++		const TItemIDRangeTable reserved = CClientManager::instance().GetItemRange();
++
++		for (int iTries = 0; iTries < 10000; ++iTries)
++		{
++			DWORD dwIndex = 0;
++			if (!AllocateNextIndex(dwIndex))
++				break;
++
++			const uint64_t uMin = (uint64_t)kRangeStep * ((uint64_t)dwIndex + 1) + 1;
++			const uint64_t uMax = (uint64_t)kRangeStep * ((uint64_t)dwIndex + 2);
++
++			if (uMax >= (uint64_t)kMaxItemID)
++			{
++				sys_err("ITEM_ID_RANGE allocator exhausted (index=%u)", dwIndex);
++				break;
++			}
++
++			ret.dwMin = (DWORD)uMin;
++			ret.dwMax = (DWORD)uMax;
++			ret.dwUsableItemIDMin = ret.dwMin;
++
++			// Skip the DB reserved range.
++			if (reserved.dwMin != 0 && reserved.dwMax != 0 && RangeOverlaps(ret.dwMin, ret.dwMax, reserved.dwMin, reserved.dwMax))
++				continue;
++
++			return ret;
++		}
++
++		sys_err("ITEM_ID_RANGE allocator table present but allocation failed; falling back to legacy allocator");
++	}
++
+ 	if (m_listData.size() > 0)
+ 	{
+ 		while (m_listData.size() > 0)
+--- a/server/metin2/Source/Server/db/src/Main.cpp
++++ b/server/metin2/Source/Server/db/src/Main.cpp
+@@ -1,4 +1,5 @@
+ #include "stdafx.h"
+
++#include <cctype>
+
+ #include "Config.h"
+
+ #include "Peer.h"
+
+ #include "DBManager.h"
+
+@@ -25,8 +26,37 @@
+ #endif
+
+ 
+
+ void SetPlayerDBName(const char* c_pszPlayerDBName);
+
+-void SetTablePostfix(const char* c_pszTablePostfix);
+
+-int Start();
+
++void SetTablePostfix(const char* c_pszTablePostfix)
+
++{
+
++	if (!c_pszTablePostfix)
+
++	{
+
++		s_szTablePostfix[0] = '\0';
+
++		return;
+
++	}
+
++
+
++	// Security: table postfix must be short and strictly alnum/underscore to prevent SQL injection via table names.
+
++	// (Even if you do not expose this value to clients, config tampering should not be able to inject SQL.)
+
++	const size_t len = strnlen(c_pszTablePostfix, 32);
+
++	if (len == 0 || len > 10)
+
++	{
+
++		sys_err("Table postfix rejected (len=%zu): '%s'", len, c_pszTablePostfix);
+
++		s_szTablePostfix[0] = '\0';
+
++		return;
+
++	}
+
++
+
++	for (size_t i = 0; i < len; ++i)
+
++	{
+
++		const unsigned char c = static_cast<unsigned char>(c_pszTablePostfix[i]);
+
++		if (!(isalnum(c) || c == '_'))
+
++		{
+
++			sys_err("Table postfix rejected (bad char 0x%02X): '%s'", c, c_pszTablePostfix);
+
++			s_szTablePostfix[0] = '\0';
+
++			return;
+
++		}
+
++	}
+
++
+
++	strlcpy(s_szTablePostfix, c_pszTablePostfix, sizeof(s_szTablePostfix));
+
++}
+
+ 
+
+ std::string g_stTablePostfix;
+
+ std::string g_stLocaleNameColumn = "name";
