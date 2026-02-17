@@ -1,0 +1,920 @@
+--- a/client/pack/root/game.py
++++ b/client/pack/root/game.py
+@@ -39,7 +39,6 @@
+ # END_OF_PRIVATE_SHOP_PRICE_LIST
+ 
+ import mouseModule
+-import consoleModule
+ import localeInfo
+ 
+ import playerSettingModule
+ import interfaceModule
+@@ -179,7 +178,6 @@ class GameWindow(ui.ScriptWindow):
+ 		self.quickSlotPageIndex = 0
+ 		self.PickingCharacterIndex = -1
+ 		self.PickingItemIndex = -1
+-		self.consoleEnable = False
+ 		self.isShowDebugInfo = False
+ 		self.ShowNameFlag = False
+ 
+@@ -132,11 +130,6 @@ class GameWindow(ui.ScriptWindow):
+ 			self.allianceTargetBoard.Hide()
+ 			self.interface.SetAllianceTargetBoard(self.allianceTargetBoard)
+ 
+-		self.console = consoleModule.ConsoleWindow()
+-		self.console.BindGameClass(self)
+-		self.console.SetConsoleSize(wndMgr.GetScreenWidth(), 200)
+-		self.console.Hide()
+-
+ 		self.mapNameShower = uiMapNameShower.MapNameShower()
+ 		self.affectShower = uiAffectShower.AffectShower()
+ 		self.interface.SetAffectShower(self.affectShower)
+@@ -452,7 +445,6 @@ class GameWindow(ui.ScriptWindow):
+ 		onPressKeyDict[app.DIK_ADD] = lambda : self.interface.MiniMapScaleUp()
+ 		onPressKeyDict[app.DIK_SUBTRACT] = lambda : self.interface.MiniMapScaleDown()
+ 		onPressKeyDict[app.DIK_L] = lambda : self.interface.ToggleChatLogWindow()
+-		onPressKeyDict[app.DIK_COMMA] = lambda : self.ShowConsole() # "`" key
+ 		onPressKeyDict[app.DIK_LSHIFT] = lambda : self.__SetQuickPageMode()
+ 
+ 		if app.ENABLE_GROWTH_PET_SYSTEM:
+@@ -1496,11 +1488,6 @@ class GameWindow(ui.ScriptWindow):
+ 		else:
+ 			chat.AppendChat(chat.CHAT_TYPE_INFO, localeInfo.SCREENSHOT_SAVE_FAILURE)
+ 
+-	def ShowConsole(self):
+-		if debugInfo.IsDebugMode() or True == self.consoleEnable:
+-			player.EndKeyWalkingImmediately()
+-			self.console.OpenWindow()
+-
+ 	def ShowName(self):
+ 		self.ShowNameFlag = True
+ 		self.playerGauge.EnableShowAlways()
+@@ -2038,10 +2025,6 @@ class GameWindow(ui.ScriptWindow):
+ 	def OnRender(self):
+ 		app.RenderGame()
+ 
+-		if self.console.Console.collision:
+-			background.RenderCollision()
+-			chr.RenderCollision()
+-
+ 		(x, y) = app.GetCursorPosition()
+ 
+ 		########################
+@@ -2423,7 +2406,6 @@ class GameWindow(ui.ScriptWindow):
+ 
+ 	def __ServerCommand_Build(self):
+ 		serverCommandList = {
+-			"ConsoleEnable" : self.__Console_Enable,
+ 			"DayMode" : self.__DayMode_Update,
+ 			"PRESERVE_DayMode" : self.__PRESERVE_DayMode_Update,
+ 			"CloseRestartWindow" : self.__RestartDialog_Close,
+@@ -2741,12 +2723,6 @@ class GameWindow(ui.ScriptWindow):
+ 	def __RestartDialog_Close(self):
+ 		self.interface.CloseRestartDialog()
+ 
+-	def __Console_Enable(self):
+-		self.consoleEnable = True
+-		app.EnableSpecialCameraMode()
+-		ui.EnablePaste(True)
+-		self.ShowConsole()
+-
+ 	## PrivateShop
+ 	if app.ENABLE_CHEQUE_SYSTEM:
+ 		def __CashPrivateShop_Open(self):
+
+--- a/client/pack/root/ui.py
++++ b/client/pack/root/ui.py
+@@ -4575,14 +4575,46 @@ class PythonScriptLoader(object):
+ 
+ 	def LoadScriptFile(self, window, FileName):
+ 		import exception
+ 		import exceptions
+ 		import os
+ 		import errno
+ 		self.Clear()
+ 
+ 		#print "===== Load Script File : %s" % (FileName)
++
++		# Security hardening:
++		# UI definitions are executed via execfile(). FileName must never be absolute,
++		# contain drive letters, or allow traversal. Only allow packed UI paths.
++		if not isinstance(FileName, str):
++			exception.Abort("LoadScriptFile: invalid filename type")
++
++		# normalize separators early (Windows/backslashes)
++		_safeName = FileName.replace("\\", "/")
++
++		# basic length sanity
++		if len(_safeName) == 0 or len(_safeName) > 260:
++			exception.Abort("LoadScriptFile: invalid filename length")
++
++		# reject absolute paths / drive letters / home paths
++		if ":" in _safeName or _safeName.startswith("/") or _safeName.startswith("~"):
++			exception.Abort("LoadScriptFile: invalid filename path")
++
++		# normalize and block traversal
++		_norm = os.path.normpath(_safeName).replace("\\", "/")
++		if _norm == ".." or _norm.startswith("../") or "/../" in ("/" + _norm + "/"):
++			exception.Abort("LoadScriptFile: path traversal blocked")
++
++		# allow only standard UI script roots
++		_low = _norm.lower()
++		if not (_low.startswith("uiscript/") or _low.startswith("locale/")):
++			exception.Abort("LoadScriptFile: blocked script root")
++
++		# use normalized safe path
++		FileName = _norm
+ 
+ 		#ui 코드는 sandbox 내에서 실행되어야한다.(봉이 꽂힐 여지가 있기 때문에)
+ 		#import sys
+ 		#from utils import Sandbox
+ 		#sandbox = Sandbox(True, ["uiScriptLocale", "localeInfo", "sys", "item", "app"])
+
+--- a/client/pack/root/constinfo.py
++++ b/client/pack/root/constinfo.py
+@@ -1,6 +1,6 @@
+ import app
+ 
+ # option
+ IN_GAME_SHOP_ENABLE = 1
+ CONSOLE_ENABLE = 0
+ 
+ PVPMODE_ENABLE = 1
+ #PVPMODE_TEST_ENABLE = 0
+ PVPMODE_ACCELKEY_ENABLE = 1
+ PVPMODE_ACCELKEY_DELAY = 0.5
+-PVPMODE_PROTECTED_LEVEL = 30
++PVPMODE_PROTECTED_LEVEL = 15
+ 
+ FOG_LEVEL0 = 4800.0
+ FOG_LEVEL1 = 9600.0
+ FOG_LEVEL2 = 12800.0
+@@ -35,30 +35,20 @@
+ HIGH_PRICE = 500000
+ MIDDLE_PRICE = 50000
+ ERROR_METIN_STONE = 28960
+ SUB2_LOADING_ENABLE = 1
+ EXPANDED_COMBO_ENABLE = 1
+-CONVERT_EMPIRE_LANGUAGE_ENABLE = 1
++CONVERT_EMPIRE_LANGUAGE_ENABLE = 0
+ USE_ITEM_WEAPON_TABLE_ATTACK_BONUS = 0
+-ADD_DEF_BONUS_ENABLE = 1
++ADD_DEF_BONUS_ENABLE = 0
+ LOGIN_COUNT_LIMIT_ENABLE = 0
+ 
+ USE_SKILL_EFFECT_UPGRADE_ENABLE = 1
+ 
+ VIEW_OTHER_EMPIRE_PLAYER_TARGET_BOARD = 1
+ GUILD_MONEY_PER_GSP = 100
+ GUILD_WAR_TYPE_SELECT_ENABLE = 1
+-TWO_HANDED_WEAPON_ATT_SPEED_DECREASE_VALUE = 0
++TWO_HANDED_WEAPON_ATT_SPEED_DECREASE_VALUE = 10
+ 
+ HAIR_COLOR_ENABLE = 1
+ ARMOR_SPECULAR_ENABLE = 1
+ WEAPON_SPECULAR_ENABLE = 1
+ SEQUENCE_PACKET_ENABLE = 1
+ KEEP_ACCOUNT_CONNETION_ENABLE = 1
+ MINIMAP_POSITIONINFO_ENABLE = 0
+-CONVERT_EMPIRE_LANGUAGE_ENABLE = 0
+-USE_ITEM_WEAPON_TABLE_ATTACK_BONUS = 0
+-ADD_DEF_BONUS_ENABLE = 0
+-LOGIN_COUNT_LIMIT_ENABLE = 0
+-PVPMODE_PROTECTED_LEVEL = 15
+-TWO_HANDED_WEAPON_ATT_SPEED_DECREASE_VALUE = 10
+ 
+ isItemQuestionDialog = 0
+ 
+ if app.ENABLE_REFINE_RENEWAL:
+@@ -80,9 +70,7 @@ def SET_ITEM_QUESTION_DIALOG_STATUS(flag):
+ 	global isItemQuestionDialog
+ 	isItemQuestionDialog = flag
+ 
+-import app
+ import net
+
+--- a/client/pack/root/intrologin.py
++++ b/client/pack/root/intrologin.py
+@@ -18,11 +18,9 @@ import os
+ import serverCommandParser
+ 
+ RegisteredID = ""
+-RegisteredPassword = ""
+ # RegisteredPin = ""
+ LOGIN_DELAY_SEC = 0.0 #Default 0.0
+ 
+@@ -495,14 +493,39 @@ class LoginWindow(ui.ScriptWindow):
+ 	def OnUpdate(self):
+ 		ServerStateChecker.Update()
+ 		for i in range(1,7):
+-			if os.path.exists('UserData/Account/' + (str(i))+ '.cfg'):
+-				accountfile = open('UserData/Account/' + (str(i))+ '.cfg', "r")
+-				informations = (accountfile.read()).split("|")
+-				self.registerButtons[i].SetText(informations[1])
++			path = 'UserData/Account/' + str(i) + '.cfg'
++			if os.path.exists(path):
++				try:
++					accountfile = open(path, "r")
++					raw = accountfile.read()
++					accountfile.close()
++					informations = raw.split("|")
++					# expected formats:
++					#   new: |id|
++					#   old: |id|pwd|
++					saved_id = informations[1] if len(informations) > 1 else ""
++					saved_pwd = informations[2] if len(informations) > 2 else ""
++
++					# sanitize legacy plaintext passwords on disk immediately
++					if saved_pwd:
++						try:
++							open(path, "w").write("|" + str(saved_id) + "|")
++						except:
++							pass
++
++					if saved_id:
++						self.registerButtons[i].SetText(saved_id)
++					else:
++						self.registerButtons[i].SetText(uiScriptLocale.FREE)
++				except:
++					self.registerButtons[i].SetText(uiScriptLocale.FREE)
+ 			else:
+ 				self.registerButtons[i].SetText(uiScriptLocale.FREE)
+ 
+@@ -736,28 +759,54 @@ class LoginWindow(ui.ScriptWindow):
+ 	def OnClickRegisterButton(self, alper):#21.02.2019
+ 		global RegisteredID
+-		global RegisteredPassword
+ 		# global RegisteredPin
+ 		al = self.registerButtons[alper].GetText()
+ 		if al.find(uiScriptLocale.FREE) != -1:
+ 			id = self.idEditLine.GetText()
+-			pwd = self.pwdEditLine.GetText()
++			# Never store passwords on disk
+ 			# pin = self.pinEditLine.GetText()
+-			if id == "" or pwd == "":
+-				self.PopupNotifyMessage(localeInfo.NOID_OR_PASSWORD)
++			if id == "":
++				self.PopupNotifyMessage(localeInfo.LOGIN_INPUT_ID, self.SetIDEditLineFocus)
+ 			else:
+ 				if not os.path.exists('UserData/Account/' + str(alper) + '.cfg'):#todo security reg
+-					open('UserData/Account/' + str(alper) + '.cfg', "w").write("|"+str(id)+"|"+str(pwd)+"|")
++					# Store ID only (no password)
++					open('UserData/Account/' + str(alper) + '.cfg', "w").write("|"+str(id)+"|")
+ 
+ 					self.registerButtons[alper].SetText(str(id))
+ 
+ 					self.PopupNotifyMessage(localeInfo.ACCOUNT_HAS_REGISTERED)
+ 				else:
+ 					pass
+ 		else:
+-			accountfile = open('UserData/Account/' + str(alper)+ '.cfg', "r")
+-			informations = (accountfile.read()).split("|")
+-			self.Connect(informations[1], informations[2])
+-			RegisteredID = informations[1]
+-			RegisteredPassword = informations[2]
++			path = 'UserData/Account/' + str(alper) + '.cfg'
++			try:
++				accountfile = open(path, "r")
++				raw = accountfile.read()
++				accountfile.close()
++				informations = raw.split("|")
++				saved_id = informations[1] if len(informations) > 1 else ""
++				saved_pwd = informations[2] if len(informations) > 2 else ""
++
++				# sanitize legacy format if password exists
++				if saved_pwd:
++					try:
++						open(path, "w").write("|"+str(saved_id)+"|")
++					except:
++						pass
++
++				if saved_id:
++					self.idEditLine.SetText(saved_id)
++					self.pwdEditLine.SetText("")
++					self.pwdEditLine.SetFocus()
++					RegisteredID = saved_id
++				else:
++					self.PopupNotifyMessage(localeInfo.LOGIN_INPUT_ID, self.SetIDEditLineFocus)
++			except:
++				self.PopupNotifyMessage(localeInfo.LOGIN_CONNECT_FAILURE, self.SetIDEditLineFocus)
+ 			# RegisteredPin = informations[3]
+
+--- a/client/pack/root/game.py
++++ b/client/pack/root/game.py
+@@ -2418,7 +2418,6 @@ class GameWindow(ui.ScriptWindow):
+ 	def __ServerCommand_Build(self):
+ 		serverCommandList = {
+-			"ConsoleEnable" : self.__Console_Enable,
+ 			"DayMode" : self.__DayMode_Update,
+ 			"PRESERVE_DayMode" : self.__PRESERVE_DayMode_Update,
+ 			"CloseRestartWindow" : self.__RestartDialog_Close,
+@@ -2465,7 +2464,7 @@ class GameWindow(ui.ScriptWindow):
+ 			"WarUC" : self.__GuildWar_UpdateMemberCount,
+-			"test_server" : self.__EnableTestServerFlag,
++			"test_server" : self.__EnableTestServerFlag,
+ 			"mall" : self.__InGameShop_Show,
+ 
+ 			# WEDDING
+@@ -2741,13 +2740,6 @@ class GameWindow(ui.ScriptWindow):
+ 	def __RestartDialog_Close(self):
+ 		self.interface.CloseRestartDialog()
+ 
+-	def __Console_Enable(self):
+-		self.consoleEnable = True
+-		app.EnableSpecialCameraMode()
+-		ui.EnablePaste(True)
+-		self.ShowConsole()
+-
+@@ -2956,10 +2948,55 @@ class GameWindow(ui.ScriptWindow):
+ 	def __EnableTestServerFlag(self):
+-		app.EnableTestServerFlag()
++		# Do not allow the server to remotely toggle client test/debug behavior.
++		try:
++			import debugInfo
++			if debugInfo.IsDebugMode():
++				app.EnableTestServerFlag()
++		except:
++			pass
++
++	def __IsSafeWebURL(self, url):
++		# Only allow http(s). Block file://, javascript:, data:, etc.
++		if not isinstance(url, str):
++			return False
++		u = url.strip()
++		if not u or len(u) > 2048:
++			return False
++		lu = u.lower()
++		return lu.startswith("http://") or lu.startswith("https://")
++
++	def __IsSafeBgmFile(self, filename):
++		# Prevent traversal/absolute paths from server commands.
++		# Only allow relative BGM file names with safe chars and common extensions.
++		if not isinstance(filename, str):
++			return False
++		f = filename.strip().replace("\\", "/")
++		if not f or len(f) > 128:
++			return False
++		if f.startswith("/") or f.startswith("~") or ".." in f:
++			return False
++		lf = f.lower()
++		if not (lf.endswith(".mp3") or lf.endswith(".ogg") or lf.endswith(".wav")):
++			return False
++		for c in f:
++			# conservative allowed charset
++			if not (c.isalnum() or c in "._-/"):
++				return False
++		return True
+ 
+ 	def __InGameShop_Show(self, url):
+ 		if constInfo.IN_GAME_SHOP_ENABLE:
+-			self.interface.OpenWebWindow(url)
++			if self.__IsSafeWebURL(url):
++				self.interface.OpenWebWindow(url)
+ 
+@@ -3000,7 +3037,11 @@ class GameWindow(ui.ScriptWindow):
+ 	if app.ENABLE_POPUP_NOTICE:
+ 		def __SetPopupNoticeEventFlag(self, flag_value):
+ 			self.interface.SetPopupNoticeEventFlag(int(flag_value))
+ 
+ 		def __PopupNoticeProcess(self, is_checked, url):
+-			self.interface.PopupNoticeProcess(int(is_checked), url)
++			# URL must be http(s) only
++			if self.__IsSafeWebURL(url):
++				self.interface.PopupNoticeProcess(int(is_checked), url)
+@@ -3039,8 +3080,14 @@ class GameWindow(ui.ScriptWindow):
+ 	def __PlayMusic(self, flag, filename):
+ 		flag = int(flag)
+ 		if flag:
++			if not self.__IsSafeBgmFile(filename):
++				return
+ 			snd.FadeOutAllMusic()
+ 			musicInfo.SaveLastPlayFieldMusic()
+ 			snd.FadeInMusic("BGM/" + filename)
+
+--- a/client/pack/root/servercommandparser.py
++++ b/client/pack/root/servercommandparser.py
+@@ -1,6 +1,7 @@
+ import net
+ import background
+ import stringCommander
+ import constInfo
+ import app
++import re
+ 
+ class ServerCommandParser(object):
+@@ -33,6 +34,19 @@ class ServerCommandParser(object):
+ 	def __PreserveCommand(self, line):
+ 		net.PreserveServerCommand(line)
+ 
++	def __IsSafeWebURL(self, url):
++		if not isinstance(url, str):
++			return False
++		u = url.strip()
++		if not u or len(u) > 2048:
++			return False
++		lu = u.lower()
++		return lu.startswith("http://") or lu.startswith("https://")
++
+ 	if app.ENABLE_POPUP_NOTICE:
+ 		def __SetPopupNoticeEventFlag(self, flag_value):
+ 			self.__PreserveCommand("PopupNoticeEventFlag " + flag_value)
+ 
+ 		def __PopupNoticeProcess(self, is_checked, url):
+-			self.__PreserveCommand("PopupNoticeProcess %d %s" % (int(is_checked), url))
++			if self.__IsSafeWebURL(url):
++				self.__PreserveCommand("PopupNoticeProcess %d %s" % (int(is_checked), url))
+
+--- a/client/pack/root/uiweb.py
++++ b/client/pack/root/uiweb.py
+@@ -1,6 +1,7 @@
+ import ui
+ import uiScriptLocale
+ import net
+ import snd
+ import app
+ import mouseModule
+ import constInfo
++
++def _IsSafeWebURL(url):
++	if not isinstance(url, str):
++		return False
++	u = url.strip()
++	if not u or len(u) > 2048:
++		return False
++	lu = u.lower()
++	return lu.startswith("http://") or lu.startswith("https://")
+ 
+ class WebWindow(ui.ScriptWindow):
+@@ -42,7 +53,12 @@ class WebWindow(ui.ScriptWindow):
+ 		self.titleBar.SetCloseEvent(ui.__mem_func__(self.__OnCloseButtonClick))
+ 
+ 	def Destroy(self):
+ 		app.HideWebPage(app.BROWSER_TYPE_ITEM_MALL)
+@@ -56,6 +72,9 @@ class WebWindow(ui.ScriptWindow):
+ 		self.titleBar = None
+ 
+ 	def Open(self, url):
++		if not _IsSafeWebURL(url):
++			return
++
+ 		self.Refresh()
+ 		self.Show()
+ 		self.SetCenterPosition()
+
+--- a/client/pack/root/uipopupnotice.py
++++ b/client/pack/root/uipopupnotice.py
+@@ -1,6 +1,17 @@
+ import app
+ import net
+ import player
+ import ui
+ import localeInfo
++
++def _IsSafeWebURL(url):
++	if not isinstance(url, str):
++		return False
++	u = url.strip()
++	if not u or len(u) > 2048:
++		return False
++	lu = u.lower()
++	return lu.startswith("http://") or lu.startswith("https://")
+ 
+ class PopupNoticeWindow(ui.ScriptWindow):
+@@ -106,6 +117,9 @@ class PopupNoticeWindow(ui.ScriptWindow):
+ 	def PopupNoticeProcess(self, is_checked, url):
+ 		self.is_not_show_checked = is_checked
+ 		self.url = url
+ 
+ 		if is_checked != True:
+ 			self.Open(url, is_checked)
+ 
+ 	def Open(self, url, is_checked):
++		if not _IsSafeWebURL(url):
++			return
++
+ 		self.Refresh()
+ 		self.Show()
+ 		self.SetCenterPosition()
+
+--- a/client/pack/root/game.py
++++ b/client/pack/root/game.py
+@@ -115,6 +115,39 @@ class GameWindow(ui.ScriptWindow):
+ 		self.interface = interfaceModule.Interface()
+ 		self.interface.MakeInterface()
+ 		self.interface.ShowDefaultWindows()
++
++		# ENABLE_OFFLINE_SHOP: ensure C++ handler is always initialized (prevents NULL handler crash)
++		if hasattr(net, "SetOfflineShopManagerHandler"):
++			class _OfflineShopManagerHandler(object):
++				def __init__(self, interface):
++					self.interface = interface
++
++				# Called by CPythonOfflineShop on shop spawn
++				def OnSpawnShop(self, shopId, vid, decoBoard, shopName):
++					if hasattr(self.interface, "OnOfflineShopSpawn"):
++						try:
++							self.interface.OnOfflineShopSpawn(shopId, vid, decoBoard, shopName)
++						except Exception:
++							pass
++
++				# Called by CPythonOfflineShop on shop close
++				def OnCloseShop(self, shopId):
++					if hasattr(self.interface, "OnOfflineShopClose"):
++						try:
++							self.interface.OnOfflineShopClose(shopId)
++						except Exception:
++							pass
++
++			self.interface.offlineShopManagerHandler = _OfflineShopManagerHandler(self.interface)
++			try:
++				net.SetOfflineShopManagerHandler(self.interface.offlineShopManagerHandler)
++			except Exception:
++				pass
+
+--- a/src-client/Client/UserInterface/PythonOfflineshop.cpp
++++ b/src-client/Client/UserInterface/PythonOfflineshop.cpp
+@@ -1,6 +1,7 @@
+ #include "StdAfx.h"
+ #include "PythonOfflineshop.h"
+ #include "PythonNetworkStream.h"
++#include <Python.h>
+
+ bool CPythonOfflineShop::ReceivePacket()
+ {
+@@ -16,6 +17,8 @@ bool CPythonOfflineShop::ReceivePacket()
+ 	net_offline_shop::GC_headerPacket headerPacket;
+ 	if (!recv(sizeof(headerPacket), &headerPacket))
+ 		return false;
++
++	PyObject* pMgr = GetManagerHandler(); // may be NULL if Python didn't initialize
+
+ 	switch (headerPacket.subHeader)
+ 	{
+@@ -67,9 +70,16 @@ bool CPythonOfflineShop::ReceivePacket()
+ 			AddShop(shopPacket.shopId, shopPacket.vid, shopPacket.decoBoard, shopPacket.shopName, shopPacket.ownerId);
+ 			AddItems(shopPacket.shopId, shopPacket.items, shopPacket.itemCount);
+-
+-			PyCallClassMemberFunc(GetManagerHandler(), "OnSpawnShop",
+-				Py_BuildValue("(iiis)", shopPacket.shopId, shopPacket.vid, shopPacket.decoBoard, shopPacket.shopName));
++			// If handler is not initialized, do NOT crash; just consume packet and keep state.
++			if (pMgr)
++			{
++				PyCallClassMemberFunc(pMgr, "OnSpawnShop",
++					Py_BuildValue("(iiis)", shopPacket.shopId, shopPacket.vid, shopPacket.decoBoard, shopPacket.shopName));
++			}
+ 			break;
+ 		}
+@@ -173,8 +183,12 @@ CPythonOfflineShop::~CPythonOfflineShop()
+ {
+ 	auto shops = shops_;
+ 	for (auto& shop : shops)
+ 	{
+ 		RemoveShop(shop.first);
+-		PyCallClassMemberFunc(GetManagerHandler(), "OnCloseShop",
+-			Py_BuildValue("(i)", shop.first));
++		PyObject* pMgr = GetManagerHandler();
++		if (pMgr)
++		{
++			PyCallClassMemberFunc(pMgr, "OnCloseShop",
++				Py_BuildValue("(i)", shop.first));
++		}
+ 	}
+ }
+
+ void CPythonOfflineShop::SetManagerHandler(PyObject* handler)
+ {
+-	managerHandler_ = handler;
++	// Keep handler alive safely (prevents dangling pointer if Python unloads/reloads UI)
++	Py_XINCREF(handler);
++	Py_XDECREF(managerHandler_);
++	managerHandler_ = handler;
+ }
+
+--- a/client/pack/root/consolemodule.py
++++ b/client/pack/root/consolemodule.py
+@@ -79,7 +79,10 @@ class ConsoleWindow(ui.ScriptWindow):
+ 
+ 	def Disconnect(self):
+-		"Disconnect by sending unknown packet"
+-		net.SendStrangePacket()
++		"Disconnect (unsafe debug packet removed)"
++		# net.SendStrangePacket() does not exist in your C++ net module and is unsafe by design.
++		# Keep as no-op to avoid latent crashes if consoleModule is accidentally present/loaded.
++		self.Print("Disconnect disabled (unsafe debug packet removed)")
+
+--- a/client/pack/root/intrologin1.py
++++ b/client/pack/root/intrologin1.py
+@@ -472,14 +472,6 @@ class LoginWindow(ui.ScriptWindow):
+ 		if not self.__LoadScript(uiScriptLocale.LOCALE_COMMON_UISCRIPT_PATH + "LoginWindow.py"):
+ 			dbg.TraceError("LoginWindow.Open - __LoadScript Error")
+ 			return
+-
+-		'''
+-		if app.GetLoginType() == app.LOGIN_TYPE_NONE:
+-			self.__LoadLoginInfo("loginInfo.xml")
+-		else:
+-			app.loggined = False
+-		'''
+ 
+ 		self.__LoadLoginInfo("loginInfo.xml")
+
+--- a/server/metin2/Source/Server/db/src/ClientManager.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManager.cpp
+@@ -4602,23 +4602,41 @@ void CClientManager::BlockException(TPacketBlockException* data)
+ {
+ 	sys_log(0, "[BLOCK_EXCEPTION] CMD(%d) login(%s)", data->cmd, data->login);
+ 
++	char login[LOGIN_MAX_LEN + 1] = {0};
++	trim_and_lower(data->login, login, sizeof(login));
++
++	char loginEsc[LOGIN_MAX_LEN * 2 + 1] = {0};
++	CDBManager::instance().EscapeString(loginEsc, login, strlen(login), SQL_ACCOUNT);
++
+ 	// save sql
+ 	{
+ 		char buf[1024];
+ 
+ 		switch (data->cmd)
+ 		{
+ 			case BLOCK_EXCEPTION_CMD_ADD:
+-				snprintf(buf, sizeof(buf), "INSERT INTO `block_exception` VALUES('%s')", data->login);
++				snprintf(buf, sizeof(buf),
++					"INSERT INTO `block_exception` (`login`) VALUES ('%s')",
++					loginEsc);
+ 				CDBManager::instance().AsyncQuery(buf, SQL_ACCOUNT);
+-				CBlockCountry::instance().AddBlockException(data->login);
++				CBlockCountry::instance().AddBlockException(login);
+ 				break;
+ 			case BLOCK_EXCEPTION_CMD_DEL:
+-				snprintf(buf, sizeof(buf), "DELETE FROM `block_exception` WHERE `login` = %s", data->login);
++				snprintf(buf, sizeof(buf),
++					"DELETE FROM `block_exception` WHERE `login` = '%s'",
++					loginEsc);
+ 				CDBManager::instance().AsyncQuery(buf, SQL_ACCOUNT);
+-				CBlockCountry::instance().DelBlockException(data->login);
++				CBlockCountry::instance().DelBlockException(login);
+ 				break;
+ 			default:
+ 				return;
+ 		}
+ 
+ 	}
+ 
+ 	for (auto it = m_peerList.begin(); it != m_peerList.end(); ++it)
+ 	{
+ 		CPeer* peer = *it;
+@@ -4635,7 +4653,7 @@ void CClientManager::BlockException(TPacketBlockException* data)
+ 		if (!peer->GetChannel())
+ 			continue;
+ 
+-		CBlockCountry::instance().SendBlockExceptionOne(peer, data->login, data->cmd);
++		CBlockCountry::instance().SendBlockExceptionOne(peer, login, data->cmd);
+ 	}
+ }
+
+--- a/server/metin2/Source/Server/game/src/packet.h
++++ b/server/metin2/Source/Server/game/src/packet.h
+@@ -571,7 +571,6 @@ enum GC_HEADERS
+ 	HEADER_GC_SHOP_SEARCH_RESULT = 164,
+ 	HEADER_GC_SHOP_SEARCH_BUY_RESULT = 165,
+ 	HEADER_GC_SHOP_SEARCH_OWNER_MESSAGE = 166,
+ 	HEADER_GC_SHOP_SEARCH_SOLD_INFO = 167,
+-	HEADER_GC_ENTITY = 168,
+ #endif
+@@ -735,7 +734,7 @@ enum GG_HEADERS
+ 	HEADER_GG_BLOCK_CHAT = 22,
+ 	HEADER_GG_BIG_NOTICE = 23,
+-	HEADER_GG_BLOCK_EXCEPTION = 24,
++	HEADER_GG_UNUSED_24 = 24,
+ 	HEADER_GG_SIEGE = 25,
+ 	HEADER_GG_MONARCH_NOTICE = 26,
+ 	HEADER_GG_MONARCH_TRANSFER = 27,
+
+--- a/client/pack/root/game.py
++++ b/client/pack/root/game.py
+@@ -176,6 +176,7 @@ class GameWindow(ui.ScriptWindow):
+ 		self.PickingCharacterIndex = -1
+ 		self.PickingItemIndex = -1
+ 		self.isShowDebugInfo = False
++		self._nextDebugInfoUpdateTime = 0.0
+ 		self.ShowNameFlag = False
+ 
+@@ -1996,8 +1997,14 @@ class GameWindow(ui.ScriptWindow):
+ 		if self.mapNameShower.IsShow():
+ 			self.mapNameShower.Update()
+ 
+ 		if self.isShowDebugInfo:
+-			self.UpdateDebugInfo()
++			# Debug info is expensive: throttle to reduce frame-time spikes if enabled
++			t = app.GetTime()
++			if t >= self._nextDebugInfoUpdateTime:
++				self._nextDebugInfoUpdateTime = t + 0.25
++				self.UpdateDebugInfo()
+ 
+ 		if self.enableXMasBoom:
+ 			self.__XMasBoom_Update()
+ 
+ 		self.interface.BUILD_OnUpdate()
+
+--- a/client/pack/root/ui.py
++++ b/client/pack/root/ui.py
+@@ -4023,6 +4023,10 @@ class ListBox(ListBox):
+ 	def OnUpdate(self):
++		# Avoid work for invisible widgets (many UI elements tick every frame)
++		if not self.IsShow():
++			return
++
+ 		self.overLine = -1
+ 
+ 		if self.IsIn():
+@@ -4090,6 +4094,10 @@ class ListBox2(ListBox):
+ 	def OnUpdate(self):
++		if not self.IsShow():
++			return
++
+ 		mpos = wndMgr.GetMousePosition()
+ 		self.overLine = self._CalcPointIndex(mpos)
+@@ -4285,6 +4293,10 @@ class ComboBox(Window):
+ 	def OnUpdate(self):
++		if not self.IsShow():
++			return
++
+ 		if not self.enable:
+ 			return
+@@ -4448,6 +4460,10 @@ class ComboBox2(Window):
+ 	def OnUpdate(self):
++		if not self.IsShow():
++			return
++
+ 		if not self.enable:
+ 			return
+
+--- a/src-client/Client/EterBase/ServiceDefs.h
++++ b/src-client/Client/EterBase/ServiceDefs.h
+@@ -39,8 +39,8 @@
+ 	COMPRESS_KEY_SIZE = COMPRESS_BIRCK_LEN + COMPRESS_BRICK_SIZE + 2,
+ };
+ 
+-static const char* s_strEIX = ".eix"; // EterPack Index
+-static const char* s_strEPK = ".epk"; // EterPack
++static const char* s_strEIX = ".nex"; // EterPack Index
++static const char* s_strEPK = ".npk"; // EterPack
+ 
+ static std::string s_strEterPackSecurityKey[COMPRESS_BRICK_SIZE] = {
+ 	std::string(AY_OBFUSCATE("599220564")),
+
+--- a/src-client/Client/EterBase/lzo.cpp
++++ b/src-client/Client/EterBase/lzo.cpp
+@@ -69,7 +69,7 @@
+ 
+ } gs_freeMemMgr;
+ 
+-DWORD CLZObject::ms_dwFourCC = MAKEFOURCC('M', 'C', 'O', 'Z');
++DWORD CLZObject::ms_dwFourCC = MAKEFOURCC('N', 'C', 'O', 'Z');
+ 
+ CLZObject::CLZObject()
+ {
+
+--- a/src-client/Client/ScriptLib/PythonLauncher.cpp
++++ b/src-client/Client/ScriptLib/PythonLauncher.cpp
+@@ -4,9 +4,110 @@
+ 
+ #include "PythonLauncher.h"
+ 
++// ---------------------------------------------------------------------------
++// Python import hardening (anti-injection)
++// Blocks importing dangerous stdlib modules that allow filesystem/process/net.
++// ---------------------------------------------------------------------------
++static PyObject* g_poOriginalImport = nullptr;
++
++static bool IsBlockedPythonModule(const char* name)
++{
++	if (!name || !*name)
++		return true;
++
++	std::string mod(name);
++	const size_t dot = mod.find('.');
++	if (dot != std::string::npos)
++		mod.resize(dot);
++
++	static const char* kBlocked[] = {
++		"os", "posix", "nt", "_winreg", "winreg", "msvcrt",
++		"subprocess", "popen2", "commands",
++		"socket", "ssl", "select",
++		"ctypes",
++		"urllib", "urllib2", "httplib", "ftplib", "telnetlib",
++		"shutil", "glob",
++		"pickle", "cPickle", "marshal", "imp",
++		"multiprocessing", "thread", "threading",
++		"resource", "signal"
++	};
++
++	for (size_t i = 0; i < sizeof(kBlocked) / sizeof(kBlocked[0]); ++i)
++	{
++		if (mod == kBlocked[i])
++			return true;
++	}
++	return false;
++}
++
++static PyObject* RestrictedImport(PyObject*, PyObject* args, PyObject* kwargs)
++{
++	const char* name = nullptr;
++	PyObject* globals = Py_None;
++	PyObject* locals  = Py_None;
++	PyObject* fromlist = Py_None;
++	int level = -1;
++
++	static char* kwlist[] = { (char*)"name", (char*)"globals", (char*)"locals", (char*)"fromlist", (char*)"level", nullptr };
++	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|OOOi:__import__", kwlist, &name, &globals, &locals, &fromlist, &level))
++		return nullptr;
++
++	if (IsBlockedPythonModule(name))
++	{
++		PyErr_Format(PyExc_ImportError, "Blocked python module: %s", name);
++		return nullptr;
++	}
++
++	if (!g_poOriginalImport)
++	{
++		PyErr_SetString(PyExc_ImportError, "Original __import__ not available");
++		return nullptr;
++	}
++
++	return PyObject_Call(g_poOriginalImport, args, kwargs);
++}
++
++static void InstallRestrictedImport()
++{
++	PyObject* builtins = PyImport_ImportModule("__builtin__");
++	if (!builtins)
++	{
++		PyErr_Clear();
++		return;
++	}
++
++	PyObject* dict = PyModule_GetDict(builtins);
++	if (!dict)
++	{
++		Py_DECREF(builtins);
++		return;
++	}
++
++	PyObject* original = PyDict_GetItemString(dict, "__import__");
++	if (original)
++	{
++		g_poOriginalImport = original;
++		Py_INCREF(g_poOriginalImport);
++	}
++
++	static PyMethodDef sImportDef = {
++		"__import__",
++		(PyCFunction)RestrictedImport,
++		METH_VARARGS | METH_KEYWORDS,
++		"Restricted __import__ (blocks dangerous stdlib modules)"
++	};
++
++	PyObject* importFunc = PyCFunction_New(&sImportDef, nullptr);
++	if (importFunc)
++		PyDict_SetItemString(dict, "__import__", importFunc);
++	Py_XDECREF(importFunc);
++	Py_DECREF(builtins);
++}
++
+ CPythonLauncher::CPythonLauncher()
+ {
+ 	Py_Initialize();
++	InstallRestrictedImport();
+ }
+ 
+ CPythonLauncher::~CPythonLauncher()
+
+--- a/src-client/Client/UserInterface/Packet.h
++++ b/src-client/Client/UserInterface/Packet.h
+@@ -380,7 +380,7 @@
+ 	HEADER_GC_STUN = 13,
+ 	HEADER_GC_DEAD = 14,
+ 
+-	HEADER_GC_MAIN_CHARACTER = 15,
++	HEADER_GC_MAIN_CHARACTER = 113,
+ 	HEADER_GC_PLAYER_POINTS = 16,
+ 	HEADER_GC_PLAYER_POINT_CHANGE = 17,
+ 	HEADER_GC_CHANGE_SPEED = 18,
+@@ -459,7 +459,7 @@
+ 
+ 	HEADER_GC_CREATE_FLY = 70,
+ 	HEADER_GC_FLY_TARGETING = 71,
+-	HEADER_GC_SKILL_LEVEL = 72,
++	HEADER_GC_SKILL_LEVEL = 76,
+ 	//HEADER_GC_UNUSED = 73,
+ 	HEADER_GC_MESSENGER = 74,
+ 	HEADER_GC_GUILD = 75,
+@@ -489,7 +489,7 @@
+ 	HEADER_GC_PARTY_UNLINK = 92,
+ 	//HEADER_GC_UNUSED = 93,
+ 	//HEADER_GC_UNUSED = 94,
+-	HEADER_GC_REFINE_INFORMATION = 95,
++	HEADER_GC_REFINE_INFORMATION = 119,
+ 	//HEADER_GC_UNUSED = 96,
+ #if defined(ENABLE_CUBE_RENEWAL)
+ 	HEADER_GC_CUBE = 97,

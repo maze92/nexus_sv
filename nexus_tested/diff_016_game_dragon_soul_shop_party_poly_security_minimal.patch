@@ -1,0 +1,133 @@
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -3595,6 +3595,26 @@
+ 	}
+ 
+ 	sys_log(0, "MyShop count %u", p->bCount);
++	const TShopItemTable* pTable = reinterpret_cast<const TShopItemTable*>(c_pData + sizeof(TPacketCGMyShop));
++	for (BYTE i = 0; i < p->bCount; ++i)
++	{
++		// [BUNDLE_15][Security] Prevent price overflow/zero-price abuse (tax bypass / item transfer)
++		if (pTable[i].price == 0 || pTable[i].price > GOLD_MAX)
++		{
++			sys_err("HACK_DETECT: %s invalid shop price=%u (slot %u)", ch->GetName(), pTable[i].price, i);
++			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("Invalid shop price."));
++			return (iExtraLen);
++		}
++#if defined(__CHEQUE_SYSTEM__)
++		if (pTable[i].cheque > CHEQUE_MAX)
++		{
++			sys_err("HACK_DETECT: %s invalid shop cheque=%u (slot %u)", ch->GetName(), pTable[i].cheque, i);
++			ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("Invalid shop price."));
++			return (iExtraLen);
++		}
++#endif
++	}
++
+ 	ch->OpenMyShop(p->szSign, (TShopItemTable*)(c_pData + sizeof(TPacketCGMyShop)), p->bCount);
+ 	return (iExtraLen);
+ }
+@@ -4925,6 +4945,24 @@
+ 		case HEADER_CG_DRAGON_SOUL_REFINE:
+ 		{
+ 			TPacketCGDragonSoulRefine* p = reinterpret_cast <TPacketCGDragonSoulRefine*>((void*)c_pData);
++			// [BUNDLE_15][Security] Block Dragon Soul refine actions while trade/shop/cube windows are open
++			if (p->bSubType == DS_SUB_HEADER_DO_REFINE_GRADE || p->bSubType == DS_SUB_HEADER_DO_REFINE_STEP || p->bSubType == DS_SUB_HEADER_DO_REFINE_STRENGTH
++#if defined(__DS_CHANGE_ATTR__)
++				|| p->bSubType == DS_SUB_HEADER_DO_CHANGE_ATTR
++#endif
++				)
++			{
++				if (ch->GetExchange() || ch->GetShop() || ch->GetMyShop() || ch->IsCubeOpen()
++#ifdef __OFFLINE_SHOP__
++					|| ch->GetOfflineShop()
++#endif
++					)
++				{
++					ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You cannot refine Dragon Soul items while another window is open."));
++					break;
++				}
++			}
++
+ 			switch (p->bSubType)
+ 			{
+ 				case DS_SUB_HEADER_CLOSE:
+--- a/server/metin2/Source/Server/game/src/char_item.cpp
++++ b/server/metin2/Source/Server/game/src/char_item.cpp
+@@ -10833,8 +10833,13 @@
+ 
+ 	if (true == IsRiding())
+ 	{
+-		ChatPacket(CHAT_TYPE_INFO, LC_STRING("а   Դϴ."));
+-		return false;
++		// [BUNDLE_15][Fix] Prevent mount bonus/stat stacking with polymorph by forcing dismount
++		StopRiding();
++		if (true == IsRiding())
++		{
++			ChatPacket(CHAT_TYPE_INFO, LC_STRING("а   Դϴ."));
++			return false;
++		}
+ 	}
+ 
+ 	DWORD dwVnum = item->GetSocket(0);
+--- a/server/metin2/Source/Server/game/src/shop.cpp
++++ b/server/metin2/Source/Server/game/src/shop.cpp
+@@ -395,14 +395,26 @@
+ 			if (iVal > 100)
+ 				iVal = 100;
+ 
+-			dwTax = dwPrice * iVal / 100;
+-			dwPrice = dwPrice - dwTax;
++			{
++				const int64_t llPrice = static_cast<int64_t>(dwPrice);
++				int64_t llTax = (llPrice * static_cast<int64_t>(iVal)) / 100;
++				if (llTax < 0) llTax = 0;
++				if (llTax > llPrice) llTax = llPrice;
++				dwTax = static_cast<DWORD>(llTax);
++				dwPrice = static_cast<DWORD>(llPrice - llTax);
++			}
+ 		}
+ 		else
+ 		{
+ 			iVal = 3;
+-			dwTax = dwPrice * iVal / 100;
+-			dwPrice = dwPrice - dwTax;
++			{
++				const int64_t llPrice = static_cast<int64_t>(dwPrice);
++				int64_t llTax = (llPrice * static_cast<int64_t>(iVal)) / 100;
++				if (llTax < 0) llTax = 0;
++				if (llTax > llPrice) llTax = llPrice;
++				dwTax = static_cast<DWORD>(llTax);
++				dwPrice = static_cast<DWORD>(llPrice - llTax);
++			}
+ 		}
+ 	}
+ 	else
+@@ -414,8 +426,14 @@
+ 			if (iVal > 100)
+ 				iVal = 100;
+ 
+-			dwTax = dwPrice * iVal / 100;
+-			dwPrice = dwPrice - dwTax;
++			{
++				const int64_t llPrice = static_cast<int64_t>(dwPrice);
++				int64_t llTax = (llPrice * static_cast<int64_t>(iVal)) / 100;
++				if (llTax < 0) llTax = 0;
++				if (llTax > llPrice) llTax = llPrice;
++				dwTax = static_cast<DWORD>(llTax);
++				dwPrice = static_cast<DWORD>(llPrice - llTax);
++			}
+ 		}
+ 		else
+ 		{
+--- a/server/metin2/Source/Server/game/src/party.cpp
++++ b/server/metin2/Source/Server/game/src/party.cpp
+@@ -777,6 +777,8 @@
+ 	if (it->second.bRole == PARTY_ROLE_LEADER)
+ 		m_pkChrLeader = NULL;
+ 
++	// [BUNDLE_15][Fix] Ensure role bonuses are cleared when a member disconnects/changes map
++	ComputeRolePoint(pkChr, it->second.bRole, false);
+ 	it->second.pCharacter = NULL;
+ 	pkChr->SetParty(NULL);
+ }

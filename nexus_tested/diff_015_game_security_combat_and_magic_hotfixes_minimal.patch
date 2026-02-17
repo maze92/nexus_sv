@@ -1,0 +1,254 @@
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -4436,6 +4436,16 @@
+ 
+
+ 			amount = MIN(GetMaxHP() - GetHP(), amount);
+
+ 			SetHP(GetHP() + amount);
+
++
+
++			// [Fix] If HP reaches 0 or below, force death immediately (prevents 0 HP immortality under lag)
+
++			if (GetHP() <= 0)
+
++			{
+
++				SetHP(0);
+
++				val = 0;
+
++				Dead();
+
++				return;
+
++			}
+
++
+
+ 			val = GetHP();
+
+ 
+
+ 			BroadcastTargetPacket();
+
+
+--- a/server/metin2/Source/Server/game/src/char_skill.cpp
++++ b/server/metin2/Source/Server/game/src/char_skill.cpp
+@@ -1473,16 +1473,13 @@
+ 				// ƾƾƾ
+
+ 				//  ߴ װ ־   ٽϸ  
+
+ 				//iDam -= pkChrVictim->GetPoint(POINT_MAGIC_DEF_GRADE);
+
+-#if defined(__MAGIC_REDUCTION__)
+
+-				{
+
++{
+
++					// [Fix] Safe magic resistance/penetration: clamp resist to [0..100] and apply penetration correctly
+
+ 					const int c_iResMagic = MINMAX(0, pkChrVictim->GetPoint(POINT_RESIST_MAGIC), 100);
+
+ 					const int c_iResMagicReduction = MINMAX(0, (m_pkChr->GetJob() == JOB_SURA) ? m_pkChr->GetPoint(POINT_RESIST_MAGIC_REDUCTION) / 2 : m_pkChr->GetPoint(POINT_RESIST_MAGIC_REDUCTION), 50);
+
+ 					const int c_iTotalMagicRes = MINMAX(0, c_iResMagic - c_iResMagicReduction, 100);
+
+ 					iDam = iDam * (100 - c_iTotalMagicRes) / 100;
+
+ 				}
+
+-#else
+
+-				iDam = iDam * (100 - pkChrVictim->GetPoint(POINT_RESIST_MAGIC)) / 100;
+
+-#endif
+
+ 				break;
+
+ 
+
+ 			default:
+
+@@ -4525,10 +4522,6 @@
+ 		case SKILL_INSIGHT:
+
+ #endif
+
+ 		case SKILL_HIT:
+
+-		case SKILL_HORSE_WILDATTACK:
+
+-		case SKILL_HORSE_CHARGE:
+
+-		case SKILL_HORSE_ESCAPE:
+
+-		case SKILL_HORSE_WILDATTACK_RANGE:
+
+ 		case SKILL_ADD_HP:
+
+ 		case SKILL_RESIST_PENETRATE:
+
+ 		case GUILD_SKILL_EYE:
+
+@@ -4541,6 +4534,13 @@
+ 		case GUILD_SKILL_TELEPORT:
+
+ 		case GUILD_SKILL_DOOR:
+
+ 			return true;
+
++
+
++		// [Security Fix] Horse combat skills must not be usable while not mounted (prevents packet injection)
+
++		case SKILL_HORSE_WILDATTACK:
+
++		case SKILL_HORSE_CHARGE:
+
++		case SKILL_HORSE_ESCAPE:
+
++		case SKILL_HORSE_WILDATTACK_RANGE:
+
++			return IsRiding();
+
+ 	}
+
+ 
+
+ 	return false;
+
+
+--- a/server/metin2/Source/Server/game/src/char_battle.cpp
++++ b/server/metin2/Source/Server/game/src/char_battle.cpp
+@@ -3544,14 +3544,13 @@
+ 				NormalAttackAffect(m_me, pkVictim);
+
+ 
+
+ 				//  
+
+-#if defined(__MAGIC_REDUCTION__)
+
++{
+
++				// [Fix] Safe magic resistance/penetration: clamp resist to [0..100] and apply penetration correctly
+
+ 				const int c_iResMagic = MINMAX(0, pkVictim->GetPoint(POINT_RESIST_MAGIC), 100);
+
+ 				const int c_iResMagicReduction = MINMAX(0, (m_me->GetJob() == JOB_SURA) ? m_me->GetPoint(POINT_RESIST_MAGIC_REDUCTION) / 2 : m_me->GetPoint(POINT_RESIST_MAGIC_REDUCTION), 50);
+
+ 				const int c_iTotalMagicRes = MINMAX(0, c_iResMagic - c_iResMagicReduction, 100);
+
+ 				iDam = iDam * (100 - c_iTotalMagicRes) / 100;
+
+-#else
+
+-				iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_MAGIC)) / 100;
+
+-#endif
+
++			}
+
+ 
+
+ 				//sys_log(0, "%s arrow %s dam %d", m_me->GetName(), pkVictim->GetName(), iDam);
+
+ 
+
+
+--- a/server/metin2/Source/Server/game/src/char_horse.cpp
++++ b/server/metin2/Source/Server/game/src/char_horse.cpp
+@@ -374,28 +374,27 @@
+ 
+
+ bool CHARACTER::CanUseHorseSkill()
+
+ {
+
+-	if (IsRiding())
+
+-	{
+
+-		if (GetHorseGrade() == 3)
+
++	if (!IsRiding())
+
++		return false;
+
++
+
++	// Default: only allow horse skills on advanced horses
+
++	if (GetHorseGrade() == 3)
+
++		return true;
+
++
+
++	// Allow specific mounts that are designed to use horse skills
+
++	if (GetMountVnum())
+
++	{
+
++		if (GetMountVnum() >= 20209 && GetMountVnum() <= 20212)
+
+ 			return true;
+
+-		else
+
+-			return false;
+
+-
+
+-		if (GetMountVnum())
+
+-		{
+
+-			if (GetMountVnum() >= 20209 && GetMountVnum() <= 20212)
+
+-				return true;
+
+-
+
+-			// 󸶴 渶
+
+-			if (CMobVnumHelper::IsRamadanBlackHorse(GetMountVnum()))
+
+-				return true;
+
+-		}
+
+-		else
+
+-			return false;
+
++
+
++		// Ramadan mount
+
++		if (CMobVnumHelper::IsRamadanBlackHorse(GetMountVnum()))
+
++			return true;
+
+ 	}
+
+ 
+
+ 	return false;
+
+ }
+
++
+
+ 
+
+ void CHARACTER::SetHorseLevel(int iLevel)
+
+ {
+
+

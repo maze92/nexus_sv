@@ -1,0 +1,79 @@
+--- a/server/metin2/Source/Server/game/src/affect.h
++++ b/server/metin2/Source/Server/game/src/affect.h
+@@ -1,5 +1,10 @@
+ #ifndef __INC_AFFECT_H__
+
+ #define __INC_AFFECT_H__
+
++
+
++
+
++#ifndef MAX_AFFECT_PER_CHARACTER
+
++#define MAX_AFFECT_PER_CHARACTER 128
+
++#endif
+
+ 
+
+ class CAffect
+
+ {
+
+
+--- a/server/metin2/Source/Server/game/src/char_affect.cpp
++++ b/server/metin2/Source/Server/game/src/char_affect.cpp
+@@ -394,8 +394,14 @@
+ 	TPacketGDAddAffect p = {};
+
+ 
+
+ 	AffectContainerList::iterator it = m_list_pkAffect.begin();
+
++	size_t __affect_save_count = 0;
+
+ 	while (it != m_list_pkAffect.end())
+
+ 	{
+
++		if (++__affect_save_count > MAX_AFFECT_PER_CHARACTER)
+
++		{
+
++			sys_err("Affect save truncated: %s has %zu affects", GetName(), m_list_pkAffect.size());
+
++			break;
+
++		}
+
+ 		CAffect* pkAff = *it++;
+
+ 		if (pkAff == nullptr)
+
+ 			continue;
+
+@@ -691,6 +697,12 @@
+ 		//
+
+ 		// NOTE:   type ε  Ʈ   ִ.
+
+ 		//
+
++		if (m_list_pkAffect.size() >= MAX_AFFECT_PER_CHARACTER)
+
++		{
+
++			sys_err("Affect overflow blocked: %s has %zu affects (type %u)", GetName(), m_list_pkAffect.size(), dwType);
+
++			return false;
+
++		}
+
++
+
+ 		pkAff = CAffect::Acquire();
+
+ 		m_list_pkAffect.push_back(pkAff);
+
+ 	}

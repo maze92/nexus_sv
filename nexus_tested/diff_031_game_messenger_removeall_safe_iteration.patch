@@ -1,0 +1,46 @@
+--- a/server/metin2/Source/Server/game/src/messenger_manager.cpp
++++ b/server/metin2/Source/Server/game/src/messenger_manager.cpp
+@@ -4,6 +4,7 @@
+ **/
+ 
+ #include "stdafx.h"
++#include <vector>
+ #include "messenger_manager.h"
+ #include "char.h"
+ #include "char_manager.h"
+@@ -331,11 +332,19 @@
+ 
+ 	/* ���� �������ִ� ����Ʈ ���� */
+ #if defined(__MESSENGER_DETAILS__)
++	std::vector<std::string> vNames;
++	vNames.reserve(m_map_strRelation[c_strAccount].size());
+ 	for (const RelationData& it : m_map_strRelation[c_strAccount])
+-		RemoveFromList(c_strAccount, it.first);
++		vNames.emplace_back(it.first);
++	for (const std::string& name : vNames)
++		RemoveFromList(c_strAccount, name);
+ #else
++	std::vector<std::string> vNames;
++	vNames.reserve(m_map_strRelation[c_strAccount].size());
+ 	for (const std::string& it : m_map_strRelation[c_strAccount])
+-		RemoveFromList(c_strAccount, it);
++		vNames.emplace_back(it);
++	for (const std::string& name : vNames)
++		RemoveFromList(c_strAccount, name);
+ #endif
+ 
+ 	/* ������ ����Ÿ ���� */
+@@ -455,8 +464,12 @@
+ 		get_table_postfix(), c_strAccount.c_str(), c_strAccount.c_str());
+ 
+ 	/* ���� �������ִ� ����Ʈ ���� */
++	std::vector<std::string> vNames;
++	vNames.reserve(m_map_strBlockRelation[c_strAccount].size());
+ 	for (const std::string& it : m_map_strBlockRelation[c_strAccount])
+-		RemoveFromBlockList(c_strAccount, it);
++		vNames.emplace_back(it);
++	for (const std::string& name : vNames)
++		RemoveFromBlockList(c_strAccount, name);
+ 
+ 	/* ������ ����Ÿ ���� */
+ 	m_map_strBlockRelation[c_strAccount].clear();

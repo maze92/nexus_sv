@@ -1,0 +1,204 @@
+*** a/server/metin2/Source/Server/db/src/ClientManager.h
+--- a/server/metin2/Source/Server/db/src/ClientManager.h
+***************
+*** 1,20 ****
+--- a/1,27 ----
+  #pragma once
++ #include <cstddef>
+
+  class CClientManager
+  {
+  public:
+      static CClientManager& instance();
+
+      // ... existing declarations ...
+
++     // Safe parser: extracts command token from a string like "[COMMAND] rest..."
++     // Writes at most commandSize bytes (including NUL). Returns command.
++     char* GetCommand(char* str, char* command, size_t commandSize);
++ 
++     // Backward-compatible wrapper (legacy signature). Prefer the sized overload above.
++     char* GetCommand(char* str, char* command);
+  };
+
+*** a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+***************
+*** 1,15 ****
+  #include "stdafx.h"
+  #include "ClientManager.h"
+  #include "ItemAwardManager.h"
+
+  // ...
+
+--- a/1,16 ----
+  #include "stdafx.h"
+  #include "ClientManager.h"
+  #include "ItemAwardManager.h"
++ #include <string.h>
+
+  // ...
+
+***************
+*** 820,838 ****
+          const char* whyStr = pItemAward->szWhy;
+          if (whyStr)
+          {
+              char cmdStr[100] = "";
+              strcpy(cmdStr, whyStr);
+              char command[20] = "";
+              GetCommand(cmdStr, command);
+
+              if (!giftData.IsSet)
+              {
+                  giftData.IsSet = true;
+                  strcpy(giftData.login, pItemAward->szLogin);
+                  strcpy(giftData.command, command);
+              }
+          }
+--- a/821,844 ----
+          const char* whyStr = pItemAward->szWhy;
+          if (whyStr)
+          {
+              char cmdStr[100] = "";
+!             strlcpy(cmdStr, whyStr, sizeof(cmdStr));
+              char command[20] = "";
+!             GetCommand(cmdStr, command, sizeof(command));
+
+              if (!giftData.IsSet)
+              {
+                  giftData.IsSet = true;
+!                 strlcpy(giftData.login, pItemAward->szLogin, sizeof(giftData.login));
+!                 strlcpy(giftData.command, command, sizeof(giftData.command));
+              }
+          }
+*** a/server/metin2/Source/Server/db/src/ClientManager.cpp
+--- a/server/metin2/Source/Server/db/src/ClientManager.cpp
+***************
+*** 1,10 ****
+  #include "stdafx.h"
+  #include "ClientManager.h"
+
+  // ...
+
+--- a/1,11 ----
+  #include "stdafx.h"
+  #include "ClientManager.h"
++ #include <string.h>
+
+  // ...
+
+***************
+*** 2150,2162 ****
+      if (flag && *flag)
+      {
+          TPacketGDFlagSave p;
+          p.dwPlayerID = dwPID;
+          p.dwFlagValue = dwValue;
+          std::strcpy(p.szFlagName, flag);
+          db_clientdesc->Packet(&p, sizeof(p));
+      }
+--- a/2151,2163 ----
+      if (flag && *flag)
+      {
+          TPacketGDFlagSave p;
+          p.dwPlayerID = dwPID;
+          p.dwFlagValue = dwValue;
+!         strlcpy(p.szFlagName, flag, sizeof(p.szFlagName));
+          db_clientdesc->Packet(&p, sizeof(p));
+      }
+
+***************
+*** 3100,3122 ****
+  char* CClientManager::GetCommand(char* str, char* command)
+  {
+      char* tok;
+      if (str[0] == '[')
+      {
+          tok = strtok(str, "]");
+          strcat(command, &tok[1]);
+      }
+      return command;
+  }
+--- a/3101,3147 ----
++ char* CClientManager::GetCommand(char* str, char* command, size_t commandSize)
++ {
++     if (!str || !command || commandSize == 0)
++         return command;
++ 
++     command[0] = '\0';
++ 
++     if (str[0] == '[')
++     {
++         char* tok = strtok(str, "]");
++         if (tok && tok[1])
++             strlcpy(command, &tok[1], commandSize);
++     }
++ 
++     return command;
++ }
++ 
+  char* CClientManager::GetCommand(char* str, char* command)
+  {
+-     char* tok;
+-     if (str[0] == '[')
+-     {
+-         tok = strtok(str, "]");
+-         strcat(command, &tok[1]);
+-     }
+-     return command;
++     // Legacy wrapper assumes the caller allocated a reasonable buffer.
++     // In-tree call sites use command[20]; keep behavior but avoid overflow.
++     return GetCommand(str, command, 20);
+  }
+*** a/server/metin2/Source/Server/db/src/ItemAwardManager.cpp
+--- a/server/metin2/Source/Server/db/src/ItemAwardManager.cpp
+***************
+*** 1,10 ****
+  #include "stdafx.h"
+  #include "ItemAwardManager.h"
+  #include "ClientManager.h"
+
+  // ...
+
+--- a/1,11 ----
+  #include "stdafx.h"
+  #include "ItemAwardManager.h"
+  #include "ClientManager.h"
++ #include <string.h>
+
+  // ...
+
+***************
+*** 460,482 ****
+              const char* whyStr = kData->szWhy;
+              if (whyStr)
+              {
+                  char cmdStr[100] = "";
+                  strcpy(cmdStr, whyStr);
+                  char command[20] = "";
+                  CClientManager::instance().GetCommand(cmdStr, command);
+
+                  if (!giftData.IsSet)
+                  {
+                      giftData.IsSet = true;
+                      strcpy(giftData.login, kData->szLogin);
+                      strcpy(giftData.command, command);
+                  }
+              }
+--- a/461,488 ----
+              const char* whyStr = kData->szWhy;
+              if (whyStr)
+              {
+                  char cmdStr[100] = "";
+!                 strlcpy(cmdStr, whyStr, sizeof(cmdStr));
+                  char command[20] = "";
+!                 CClientManager::instance().GetCommand(cmdStr, command, sizeof(command));
+
+                  if (!giftData.IsSet)
+                  {
+                      giftData.IsSet = true;
+!                     strlcpy(giftData.login, kData->szLogin, sizeof(giftData.login));
+!                     strlcpy(giftData.command, command, sizeof(giftData.command));
+                  }
+              }

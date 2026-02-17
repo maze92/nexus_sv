@@ -1,0 +1,467 @@
+--- a/server/metin2/Source/Server/game/src/exchange.cpp
++++ b/server/metin2/Source/Server/game/src/exchange.cpp
+@@ -21,6 +21,157 @@
+ #	include "messenger_manager.h"
+ #endif
+ 
++static bool __ComputeExchangeDestinationSlots(LPCHARACTER victim, LPITEM const* apItems, TItemPos* outPos)
++{
++	if (!victim || !apItems || !outPos)
++		return false;
++
++	for (int i = 0; i < EXCHANGE_ITEM_MAX_NUM; ++i)
++		outPos[i] = NPOS;
++
++	static CGrid s_grid1(5, INVENTORY_MAX_NUM / 5 / INVENTORY_PAGE_COUNT);
++	static CGrid s_grid2(5, INVENTORY_MAX_NUM / 5 / INVENTORY_PAGE_COUNT);
++#if defined(__EXTEND_INVEN_SYSTEM__)
++	static CGrid s_grid3(5, INVENTORY_MAX_NUM / 5 / INVENTORY_PAGE_COUNT);
++	static CGrid s_grid4(5, INVENTORY_MAX_NUM / 5 / INVENTORY_PAGE_COUNT);
++#endif
++
++	s_grid1.Clear();
++	s_grid2.Clear();
++#if defined(__EXTEND_INVEN_SYSTEM__)
++	s_grid3.Clear();
++	s_grid4.Clear();
++#endif
++
++	for (int pos = 0; pos < INVENTORY_PAGE_SIZE * 1; ++pos)
++	{
++		LPITEM it = victim->GetInventoryItem(pos);
++		if (it)
++			s_grid1.Put(pos, 1, it->GetSize());
++	}
++	for (int pos = INVENTORY_PAGE_SIZE * 1; pos < INVENTORY_PAGE_SIZE * 2; ++pos)
++	{
++		LPITEM it = victim->GetInventoryItem(pos);
++		if (it)
++			s_grid2.Put(pos - INVENTORY_PAGE_SIZE * 1, 1, it->GetSize());
++	}
++#if defined(__EXTEND_INVEN_SYSTEM__)
++	for (int pos = INVENTORY_PAGE_SIZE * 2; pos < INVENTORY_PAGE_SIZE * 3; ++pos)
++	{
++		LPITEM it = victim->GetInventoryItem(pos);
++		if (it)
++			s_grid3.Put(pos - INVENTORY_PAGE_SIZE * 2, 1, it->GetSize());
++	}
++	for (int pos = INVENTORY_PAGE_SIZE * 3; pos < INVENTORY_PAGE_SIZE * 4; ++pos)
++	{
++		LPITEM it = victim->GetInventoryItem(pos);
++		if (it)
++			s_grid4.Put(pos - INVENTORY_PAGE_SIZE * 3, 1, it->GetSize());
++	}
++#endif
++
++#if defined(__DRAGON_SOUL_SYSTEM__)
++	static std::vector<WORD> s_vDSGrid(DRAGON_SOUL_INVENTORY_MAX_NUM);
++	bool bDSInitialized = false;
++#endif
++
++	for (int i = 0; i < EXCHANGE_ITEM_MAX_NUM; ++i)
++	{
++		LPITEM item = apItems[i];
++		if (!item)
++			continue;
++
++#if defined(__DRAGON_SOUL_SYSTEM__)
++		if (item->IsDragonSoul())
++		{
++			if (!victim->DragonSoul_IsQualified())
++				return false;
++
++			if (!bDSInitialized)
++			{
++				bDSInitialized = true;
++				victim->CopyDragonSoulItemGrid(s_vDSGrid);
++			}
++
++			bool bFound = false;
++			WORD wBasePos = DSManager::instance().GetBasePosition(item);
++			if (wBasePos >= DRAGON_SOUL_INVENTORY_MAX_NUM)
++				return false;
++
++			for (int b = 0; b < DRAGON_SOUL_BOX_SIZE; ++b)
++			{
++				WORD wPos = wBasePos + b;
++				if (s_vDSGrid[wPos] != 0)
++					continue;
++
++				bool bEmpty = true;
++				for (int j = 1; j < item->GetSize(); ++j)
++				{
++					if (s_vDSGrid[wPos + j * DRAGON_SOUL_BOX_COLUMN_NUM])
++					{
++						bEmpty = false;
++						break;
++					}
++				}
++				if (!bEmpty)
++					continue;
++
++				for (int j = 0; j < item->GetSize(); ++j)
++					s_vDSGrid[wPos + j * DRAGON_SOUL_BOX_COLUMN_NUM] = 1;
++
++				outPos[i] = TItemPos(DRAGON_SOUL_INVENTORY, wPos);
++				bFound = true;
++				break;
++			}
++
++			if (!bFound)
++				return false;
++
++			continue;
++		}
++#endif
++
++		const int size = item->GetSize();
++		int pos = s_grid1.FindBlank(1, size);
++		if (pos >= 0)
++		{
++			s_grid1.Put(pos, 1, size);
++			outPos[i] = TItemPos(INVENTORY, pos);
++			continue;
++		}
++
++		pos = s_grid2.FindBlank(1, size);
++		if (pos >= 0)
++		{
++			s_grid2.Put(pos, 1, size);
++			outPos[i] = TItemPos(INVENTORY, pos + INVENTORY_PAGE_SIZE * 1);
++			continue;
++		}
++
++#if defined(__EXTEND_INVEN_SYSTEM__)
++		pos = s_grid3.FindBlank(1, size);
++		if (pos >= 0)
++		{
++			s_grid3.Put(pos, 1, size);
++			outPos[i] = TItemPos(INVENTORY, pos + INVENTORY_PAGE_SIZE * 2);
++			continue;
++		}
++
++		pos = s_grid4.FindBlank(1, size);
++		if (pos >= 0)
++		{
++			s_grid4.Put(pos, 1, size);
++			outPos[i] = TItemPos(INVENTORY, pos + INVENTORY_PAGE_SIZE * 3);
++			continue;
++		}
++#endif
++
++		return false;
++	}
++
++	return true;
++}
++
+ void exchange_packet(LPCHARACTER ch, BYTE sub_header, bool is_me, DWORD arg1, TItemPos arg2, DWORD arg3, void* pvData = NULL);
+ 
+ // ��ȯ ��Ŷ
+@@ -518,6 +669,24 @@
+ 	bool bDSInitialized = false;
+ #endif
+ 
++	if (m_lGold)
++	{
++		const long long vic_gold = (long long)victim->GetGold() + (long long)m_lGold;
++		if (vic_gold >= (long long)GOLD_MAX)
++		{
++			GetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("The target has reached Yang limit."));
++			victim->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You have reached Yang limit."));
++			return false;
++		}
++	}
++
++	if (!__ComputeExchangeDestinationSlots(victim, m_apItems, aDstPos))
++	{
++		GetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("The target does not have enough inventory space."));
++		victim->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You do not have enough inventory space."));
++		return false;
++	}
++
+ 	for (i = 0; i < EXCHANGE_ITEM_MAX_NUM; ++i)
+ 	{
+ 		if (!(item = m_apItems[i]))
+@@ -620,10 +789,11 @@
+ // ��ȯ �� (�����۰� �� ���� ������ �ű��)
+ bool CExchange::Done()
+ {
+-	int empty_pos, i;
++	int i;
+ 	LPITEM item;
+ 
+ 	LPCHARACTER victim = GetCompany()->GetOwner();
++	TItemPos aDstPos[EXCHANGE_ITEM_MAX_NUM];
+ 
+ #if defined(__CHEQUE_SYSTEM__)
+ 	if (m_lCheque)
+@@ -638,33 +808,32 @@
+ 	}
+ #endif
+ 
+-	for (i = 0; i < EXCHANGE_ITEM_MAX_NUM; ++i)
++	if (m_lGold)
+ 	{
+-		if (!(item = m_apItems[i]))
+-			continue;
+-
+-#if defined(__DRAGON_SOUL_SYSTEM__)
+-		if (item->IsDragonSoul())
+-			empty_pos = victim->GetEmptyDragonSoulInventory(item);
+-		else
+-#endif
+-			empty_pos = victim->GetEmptyInventory(item->GetSize());
+-
+-		if (empty_pos < 0)
++		const long long vic_gold = (long long)victim->GetGold() + (long long)m_lGold;
++		if (vic_gold >= (long long)GOLD_MAX)
+ 		{
+-			sys_err("Exchange::Done : Cannot find blank position in inventory %s <-> %s item %s",
+-				m_pOwner->GetName(), victim->GetName(), item->GetName());
+-			continue;
++			GetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("The target has reached Yang limit."));
++			victim->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You have reached Yang limit."));
++			return false;
+ 		}
++	}
+ 
+-		if (empty_pos < 0)
+-		{
+-			sys_err("Exchange::Done : Cannot find blank position in inventory %s <-> %s item %s",
+-					m_pOwner->GetName(), victim->GetName(), item->GetName());
++	if (!__ComputeExchangeDestinationSlots(victim, m_apItems, aDstPos))
++	{
++		GetOwner()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("The target does not have enough inventory space."));
++		victim->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You do not have enough inventory space."));
++		return false;
++	}
++
++	for (i = 0; i < EXCHANGE_ITEM_MAX_NUM; ++i)
++	{
++		if (!(item = m_apItems[i]))
+ 			continue;
+-		}
+ 
+-		assert(empty_pos >= 0);
++		const TItemPos& dstPos = aDstPos[i];
++		if (!dstPos.IsValidItemPosition())
++			return false;
+ 
+ 		m_pOwner->SyncQuickslot(SLOT_TYPE_INVENTORY, item->GetCell(), WORD_MAX);
+ 
+@@ -685,12 +854,7 @@
+ #endif
+ 
+ 		item->RemoveFromCharacter();
+-#if defined(__DRAGON_SOUL_SYSTEM__)
+-		if (item->IsDragonSoul())
+-			item->AddToCharacter(victim, TItemPos(DRAGON_SOUL_INVENTORY, empty_pos));
+-		else
+-#endif
+-			item->AddToCharacter(victim, TItemPos(INVENTORY, empty_pos));
++		item->AddToCharacter(victim, dstPos);
+ 		ITEM_MANAGER::instance().FlushDelayedSave(item);
+ 
+ 		item->SetExchanging(false);
+--- a/server/metin2/Source/Server/game/src/party.h
++++ b/server/metin2/Source/Server/game/src/party.h
+@@ -312,8 +312,12 @@
+ 	TMemberMap::iterator it;
+ 
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+-		if (it->second.pCharacter)
+-			f(it->second.pCharacter);
++	{
++		const DWORD pid = it->first;
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
++		if (ch && ch->GetParty() == this)
++			f(ch);
++	}
+ }
+ 
+ template <class Func> void CParty::ForEachNearMember(Func& f)
+@@ -321,8 +325,15 @@
+ 	TMemberMap::iterator it;
+ 
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+-		if (it->second.pCharacter && it->second.bNear)
+-			f(it->second.pCharacter);
++	{
++		if (!it->second.bNear)
++			continue;
++
++		const DWORD pid = it->first;
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
++		if (ch && ch->GetParty() == this)
++			f(ch);
++	}
+ }
+ 
+ template <class Func> void CParty::ForEachOnMapMember(Func& f, long lMapIndex)
+@@ -331,12 +342,13 @@
+ 
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+ 	{
+-		LPCHARACTER ch = it->second.pCharacter;
+-		if (ch)
+-		{
+-			if (ch->GetMapIndex() == lMapIndex)
+-				f(ch);
+-		}
++		const DWORD pid = it->first;
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
++		if (!ch || ch->GetParty() != this)
++			continue;
++
++		if (ch->GetMapIndex() == lMapIndex)
++			f(ch);
+ 	}
+ }
+ 
+@@ -346,17 +358,15 @@
+ 
+ 	for (it = m_memberMap.begin(); it != m_memberMap.end(); ++it)
+ 	{
+-		LPCHARACTER ch = it->second.pCharacter;
+-		if (ch)
+-		{
+-			if (ch->GetMapIndex() == lMapIndex)
+-			{
+-				if (f(ch) == false)
+-				{
+-					return false;
++		const DWORD pid = it->first;
++		LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(pid);
++		if (!ch || ch->GetParty() != this)
++			continue;
+ 
+-				}
+-			}
++		if (ch->GetMapIndex() == lMapIndex)
++		{
++			if (f(ch) == false)
++				return false;
+ 		}
+ 	}
+ 	return true;
+--- a/server/metin2/Source/Server/game/src/guild_manager.cpp
++++ b/server/metin2/Source/Server/game/src/guild_manager.cpp
+@@ -533,6 +533,27 @@
+ 	if (!g1 || !g2)
+ 		return;
+ 
++	// Anti-spam: throttle repeated declare requests for the same pair
++	// (prevents scripts from spamming DB/P2P and stalling guild_manager)
++	static std::map<unsigned long long, DWORD> s_WarDeclareSpamTime;
++	DWORD dwNow = get_dword_time();
++	DWORD a = guild_id1, b = guild_id2;
++	if (a > b) std::swap(a, b);
++	unsigned long long ullKey = (static_cast<unsigned long long>(a) << 32) | b;
++	auto itSpam = s_WarDeclareSpamTime.find(ullKey);
++	if (itSpam != s_WarDeclareSpamTime.end() && dwNow - itSpam->second < 3000)
++		return;
++	s_WarDeclareSpamTime[ullKey] = dwNow;
++
++	// Cooldown after war end (avoid spam loops / deleted guild edge-cases)
++	std::pair<DWORD, DWORD> k = std::make_pair(a, b);
++	auto itEnd = m_GuildWarEndTime.find(k);
++	if (itEnd != m_GuildWarEndTime.end())
++	{
++		if (get_global_time() - itEnd->second < 60)
++			return;
++	}
++
+ #if defined(__GUILD_DRAGONLAIR_SYSTEM__)
+ 	if (CGuildDragonLairManager::Instance().FindGuild(guild_id1)
+ #if defined(__GUILD_EVENT_FLAG__) //&& defined(__GUILD_RENEWAL__)
+@@ -563,7 +584,7 @@
+ 		if (false == LC_IsGermany())
+ 		{
+ 			char buf[256];
+-			snprintf(buf, sizeof(buf), LC_STRING("%s ��尡 %s ��忡 ���������� �Ͽ����ϴ�!", TouchGuild(guild_id1)->GetName(), TouchGuild(guild_id2)->GetName()));
++			snprintf(buf, sizeof(buf), LC_STRING("%s ��尡 %s ��忡 ���������� �Ͽ����ϴ�!", g1->GetName(), g2->GetName()));
+ 			SendNotice(buf);
+ 		}
+ 	}
+--- a/server/metin2/Source/Server/game/src/messenger_manager.cpp
++++ b/server/metin2/Source/Server/game/src/messenger_manager.cpp
+@@ -297,20 +297,14 @@
+ 	if (c_strCompanion.empty())
+ 		return;
+ 
+-	if (!IsInList(c_strAccount, c_strCompanion))
+-	{
+-		const LPCHARACTER c_lpChar = CHARACTER_MANAGER::instance().FindPC(c_strAccount.c_str());
+-		const LPDESC c_lpDesc = c_lpChar ? c_lpChar->GetDesc() : nullptr;
+-		if (c_lpDesc)
+-			c_lpChar->ChatPacket(CHAT_TYPE_INFO, LC_STRING("%s ���� ���ӵ� ���� �ʽ��ϴ�.", c_strCompanion.c_str()));
+-
+-		return;
+-	}
+-
++	// Make removal idempotent: even if the friend entry is already gone from DB or in-memory maps,
++	// do a best-effort cleanup and broadcast, instead of treating it as an error.
++	char szAccount[CHARACTER_NAME_MAX_LEN + 1] = {};
+ 	char szCompanion[CHARACTER_NAME_MAX_LEN + 1] = {};
++	DBManager::instance().EscapeString(szAccount, sizeof(szAccount), c_strAccount.c_str(), c_strAccount.length());
+ 	DBManager::instance().EscapeString(szCompanion, sizeof(szCompanion), c_strCompanion.c_str(), c_strCompanion.length());
+ 	DBManager::instance().Query("DELETE FROM messenger_list%s WHERE `account` = '%s' AND `companion` = '%s'",
+-		get_table_postfix(), c_strAccount.c_str(), szCompanion);
++		get_table_postfix(), szAccount, szCompanion);
+ 
+ 	__RemoveFromList(c_strAccount, c_strCompanion);
+ 
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -2177,7 +2177,19 @@
+ 	}
+ 
+ 	if (GetGuild())
+-		GetGuild()->LogoutMember(this);
++		GetGuild()->LogoutMember(this);	// Dungeon re-entry hardening: record disconnect inside dungeons and validate on login.
++	if (CDungeonManager::instance().FindByMapIndex(GetMapIndex()))
++	{
++		SetQuestFlag("dungeon_reentry.logout_time", get_global_time());
++		SetQuestFlag("dungeon_reentry.logout_map", GetMapIndex());
++	}
++	else
++	{
++		SetQuestFlag("dungeon_reentry.logout_time", 0);
++		SetQuestFlag("dungeon_reentry.logout_map", 0);
++	}
++
++
+ 
+ 	quest::CQuestManager::instance().LogoutPC(this);
+ 
+--- a/server/metin2/Source/Server/game/src/input_login.cpp
++++ b/server/metin2/Source/Server/game/src/input_login.cpp
+@@ -841,6 +841,27 @@
+ 		else
+ 		{
+ 			ch->SetDungeon(CDungeonManager::instance().FindByMapIndex(ch->GetMapIndex()));
++			// Dungeon re-entry hardening: if the player disconnected inside a dungeon and reconnects after a grace period, warp them out.
++			if (ch->GetDungeon())
++			{
++				const int logoutMap = ch->GetQuestFlag("dungeon_reentry.logout_map");
++				const int logoutTime = ch->GetQuestFlag("dungeon_reentry.logout_time");
++				const int now = get_global_time();
++
++				if (logoutMap == ch->GetMapIndex() && logoutTime > 0 && (now - logoutTime) <= 300)
++				{
++					// Still inside the grace period; allow re-entry and clear flags.
++					ch->SetQuestFlag("dungeon_reentry.logout_map", 0);
++					ch->SetQuestFlag("dungeon_reentry.logout_time", 0);
++				}
++				else
++				{
++					ch->SetQuestFlag("dungeon_reentry.logout_map", 0);
++					ch->SetQuestFlag("dungeon_reentry.logout_time", 0);
++					ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("You were removed from the dungeon due to disconnect."));
++					ch->WarpSet(EMPIRE_START_X(ch->GetEmpire()), EMPIRE_START_Y(ch->GetEmpire()));
++				}
++			}
+ 		}
+ 	}
+ 	else if (CArenaManager::instance().IsArenaMap(ch->GetMapIndex()))

@@ -1,0 +1,12 @@
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -637,6 +637,9 @@
+ #ifdef __OFFLINE_SHOP__
+ 	RemoveFromViewingOfflineShops();
+ #endif
++	if (m_pWarMap)
++		SetWarMap(NULL);
++
+ 	if (m_pkRegen)
+ 	{
+ 		if (m_pkDungeon)

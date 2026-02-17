@@ -1,0 +1,59 @@
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.cpp
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -2081,6 +2081,9 @@
+ 
+ void CHARACTER::FlushDelayedSaveItem()
+ {
++	if (m_bSkipSave)
++		return;
++
+ 	int i = 0;
+ 
+ 	// ���� �ȵ� ����ǰ�� ���� �����Ų��.
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.h" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.h
+--- a/server/metin2/Source/Server/game/src/char.h
++++ b/server/metin2/Source/Server/game/src/char.h
+@@ -999,6 +999,8 @@
+ 
+ 	void Save(); // DelayedSave
+ 	void SaveReal(); // ���� ����
++	void SetSkipSave(bool b) { m_bSkipSave = b; }
++	bool IsSkipSave() const { return m_bSkipSave; }
+ 	void FlushDelayedSaveItem();
+ 
+ 	const char* GetName() const;
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char_affect.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char_affect.cpp
+--- a/server/metin2/Source/Server/game/src/char_affect.cpp
++++ b/server/metin2/Source/Server/game/src/char_affect.cpp
+@@ -389,8 +389,11 @@
+ 	return false;
+ }
+ 
+-void CHARACTER::SaveAffect()
+-{
++void CHARACTER::SaveAffect()
++{
++	if (m_bSkipSave)
++		return;
++
+ 	TPacketGDAddAffect p = {};
+ 
+ 	AffectContainerList::iterator it = m_list_pkAffect.begin();
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/desc.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/desc.cpp
+--- a/server/metin2/Source/Server/game/src/desc.cpp
++++ b/server/metin2/Source/Server/game/src/desc.cpp
+@@ -912,6 +912,13 @@
+ 		if (m_pkDisconnectEvent)
+ 			return;
+ 
++		if (IsPhase(PHASE_LOADING))
++		{
++			GetCharacter()->SetSkipSave(true);
++			SetPhase(PHASE_CLOSE);
++			return;
++		}
++
+ 		GetCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("�ٸ� ��ǻ�Ϳ��� �α��� �Ͽ� ������ ���� �մϴ�."));
+ 		DelayedDisconnect(5);
+ 	}

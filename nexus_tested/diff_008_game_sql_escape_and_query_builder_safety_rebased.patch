@@ -1,0 +1,319 @@
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+@@ -1825,8 +1825,12 @@
+ 
+ void CClientManager::QUERY_HIGHSCORE_REGISTER(CPeer* peer, TPacketGDHighscore* data)
+ {
+-	char szQuery[128];
+-	snprintf(szQuery, sizeof(szQuery), "SELECT `value` FROM highscore%s WHERE `board` = '%s' AND `pid` = %u", GetTablePostfix(), data->szBoard, data->dwPID);
++	char escBoard[sizeof(data->szBoard) * 2 + 1];
++	const size_t boardLen = strnlen(data->szBoard, sizeof(data->szBoard));
++	CDBManager::instance().EscapeString(escBoard, data->szBoard, boardLen);
++
++	char szQuery[256];
++	snprintf(szQuery, sizeof(szQuery), "SELECT `value` FROM highscore%s WHERE `board` = '%s' AND `pid` = %u", GetTablePostfix(), escBoard, data->dwPID);
+ 
+ 	sys_log(0, "HEADER_GD_HIGHSCORE_REGISTER: PID %u", data->dwPID);
+ 
+
+--- a/server/metin2/Source/Server/game/src/questlua.cpp
++++ b/server/metin2/Source/Server/game/src/questlua.cpp
+@@ -234,12 +234,14 @@
+ 	{
+ 		CQuestManager& q = CQuestManager::instance();
+ 		const char* pszBoardName = lua_tostring(L, 1);
++		char szBoardEsc[512];
++		DBManager::instance().EscapeString(szBoardEsc, pszBoardName ? pszBoardName : "", pszBoardName ? strlen(pszBoardName) : 0);
+ 		DWORD mypid = q.GetCurrentCharacterPtr()->GetPlayerID();
+ 		bool bOrder = (int)lua_tonumber(L, 2) != 0 ? true : false;
+ 
+ 		DBManager::instance().ReturnQuery(QID_HIGHSCORE_SHOW, mypid, NULL,
+ 			"SELECT h.pid, p.name, h.value FROM highscore%s as h, player%s as p WHERE h.board = '%s' AND h.pid = p.id ORDER BY h.value %s LIMIT 10",
+-			get_table_postfix(), get_table_postfix(), pszBoardName, bOrder ? "DESC" : "");
++			get_table_postfix(), get_table_postfix(), szBoardEsc, bOrder ? "DESC" : "");
+ 		return 0;
+ 	}
+ 
+@@ -250,12 +252,14 @@
+ 		THighscoreRegisterQueryInfo* qi = M2_NEW THighscoreRegisterQueryInfo;
+ 
+ 		strlcpy(qi->szBoard, lua_tostring(L, 1), sizeof(qi->szBoard));
++		char szBoardEsc[sizeof(qi->szBoard) * 2 + 1];
++		DBManager::instance().EscapeString(szBoardEsc, qi->szBoard, strnlen(qi->szBoard, sizeof(qi->szBoard)));
+ 		qi->dwPID = q.GetCurrentCharacterPtr()->GetPlayerID();
+ 		qi->iValue = (int)lua_tonumber(L, 2);
+ 		qi->bOrder = (int)lua_tonumber(L, 3);
+ 
+ 		DBManager::instance().ReturnQuery(QID_HIGHSCORE_REGISTER, qi->dwPID, qi,
+-			"SELECT value FROM highscore%s WHERE board='%s' AND pid=%u", get_table_postfix(), qi->szBoard, qi->dwPID);
++			"SELECT value FROM highscore%s WHERE board='%s' AND pid=%u", get_table_postfix(), szBoardEsc, qi->dwPID);
+ 		return 1;
+ 	}
+ 
+
+--- a/server/metin2/Source/Server/game/src/minigame_roulette.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_roulette.cpp
+@@ -19,6 +19,24 @@
+ #include "utils.h"
+ #include "db.h"
+ #include "log.h"
++#include <cstdarg>
++
++// Safe query builder: prevents buffer overflows when composing SQL.
++static bool SafeAppendQuery(char* buf, size_t bufSize, int& len, const char* fmt, ...)
++{
++	if (!buf || bufSize == 0 || len < 0 || (size_t)len >= bufSize)
++		return false;
++	va_list args;
++	va_start(args, fmt);
++	const int written = vsnprintf(buf + len, bufSize - (size_t)len, fmt, args);
++	va_end(args);
++	if (written < 0)
++		return false;
++	if ((size_t)written >= bufSize - (size_t)len)
++		return false;
++	len += written;
++	return true;
++}
+ 
+ #if defined(__MAILBOX__)
+ #	include "MailBox.h"
+@@ -397,11 +415,14 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen, "SELECT `player`.`name`, `score` FROM `minigame_roulette%s` ", get_table_postfix());
+-	iLen += sprintf(szQuery + iLen,
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "SELECT `player`.`name`, `score` FROM `minigame_roulette%s` ", get_table_postfix()))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen,
+ 		"LEFT JOIN (SELECT `id`, `name` AS `name` FROM `player%s`) AS `player` ON `player`.`id` = `minigame_roulette%s`.`pid` ",
+-		get_table_postfix(), get_table_postfix());
+-	iLen += sprintf(szQuery + iLen, "ORDER BY `score` DESC LIMIT 10");
++		get_table_postfix(), get_table_postfix()))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "ORDER BY `score` DESC LIMIT 10"))
++		return;
+ 
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pRes = pMsg->Get();
+@@ -439,8 +460,9 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen,
+-		"SELECT `score` FROM `minigame_roulette%s` WHERE `pid` = %u ", get_table_postfix(), dwPID);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen,
++		"SELECT `score` FROM `minigame_roulette%s` WHERE `pid` = %u ", get_table_postfix(), dwPID))
++		return 0;
+ 
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pRes = pMsg->Get();
+@@ -767,9 +789,13 @@
+ void CMiniGameRoulette::UpdateMyScore(DWORD dwPID)
+ {
+ 	char szQuery[2048 + 1];
+-	int iLen = sprintf(szQuery, "INSERT INTO `minigame_roulette%s` (`pid`, `score`, `last_play`) ", get_table_postfix());
+-	iLen += sprintf(szQuery + iLen, "VALUES (%u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_iSoulCount, std::time(nullptr));
+-	iLen += sprintf(szQuery + iLen, "ON DUPLICATE KEY UPDATE `score` = `score` + %d", m_iSoulCount);
++	int iLen = 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "INSERT INTO `minigame_roulette%s` (`pid`, `score`, `last_play`) ", get_table_postfix()))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "VALUES (%u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_iSoulCount, std::time(nullptr)))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "ON DUPLICATE KEY UPDATE `score` = `score` + %d", m_iSoulCount))
++		return;
+ 	DBManager::instance().DirectQuery(szQuery);
+ }
+ #endif // __SUMMER_EVENT_ROULETTE__
+
+--- a/server/metin2/Source/Server/game/src/minigame_rumi.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_rumi.cpp
+@@ -15,6 +15,24 @@
+ #include "char_manager.h"
+ #include "sectree_manager.h"
+ #include "questmanager.h"
++#include <cstdarg>
++
++// Safe query builder: prevents buffer overflows when composing SQL.
++static bool SafeAppendQuery(char* buf, size_t bufSize, int& len, const char* fmt, ...)
++{
++	if (!buf || bufSize == 0 || len < 0 || (size_t)len >= bufSize)
++		return false;
++	va_list args;
++	va_start(args, fmt);
++	const int written = vsnprintf(buf + len, bufSize - (size_t)len, fmt, args);
++	va_end(args);
++	if (written < 0)
++		return false;
++	if ((size_t)written >= bufSize - (size_t)len)
++		return false;
++	len += written;
++	return true;
++}
+ 
+ CMiniGameRumi::CMiniGameRumi(LPCHARACTER pChar) : m_pChar(pChar)
+ {
+@@ -280,11 +298,17 @@
+ void CMiniGameRumi::UpdateMyScore(DWORD dwPID)
+ {
+ 	char szQuery[2048 + 1];
+-	int iLen = sprintf(szQuery, "INSERT INTO `minigame_rumi%s` (`pid`, `best_score`, `total_score`, `last_play`) ", get_table_postfix());
+-	iLen += sprintf(szQuery + iLen, "VALUES (%u, %u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_wScore, m_wScore, std::time(nullptr));
+-	iLen += sprintf(szQuery + iLen, "ON DUPLICATE KEY UPDATE ");
+-	iLen += sprintf(szQuery + iLen, "`total_score` = `total_score` + %d, ", m_wScore);
+-	iLen += sprintf(szQuery + iLen, "`best_score` = if (%d > `best_score`, %d, `best_score`) ", m_wScore, m_wScore);
++	int iLen = 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "INSERT INTO `minigame_rumi%s` (`pid`, `best_score`, `total_score`, `last_play`) ", get_table_postfix()))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "VALUES (%u, %u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_wScore, m_wScore, std::time(nullptr)))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "ON DUPLICATE KEY UPDATE "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "`total_score` = `total_score` + %d, ", m_wScore))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "`best_score` = if (%d > `best_score`, %d, `best_score`) ", m_wScore, m_wScore))
++		return;
+ 	DBManager::instance().DirectQuery(szQuery);
+ }
+ 
+@@ -716,13 +740,20 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen, "SELECT ");
+-	iLen += sprintf(szQuery + iLen, "`player`.`name`, ");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "`total_score` ") : sprintf(szQuery + iLen, "`best_score` ");
+-	iLen += sprintf(szQuery + iLen, "FROM `minigame_rumi` ");
+-	iLen += sprintf(szQuery + iLen, "LEFT JOIN (SELECT `id`, `name` AS `name` FROM `player`) AS `player` ON `player`.`id` = `minigame_rumi`.`pid` ");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "ORDER BY `total_score` DESC ") : sprintf(szQuery + iLen, "ORDER BY `best_score` DESC ");
+-	iLen += sprintf(szQuery + iLen, "LIMIT 10 ");
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "SELECT "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "`player`.`name`, "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "`total_score` " : "`best_score` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "FROM `minigame_rumi` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "LEFT JOIN (SELECT `id`, `name` AS `name` FROM `player`) AS `player` ON `player`.`id` = `minigame_rumi`.`pid` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "ORDER BY `total_score` DESC " : "ORDER BY `best_score` DESC "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "LIMIT 10 "))
++		return;
+ 
+ 	if (iLen >= sizeof(szQuery))
+ 		return;
+@@ -766,9 +797,12 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen, "SELECT ");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "`total_score` ") : sprintf(szQuery + iLen, "`best_score` ");
+-	iLen += sprintf(szQuery + iLen, "FROM `minigame_rumi` WHERE `pid` = %u ", dwPID);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "SELECT "))
++		return 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "`total_score` " : "`best_score` "))
++		return 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "FROM `minigame_rumi` WHERE `pid` = %u ", dwPID))
++		return 0;
+ 
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pkRes = pMsg->Get();
+
+--- a/server/metin2/Source/Server/game/src/minigame_yutnori.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_yutnori.cpp
+@@ -16,6 +16,24 @@
+ #include "unique_item.h"
+ #include "db.h"
+ #include "config.h"
++#include <cstdarg>
++
++// Safe query builder: prevents buffer overflows when composing SQL.
++static bool SafeAppendQuery(char* buf, size_t bufSize, int& len, const char* fmt, ...)
++{
++	if (!buf || bufSize == 0 || len < 0 || (size_t)len >= bufSize)
++		return false;
++	va_list args;
++	va_start(args, fmt);
++	const int written = vsnprintf(buf + len, bufSize - (size_t)len, fmt, args);
++	va_end(args);
++	if (written < 0)
++		return false;
++	if ((size_t)written >= bufSize - (size_t)len)
++		return false;
++	len += written;
++	return true;
++}
+ 
+ CMiniGameYutnori::CMiniGameYutnori(LPCHARACTER pChar) : m_pChar(pChar)
+ {
+@@ -847,11 +865,17 @@
+ void CMiniGameYutnori::__UpdateMyScore(DWORD dwPID)
+ {
+ 	char szQuery[2048 + 1];
+-	int iLen = sprintf(szQuery, "INSERT INTO `player`.`minigame_yutnori` (`pid`, `best_score`, `total_score`, `last_play`) ");
+-	iLen += sprintf(szQuery + iLen, "VALUES (%u, %u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_wScore, m_wScore, std::time(nullptr));
+-	iLen += sprintf(szQuery + iLen, "ON DUPLICATE KEY UPDATE ");
+-	iLen += sprintf(szQuery + iLen, "`total_score` = `total_score` + %d,", m_wScore);
+-	iLen += sprintf(szQuery + iLen, "`best_score` = if (%d > `best_score`, %d, `best_score`) ", m_wScore, m_wScore);
++	int iLen = 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "INSERT INTO `player`.`minigame_yutnori` (`pid`, `best_score`, `total_score`, `last_play`) "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "VALUES (%u, %u, %u, FROM_UNIXTIME(%d)) ", dwPID, m_wScore, m_wScore, std::time(nullptr)))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "ON DUPLICATE KEY UPDATE "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "`total_score` = `total_score` + %d,", m_wScore))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "`best_score` = if (%d > `best_score`, %d, `best_score`) ", m_wScore, m_wScore))
++		return;
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ }
+ 
+@@ -1048,13 +1072,20 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen, "SELECT ");
+-	iLen += sprintf(szQuery + iLen, " `player`.`name`, ");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "`total_score` ") : sprintf(szQuery + iLen, "`best_score` ");
+-	iLen += sprintf(szQuery + iLen, "FROM `minigame_yutnori` ");
+-	iLen += sprintf(szQuery + iLen, "LEFT JOIN (SELECT `id`, `name` AS `name` FROM `player`) AS `player` ON `player`.`id` = `minigame_yutnori`.`pid` ");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "ORDER BY `total_score` DESC ") : sprintf(szQuery + iLen, "ORDER BY `best_score` DESC ");
+-	iLen += sprintf(szQuery + iLen, "LIMIT 10 ");
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "SELECT "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, " `player`.`name`, "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "`total_score` " : "`best_score` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "FROM `minigame_yutnori` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "LEFT JOIN (SELECT `id`, `name` AS `name` FROM `player`) AS `player` ON `player`.`id` = `minigame_yutnori`.`pid` "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "ORDER BY `total_score` DESC " : "ORDER BY `best_score` DESC "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "LIMIT 10 "))
++		return;
+ 
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pkRes = pMsg->Get();
+@@ -1092,9 +1123,12 @@
+ 	char szQuery[2048 + 1];
+ 	int iLen = 0;
+ 
+-	iLen += sprintf(szQuery + iLen, "SELECT");
+-	iLen += bTotal ? sprintf(szQuery + iLen, "`total_score` ") : sprintf(szQuery + iLen, "`best_score` ");
+-	iLen += sprintf(szQuery + iLen, "FROM `minigame_yutnori` WHERE `pid` = %u", dwPID);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "SELECT"))
++		return 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, bTotal ? "`total_score` " : "`best_score` "))
++		return 0;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), iLen, "FROM `minigame_yutnori` WHERE `pid` = %u", dwPID))
++		return 0;
+ 
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pkRes = pMsg->Get();
+

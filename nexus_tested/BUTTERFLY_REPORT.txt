@@ -1,0 +1,84 @@
+RELATÓRIO: Efeito Borboleta / Consistência de Integração (nexus_news_bundles)
+
+Base analisada: files.zip (extraído) / Nexus OS
+Data: 2026-02-17 02:35 UTC
+
+O que foi feito:
+- Normalização dos headers dos patches (paths e timestamps) para ficarem aplicáveis a partir da raiz 'Nexus OS'.
+- Conversão de line endings CRLF→LF no tree de teste para reduzir falhas por EOL.
+- Aplicação sequencial (patch -p1) pela ordem diff_001..diff_053.
+
+Resultado da simulação: 25/53 patches aplicaram limpos; 28/53 falharam.
+
+Classificação das falhas:
+- MALFORMED_DIFF: patch não é um unified diff válido (precisa ser regenerado/reexportado).
+- HUNK_FAILED: o diff é válido mas não casa com o teu código atual (precisa rebase/manual merge).
+- PATH_NOT_FOUND: paths no patch não correspondem ao layout atual (precisa remap).
+
+Patches APLICADOS (ordem):
+- diff_008_game_sql_escape_and_query_builder_safety_rebased.patch
+- diff_009_game_packet_header_alignment_packet_h_only.patch
+- diff_013_mixed_inventory_tabs_slot_mapping_and_extend_inven_safety.patch
+- diff_018_game_security_windows_and_guildladder_minimal.patch
+- diff_019_game_minimal_hunks.patch
+- diff_023_game_dangling_descriptor_bind_null.patch
+- diff_024_game_party_invite_packet_sanity.patch
+- diff_025_game_dungeon_events_null_guard.patch
+- diff_026_game_offline_shop_buy_db_flush.patch
+- diff_027_game_exchange_display_pos_bounds.patch
+- diff_028_game_warmap_cleanup_on_destroy.patch
+- diff_029_game_sectree_move_paranoid_guards.patch
+- diff_030_server_lua_alert_protected_call.patch
+- diff_035_game_shop_tax_overflow_64bit.patch
+- diff_036_db_db_table_postfix_sanitize.patch
+- diff_038_db_item_award_inflight_lock.patch
+- diff_040_db_guild_ladder_underflow_clamp.patch
+- diff_042_game_target_follow_safe_resolution.patch
+- diff_044_game_attr67_add_item_lock.patch
+- diff_045_game_horse_stamina_sanitize.patch
+- diff_046_game_reskill_clear_skill_affects.patch
+- diff_047_game_safebox_split_stack_validation.patch
+- diff_049_game_alignment_overflow_clamp_64bit.patch
+- diff_050_game_guild_bank_overflow_sanitize.patch
+- diff_051_game_safebox_disallow_locked_items.patch
+
+Patches REJEITADOS (ordem, motivo):
+- diff_001_mixed_server_core_security.patch :: MALFORMED_DIFF
+- diff_002_mixed_client_security.patch :: MALFORMED_DIFF
+- diff_003_mixed_production_config_and_serverinfo.patch :: MALFORMED_DIFF
+- diff_004_server_quest_security.patch :: MALFORMED_DIFF,HUNK_FAILED
+- diff_005_game_packet_flood_and_input_hardening.patch :: HUNK_FAILED
+- diff_006_db_db_overflow_and_flag_safety.patch :: MALFORMED_DIFF
+- diff_007_game_server_sql_buffer_packet_hardening.patch :: MALFORMED_DIFF
+- diff_010_game_memory_ub_buffer_sweep.patch :: MALFORMED_DIFF
+- diff_011_game_leaks_and_query_overflow_clean.patch :: UNKNOWN
+- diff_012_game_gameplay_logic_and_economy_safety.patch :: HUNK_FAILED
+- diff_014_game_security_hotfixes_minimal.patch :: UNKNOWN
+- diff_015_game_security_combat_and_magic_hotfixes_minimal.patch :: MALFORMED_DIFF
+- diff_016_game_dragon_soul_shop_party_poly_security_minimal.patch :: HUNK_FAILED
+- diff_017_game_security_exploits_and_stat_safety_minimal.patch :: MALFORMED_DIFF
+- diff_020_game_security_p2p_bowmorph_remoteexchange_cube_windowoverlap_horsename_mini.patch :: HUNK_FAILED
+- diff_021_game_security_p2p_exchange_horsename_marriage_syncposition_minimal.patch :: HUNK_FAILED
+- diff_022_db_item_id_range_allocator_atomic.patch :: PATH_NOT_FOUND,HUNK_FAILED
+- diff_031_game_messenger_removeall_safe_iteration.patch :: HUNK_FAILED
+- diff_032_game_dword_time_wrap_safe.patch :: MALFORMED_DIFF
+- diff_033_game_affect_count_cap.patch :: MALFORMED_DIFF
+- diff_034_game_dice_cooldown.patch :: MALFORMED_DIFF
+- diff_037_db_delete_character_marriage_cleanup.patch :: HUNK_FAILED
+- diff_039_game_unknown_header_flush_input_buffer.patch :: MALFORMED_DIFF
+- diff_041_game_myshop_sign_sanitize.patch :: HUNK_FAILED
+- diff_043_game_double_login_no_save_on_loading.patch :: HUNK_FAILED
+- diff_048_game_equip_swap_cooldown_guard.patch :: HUNK_FAILED
+- diff_052_game_pet_name_sanitize_and_escape.patch :: HUNK_FAILED
+- diff_053_client_client_mss_motion_io_optimization_minimal.patch :: PATH_NOT_FOUND
+
+Principais riscos de 'efeito borboleta' (mesmo nos aplicados):
+1) Client ↔ Server: alterações em protocolos/packets exigem sincronismo. No bundle, várias alterações de rede estão nos diffs 001/002 (REJEITADOS). Evita integrar mudanças de rede isoladas se o lado oposto não for aplicado.
+2) DB: diff_022 cria/usa tabela `item_id_range_allocator` (atomic allocator). Precisa permissões de CREATE/UPDATE na player DB, ou criação manual (ver patch). Se falhar, há fallback, mas perdes a proteção contra ranges duplicados em arranques concorrentes.
+3) Lua runtime: diff_030 toca em `server/.../liblua/src/lib/lauxlib.c`. Requer recompilar a liblua e relink do core.
+4) Inventário: diff_013 altera UI do client + lógica do server. Deve ser aplicado sempre como par (este aplicou).
+5) Ordem: aplica exatamente na ordem numérica. Vários hardenings mexem nos mesmos ficheiros e assumem estado anterior.
+
+Recomendação prática:
+- Se o objetivo é 'implementar tudo', a próxima etapa é rebase/regen dos REJEITADOS (sobretudo 001–007, 010–012, 014–017, 020–022 e alguns 20B menores). Aplicar só parte deixa buracos de segurança e pode introduzir inconsistências.
+- Para reduzir risco já, integra apenas o grupo APLICADO e testa build/login/protocolos. Depois trata o rebase dos restantes.

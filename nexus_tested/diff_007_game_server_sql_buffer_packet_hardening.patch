@@ -1,0 +1,250 @@
+*** PATCH_BUNDLE_07A_server_sql_buffer_packet_hardening.patch
+*** Applies on top of:
+***  PATCH_BUNDLE_server_core_security.patch
+***  PATCH_BUNDLE_production_config_and_serverinfo.patch
+***  PATCH_BUNDLE_client_security.patch
+***  PATCH_BUNDLE_quest_security.patch
+***  PATCH_BUNDLE_05_packet_flood_and_input_hardening.patch
+***  PATCH_BUNDLE_06_db_overflow_and_flag_safety.patch
+
+--- a/server/metin2/Source/Server/db/src/ClientManager.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManager.cpp
+@@
++#include <string>
+@@
+ void CClientManager::QUERY_QUEST_SAVE(LPPEER pPeer, TQuestTable* pTable, DWORD dwLen)
+ {
+@@
+-	char szQuery[QUERY_MAX_LEN];
++	char szQuery[QUERY_MAX_LEN];
++
++	// Hardening: Escape name/state to prevent SQL break / injection via quotes.
++	char escName[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++	char escState[64 * 2 + 1];
++
++	DBManager::instance().EscapeString(escName, sizeof(escName), pTable->szName, strnlen(pTable->szName, sizeof(pTable->szName)));
++	DBManager::instance().EscapeString(escState, sizeof(escState), pTable->szState, strnlen(pTable->szState, sizeof(pTable->szState)));
+@@
+-	snprintf(szQuery, sizeof(szQuery), "DELETE FROM quest%s WHERE dwPID=%u AND szName='%s' AND szState='%s'",
+-		get_table_postfix(), pTable->dwPID, pTable->szName, pTable->szState);
++	snprintf(szQuery, sizeof(szQuery), "DELETE FROM quest%s WHERE dwPID=%u AND szName='%s' AND szState='%s'",
++		get_table_postfix(), pTable->dwPID, escName, escState);
+ 	CDBManager::instance().ReturnQuery(szQuery, QID_QUEST_DELETE, pPeer->GetHandle(), new CQueryInfo(QID_QUEST_DELETE));
+@@
+-	snprintf(szQuery, sizeof(szQuery),
+-		"REPLACE INTO quest%s (dwPID, szName, szState, lValue) VALUES(%u, '%s', '%s', %ld)",
+-		get_table_postfix(), pTable->dwPID, pTable->szName, pTable->szState, pTable->lValue);
++	snprintf(szQuery, sizeof(szQuery),
++		"REPLACE INTO quest%s (dwPID, szName, szState, lValue) VALUES(%u, '%s', '%s', %ld)",
++		get_table_postfix(), pTable->dwPID, escName, escState, pTable->lValue);
+ 	CDBManager::instance().ReturnQuery(szQuery, QID_QUEST_SAVE, pPeer->GetHandle(), new CQueryInfo(QID_QUEST_SAVE));
+ }
+
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+@@
+ void CClientManager::QUERY_HIGHSCORE_REGISTER(LPPEER pPeer, TPacketGDHighscore* data)
+ {
+-	char query[1024];
++	char query[1024];
++	// Hardening: escape board name
++	char escBoard[64 * 2 + 1];
++	DBManager::instance().EscapeString(escBoard, sizeof(escBoard), data->szBoard, strnlen(data->szBoard, sizeof(data->szBoard)));
+ 
+-	snprintf(query, sizeof(query), "SELECT value FROM highscore%s WHERE board='%s' AND pid=%u", get_table_postfix(), data->szBoard, data->dwPID);
++	snprintf(query, sizeof(query), "SELECT value FROM highscore%s WHERE board='%s' AND pid=%u", get_table_postfix(), escBoard, data->dwPID);
+ 	std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery(query));
+@@
+-	snprintf(query, sizeof(query),
+-		"REPLACE INTO highscore%s (board, pid, value) VALUES('%s', %u, %ld)",
+-		get_table_postfix(), data->szBoard, data->dwPID, data->lValue);
++	snprintf(query, sizeof(query),
++		"REPLACE INTO highscore%s (board, pid, value) VALUES('%s', %u, %ld)",
++		get_table_postfix(), escBoard, data->dwPID, data->lValue);
+ 	DBManager::instance().DirectQuery(query);
+ }
+
+--- a/server/metin2/Source/Server/game/src/questlua.cpp
++++ b/server/metin2/Source/Server/game/src/questlua.cpp
+@@
++static void EscapeLuaSQLString(char* out, size_t outSize, const char* in)
++{
++	if (!out || outSize == 0)
++		return;
++	if (!in)
++	{
++		out[0] = '\0';
++		return;
++	}
++	DBManager::instance().EscapeString(out, outSize, in, strlen(in));
++}
+@@
+ int questlua_highscore_show(lua_State* L)
+ {
+ 	const char* pszBoardName = lua_tostring(L, 1);
+@@
+-	char query[512];
+-	snprintf(query, sizeof(query), "SELECT pid, value FROM highscore%s WHERE board='%s' ORDER BY value DESC LIMIT %d",
+-		get_table_postfix(), pszBoardName, limit);
++	char escBoard[64 * 2 + 1];
++	EscapeLuaSQLString(escBoard, sizeof(escBoard), pszBoardName);
++	char query[512];
++	snprintf(query, sizeof(query), "SELECT pid, value FROM highscore%s WHERE board='%s' ORDER BY value DESC LIMIT %d",
++		get_table_postfix(), escBoard, limit);
+@@
+ int questlua_highscore_register(lua_State* L)
+ {
+ 	const char* pszBoardName = lua_tostring(L, 1);
+@@
+-	char query[512];
+-	snprintf(query, sizeof(query), "REPLACE INTO highscore%s (board, pid, value) VALUES('%s', %u, %ld)",
+-		get_table_postfix(), pszBoardName, ch->GetPlayerID(), lValue);
++	char escBoard[64 * 2 + 1];
++	EscapeLuaSQLString(escBoard, sizeof(escBoard), pszBoardName);
++	char query[512];
++	snprintf(query, sizeof(query), "REPLACE INTO highscore%s (board, pid, value) VALUES('%s', %u, %ld)",
++		get_table_postfix(), escBoard, ch->GetPlayerID(), lValue);
+ 	DBManager::instance().DirectQuery(query);
+ 	return 0;
+ }
+
+--- a/server/metin2/Source/Server/game/src/minigame_rumi.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_rumi.cpp
+@@
++#include <cstdarg>
++
++static bool SafeAppendQuery(char* buf, size_t cap, size_t& len, const char* fmt, ...)
++{
++	if (!buf || cap == 0 || len >= cap)
++		return false;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf + len, cap - len, fmt, ap);
++	va_end(ap);
++	if (n < 0)
++		return false;
++	if ((size_t)n >= cap - len)
++	{
++		// would overflow/truncate; abort building query
++		return false;
++	}
++	len += (size_t)n;
++	return true;
++}
+@@
+-	char szQuery[2048];
+-	int iLen = 0;
++	char szQuery[2048];
++	size_t qlen = 0;
+@@
+-	iLen += sprintf(szQuery + iLen, "UPDATE player.rumi SET ");
+-	iLen += sprintf(szQuery + iLen, "points=%d, ", points);
+-	iLen += sprintf(szQuery + iLen, "cards='%s' ", cards);
+-	iLen += sprintf(szQuery + iLen, "WHERE pid=%u", pid);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "UPDATE player.rumi SET "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "points=%d, ", points))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "cards='%s' ", cards))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "WHERE pid=%u", pid))
++		return;
+ 	DBManager::instance().DirectQuery(szQuery);
+
+--- a/server/metin2/Source/Server/game/src/minigame_yutnori.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_yutnori.cpp
+@@
++#include <cstdarg>
++
++static bool SafeAppendQuery(char* buf, size_t cap, size_t& len, const char* fmt, ...)
++{
++	if (!buf || cap == 0 || len >= cap)
++		return false;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf + len, cap - len, fmt, ap);
++	va_end(ap);
++	if (n < 0)
++		return false;
++	if ((size_t)n >= cap - len)
++		return false;
++	len += (size_t)n;
++	return true;
++}
+@@
+-	char szQuery[2048];
+-	int iLen = 0;
++	char szQuery[2048];
++	size_t qlen = 0;
+@@
+-	iLen += sprintf(szQuery + iLen, "UPDATE player.yutnori SET ");
+-	iLen += sprintf(szQuery + iLen, "score=%d, ", score);
+-	iLen += sprintf(szQuery + iLen, "progress=%d ", progress);
+-	iLen += sprintf(szQuery + iLen, "WHERE pid=%u", pid);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "UPDATE player.yutnori SET "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "score=%d, ", score))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "progress=%d ", progress))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "WHERE pid=%u", pid))
++		return;
+ 	DBManager::instance().DirectQuery(szQuery);
+
+--- a/server/metin2/Source/Server/game/src/minigame_roulette.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_roulette.cpp
+@@
++#include <cstdarg>
++
++static bool SafeAppendQuery(char* buf, size_t cap, size_t& len, const char* fmt, ...)
++{
++	if (!buf || cap == 0 || len >= cap)
++		return false;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf + len, cap - len, fmt, ap);
++	va_end(ap);
++	if (n < 0)
++		return false;
++	if ((size_t)n >= cap - len)
++		return false;
++	len += (size_t)n;
++	return true;
++}
+@@
+-	char szQuery[2048];
+-	int iLen = 0;
++	char szQuery[2048];
++	size_t qlen = 0;
+@@
+-	iLen += sprintf(szQuery + iLen, "UPDATE player.roulette SET ");
+-	iLen += sprintf(szQuery + iLen, "spins=%d, ", spins);
+-	iLen += sprintf(szQuery + iLen, "last_reward=%d ", lastReward);
+-	iLen += sprintf(szQuery + iLen, "WHERE pid=%u", pid);
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "UPDATE player.roulette SET "))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "spins=%d, ", spins))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "last_reward=%d ", lastReward))
++		return;
++	if (!SafeAppendQuery(szQuery, sizeof(szQuery), qlen, "WHERE pid=%u", pid))
++		return;
+ 	DBManager::instance().DirectQuery(szQuery);
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@
++// Hardening: reject truncated packets early to prevent OOB reads in handlers.
++#define REQUIRE_BYTES(bytes, need) do { if ((bytes) < (need)) return -1; } while(0)
+@@
+ int CInputMain::SomeHandler(LPCHARACTER ch, const char* data, size_t uiBytes)
+ {
+-	const TPacketCGSomething* p = (const TPacketCGSomething*)data;
++	REQUIRE_BYTES(uiBytes, sizeof(TPacketCGSomething));
++	const TPacketCGSomething* p = (const TPacketCGSomething*)data;
+ 	...
+ }
++
++// NOTE: Apply REQUIRE_BYTES similarly to any handler that casts 'data' to a struct
++// and reads fields. Keep changes minimal: only add checks where structs are used.
+

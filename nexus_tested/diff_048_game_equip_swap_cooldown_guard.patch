@@ -1,0 +1,72 @@
+--- a/server/metin2/Source/Server/game/src/char.h
++++ b/server/metin2/Source/Server/game/src/char.h
+@@ -2042,6 +2042,7 @@
+ private:
+ 	bool m_bDisableCooltime;
+ 	DWORD m_dwLastSkillTime; ///< ���������� skill �� �� �ð�(millisecond).
++	DWORD m_dwLastEquipChangeTime; ///< last equip/unequip time (ms), anti-spam & stat desync guard.
+ 	// End of Skill
+ 
+ 	// MOB_SKILL
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -469,6 +469,7 @@
+ 
+ 	// EQUIP_LAST_SKILL_DELAY
+ 	m_dwLastSkillTime = get_dword_time();
++	m_dwLastEquipChangeTime = 0;
+ 	// END_OF_EQUIP_LAST_SKILL_DELAY
+ 
+ 	// MOB_SKILL_COOLTIME
+--- a/server/metin2/Source/Server/game/src/char_item.cpp
++++ b/server/metin2/Source/Server/game/src/char_item.cpp
+@@ -9131,6 +9131,14 @@
+ 	if (false == CanUnequipNow(item))
+ 		return false;
+ 
++	const int iWearCell = item->FindEquipCell(this);
++	if (iWearCell != WEAR_ARROW)
++	{
++		const DWORD dwNow = get_dword_time();
++		if (dwNow - m_dwLastEquipChangeTime < 500)
++			return false;
++	}
++
+ #if defined(__MOUNT_COSTUME_SYSTEM__)
+ 	if (item->IsCostumeMount() && item->IsEquipped())
+ 		UnMount();
+@@ -9166,6 +9174,9 @@
+ 
+ 	CheckMaximumPoints();
+ 
++	if (iWearCell != WEAR_ARROW)
++		m_dwLastEquipChangeTime = get_dword_time();
++
+ 	return true;
+ }
+ 
+@@ -9188,6 +9199,14 @@
+ 	if (iWearCell < 0)
+ 		return false;
+ 
++	// Anti-spam: avoid rapid equip/unequip desync that can lead to stat stacking.
++	if (iWearCell != WEAR_ARROW)
++	{
++		const DWORD dwNow = get_dword_time();
++		if (dwNow - m_dwLastEquipChangeTime < 500)
++			return false;
++	}
++
+ 	// ���𰡸� ź ���¿��� �νõ� �Ա� ����
+ 	if (iWearCell == WEAR_BODY && IsRiding() && (item->GetVnum() >= 11901 && item->GetVnum() <= 11904))
+ 	{
+@@ -11787,6 +11806,9 @@
+ 		// @ attr67add_collect (handling)
+ 	}
+ 
++	if (iWearCell != WEAR_ARROW)
++		m_dwLastEquipChangeTime = get_dword_time();
++
+ 	return true;
+ }
+ #endif

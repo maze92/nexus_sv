@@ -1,0 +1,365 @@
+--- a/server/metin2/Source/Server/game/src/growth_pet.cpp
++++ b/server/metin2/Source/Server/game/src/growth_pet.cpp
+@@ -2613,15 +2613,7 @@
+ 			continue;
+ 		}
+ 
+-		if (!pProto->kActivatePctPoly.Analyze(pTab->szActivatePctPoly))
+-		{
+-			sys_err("syntax error skill: %s szActivatePctPoly: %s", pTab->szName, pTab->szActivatePctPoly);
+-			bError = true;
+-			M2_DELETE(pProto);
+-			continue;
+-		}
+-
+-		if (!pProto->kDurationPoly.Analyze(pTab->szDurationPoly))
++				if (!pProto->kDurationPoly.Analyze(pTab->szDurationPoly))
+ 		{
+ 			sys_err("syntax error skill: %s szDurationPoly: %s", pTab->szName, pTab->szDurationPoly);
+ 			bError = true;
+@@ -2648,9 +2640,14 @@
+ 		// Insert loaded skills
+ 		for (const auto& pSkill : skillVec)
+ 			m_growthPetSkillMap[pSkill->dwPetVnum][pSkill->dwSkillVnum] = pSkill;
++
++		return true;
+ 	}
+ 
+-	return !bError;
++	// On error, prevent leaking partially built protos.
++	for (auto* p : skillVec)
++		M2_DELETE(p);
++	return false;
+ }
+ 
+ CPetSkillProto* CGrowthPetManager::GetGrowthPetSkill(DWORD dwPetVnum, DWORD dwSkillVnum)
+--- a/server/metin2/Source/Server/game/src/skill.cpp
++++ b/server/metin2/Source/Server/game/src/skill.cpp
+@@ -354,11 +354,19 @@
+ 		}
+ 
+ 		SendLog("Skill Prototype reloaded!");
++		return true;
+ 	}
+ 	else
+-		SendLog("There were erros when loading skill table");
++	{
++		SendLog("There were errors when loading skill table");
+ 
+-	return !bError;
++		// On error, avoid leaking newly allocated prototypes.
++		for (auto& kv : map_pkSkillProto)
++			M2_DELETE(kv.second);
++		map_pkSkillProto.clear();
++	}
++
++	return false;
+ }
+ 
+ CSkillProto* CSkillManager::Get(DWORD dwVnum)
+--- a/server/metin2/Source/Server/game/src/auth_brazil.cpp
++++ b/server/metin2/Source/Server/game/src/auth_brazil.cpp
+@@ -37,7 +37,9 @@
+ 	int offset = 0;
+ 	for (int i = 0; i < 16; ++i)
+ 	{
+-		offset += sprintf(s_buffer + offset, "%02x", digest[i]);
++		if (offset + 2 >= (int)sizeof(s_buffer))
++			break;
++		offset += snprintf(s_buffer + offset, sizeof(s_buffer) - offset, "%02x", digest[i]);
+ 	}
+ 	return s_buffer;
+ }
+--- a/server/metin2/Source/Server/db/src/ClientManagerBoot.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerBoot.cpp
+@@ -3,6 +3,22 @@
+ #include "ClientManager.h"
+ #include "Main.h"
+ #include "Monarch.h"
++#include <cstdarg>
++
++// Safe query builder to prevent sprintf overflow in dynamic SELECT composition.
++static bool SafeAppend(char* buf, size_t cap, int& len, const char* fmt, ...)
++{
++	if (!buf || cap == 0) return false;
++	if (len < 0 || (size_t)len >= cap) return false;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf + len, cap - (size_t)len, fmt, ap);
++	va_end(ap);
++	if (n < 0) return false;
++	if ((size_t)n >= cap - (size_t)len) return false;
++	len += n;
++	return true;
++}
+ #include "CsvReader.h"
+ #include "ProtoReader.h"
+ 
+@@ -1175,7 +1191,7 @@
+ 		return true;
+ 
+ 	char szQuery[1024];
+-	sprintf(szQuery, "SELECT `pid`, `vnum`, UNIX_TIMESTAMP(`duration`) FROM emotions%s", GetTablePostfix());
++	snprintf(szQuery, sizeof(szQuery), "SELECT `pid`, `vnum`, UNIX_TIMESTAMP(`duration`) FROM emotions%s", GetTablePostfix());
+ 
+ 	std::unique_ptr<SQLMsg> pkMsg(CDBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pkRes = pkMsg->Get();
+@@ -1210,39 +1226,39 @@
+ 		return true;
+ 
+ 	char szQuery[QUERY_MAX_LEN];
+-	int len = sprintf(szQuery, "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
+-		", `gold`, `won`, `vnum`, `count`"
+-	);
++	int len = 0;
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
++			", `gold`, `won`, `vnum`, `count`"))
++			return false;
+ 
+ 	for (BYTE i = 0; i < ITEM_SOCKET_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `socket%u`", i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `socket%u`", i)) return false;
+ 
+ 	for (BYTE i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `attrtype%u`, `attrvalue%u`", i, i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `attrtype%u`, `attrvalue%u`", i, i)) return false;
+ 
+ #if defined(__CHANGE_LOOK_SYSTEM__)
+-	len += sprintf(szQuery + len, ", `changelookvnum`");
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `changelookvnum`")) return false;
+ #endif
+ 
+ #if defined(__REFINE_ELEMENT_SYSTEM__)
+-	len += sprintf(szQuery + len,
++	if (!SafeAppend(szQuery, sizeof(szQuery), len,
+ 		", `refine_element_apply_type`"
+ 		", `refine_element_grade`"
+ 		", `refine_element_value0`, `refine_element_value1`, `refine_element_value2`"
+-		", `refine_element_bonus_value0`, `refine_element_bonus_value1`, `refine_element_bonus_value2`"
+-	);
++		", `refine_element_bonus_value0`, `refine_element_bonus_value1`, `refine_element_bonus_value2`")) return false;
+ #endif
+ 
+ #if defined(__ITEM_APPLY_RANDOM__)
+ 	for (BYTE i = 0; i < ITEM_APPLY_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i)) return false;
+ #endif
+ 
+ #if defined(__SET_ITEM__)
+-	len += sprintf(szQuery + len, ", `set_value`");
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `set_value`")) return false;
+ #endif
+ 
+-	len += sprintf(szQuery + len, " FROM `mailbox%s`", GetTablePostfix());
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, " FROM `mailbox%s`", GetTablePostfix())) return false;
+ 
+ 	std::unique_ptr<SQLMsg> pkMsg(CDBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pRes = pkMsg->Get();
+@@ -1260,10 +1276,13 @@
+ 		mail.AddData.bHeader = 0;
+ 		mail.AddData.Index = 0;
+ 
+-		std::memcpy(mail.szName, name, sizeof(mail.szName));
+-		std::memcpy(mail.AddData.szFrom, data[col++], sizeof(mail.AddData.szFrom));
+-		std::memcpy(mail.Message.szTitle, data[col++], sizeof(mail.Message.szTitle));
+-		std::memcpy(mail.AddData.szMessage, data[col++], sizeof(mail.AddData.szMessage));
++		strlcpy(mail.szName, name ? name : "", sizeof(mail.szName));
++		strlcpy(mail.AddData.szFrom, data[col] ? data[col] : "", sizeof(mail.AddData.szFrom));
++			col++;
++		strlcpy(mail.Message.szTitle, data[col] ? data[col] : "", sizeof(mail.Message.szTitle));
++			col++;
++		strlcpy(mail.AddData.szMessage, data[col] ? data[col] : "", sizeof(mail.AddData.szMessage));
++			col++;
+ 		str_to_number(mail.Message.bIsGMPost, data[col++]);
+ 		str_to_number(mail.Message.bIsConfirm, data[col++]);
+ 		str_to_number(mail.Message.SendTime, data[col++]);
+@@ -1326,12 +1345,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = 0;
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`"))
++				return false;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i)) return false;
+ 
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop%s`", GetTablePostfix());
++		if (!SafeAppend(szQuery, sizeof(szQuery), iLen, " FROM `gem_shop%s`", GetTablePostfix())) return false;
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();
+@@ -1368,12 +1389,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = 0;
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`"))
++				return false;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i)) return false;
+ 
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop_port%s`", GetTablePostfix());
++		if (!SafeAppend(szQuery, sizeof(szQuery), iLen, " FROM `gem_shop_port%s`", GetTablePostfix())) return false;
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();
+--- a/server/metin2/Source/Server/game/src/auth_brazil.cpp
++++ b/server/metin2/Source/Server/game/src/auth_brazil.cpp
+@@ -37,7 +37,9 @@
+ 	int offset = 0;
+ 	for (int i = 0; i < 16; ++i)
+ 	{
+-		offset += sprintf(s_buffer + offset, "%02x", digest[i]);
++		if (offset + 2 >= (int)sizeof(s_buffer))
++			break;
++		offset += snprintf(s_buffer + offset, sizeof(s_buffer) - offset, "%02x", digest[i]);
+ 	}
+ 	return s_buffer;
+ }
+--- a/server/metin2/Source/Server/db/src/ClientManagerBoot.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerBoot.cpp
+@@ -3,6 +3,22 @@
+ #include "ClientManager.h"
+ #include "Main.h"
+ #include "Monarch.h"
++#include <cstdarg>
++
++// Safe query builder to prevent sprintf overflow in dynamic SELECT composition.
++static bool SafeAppend(char* buf, size_t cap, int& len, const char* fmt, ...)
++{
++	if (!buf || cap == 0) return false;
++	if (len < 0 || (size_t)len >= cap) return false;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf + len, cap - (size_t)len, fmt, ap);
++	va_end(ap);
++	if (n < 0) return false;
++	if ((size_t)n >= cap - (size_t)len) return false;
++	len += n;
++	return true;
++}
+ #include "CsvReader.h"
+ #include "ProtoReader.h"
+ 
+@@ -1175,7 +1191,7 @@
+ 		return true;
+ 
+ 	char szQuery[1024];
+-	sprintf(szQuery, "SELECT `pid`, `vnum`, UNIX_TIMESTAMP(`duration`) FROM emotions%s", GetTablePostfix());
++	snprintf(szQuery, sizeof(szQuery), "SELECT `pid`, `vnum`, UNIX_TIMESTAMP(`duration`) FROM emotions%s", GetTablePostfix());
+ 
+ 	std::unique_ptr<SQLMsg> pkMsg(CDBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pkRes = pkMsg->Get();
+@@ -1210,39 +1226,39 @@
+ 		return true;
+ 
+ 	char szQuery[QUERY_MAX_LEN];
+-	int len = sprintf(szQuery, "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
+-		", `gold`, `won`, `vnum`, `count`"
+-	);
++	int len = 0;
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
++			", `gold`, `won`, `vnum`, `count`"))
++			return false;
+ 
+ 	for (BYTE i = 0; i < ITEM_SOCKET_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `socket%u`", i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `socket%u`", i)) return false;
+ 
+ 	for (BYTE i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `attrtype%u`, `attrvalue%u`", i, i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `attrtype%u`, `attrvalue%u`", i, i)) return false;
+ 
+ #if defined(__CHANGE_LOOK_SYSTEM__)
+-	len += sprintf(szQuery + len, ", `changelookvnum`");
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `changelookvnum`")) return false;
+ #endif
+ 
+ #if defined(__REFINE_ELEMENT_SYSTEM__)
+-	len += sprintf(szQuery + len,
++	if (!SafeAppend(szQuery, sizeof(szQuery), len,
+ 		", `refine_element_apply_type`"
+ 		", `refine_element_grade`"
+ 		", `refine_element_value0`, `refine_element_value1`, `refine_element_value2`"
+-		", `refine_element_bonus_value0`, `refine_element_bonus_value1`, `refine_element_bonus_value2`"
+-	);
++		", `refine_element_bonus_value0`, `refine_element_bonus_value1`, `refine_element_bonus_value2`")) return false;
+ #endif
+ 
+ #if defined(__ITEM_APPLY_RANDOM__)
+ 	for (BYTE i = 0; i < ITEM_APPLY_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i);
++		if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i)) return false;
+ #endif
+ 
+ #if defined(__SET_ITEM__)
+-	len += sprintf(szQuery + len, ", `set_value`");
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, ", `set_value`")) return false;
+ #endif
+ 
+-	len += sprintf(szQuery + len, " FROM `mailbox%s`", GetTablePostfix());
++	if (!SafeAppend(szQuery, sizeof(szQuery), len, " FROM `mailbox%s`", GetTablePostfix())) return false;
+ 
+ 	std::unique_ptr<SQLMsg> pkMsg(CDBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pRes = pkMsg->Get();
+@@ -1260,10 +1276,13 @@
+ 		mail.AddData.bHeader = 0;
+ 		mail.AddData.Index = 0;
+ 
+-		std::memcpy(mail.szName, name, sizeof(mail.szName));
+-		std::memcpy(mail.AddData.szFrom, data[col++], sizeof(mail.AddData.szFrom));
+-		std::memcpy(mail.Message.szTitle, data[col++], sizeof(mail.Message.szTitle));
+-		std::memcpy(mail.AddData.szMessage, data[col++], sizeof(mail.AddData.szMessage));
++		strlcpy(mail.szName, name ? name : "", sizeof(mail.szName));
++		strlcpy(mail.AddData.szFrom, data[col] ? data[col] : "", sizeof(mail.AddData.szFrom));
++			col++;
++		strlcpy(mail.Message.szTitle, data[col] ? data[col] : "", sizeof(mail.Message.szTitle));
++			col++;
++		strlcpy(mail.AddData.szMessage, data[col] ? data[col] : "", sizeof(mail.AddData.szMessage));
++			col++;
+ 		str_to_number(mail.Message.bIsGMPost, data[col++]);
+ 		str_to_number(mail.Message.bIsConfirm, data[col++]);
+ 		str_to_number(mail.Message.SendTime, data[col++]);
+@@ -1326,12 +1345,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = 0;
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`"))
++				return false;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i)) return false;
+ 
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop%s`", GetTablePostfix());
++		if (!SafeAppend(szQuery, sizeof(szQuery), iLen, " FROM `gem_shop%s`", GetTablePostfix())) return false;
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();
+@@ -1368,12 +1389,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = 0;
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`"))
++				return false;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++			if (!SafeAppend(szQuery, sizeof(szQuery), iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i)) return false;
+ 
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop_port%s`", GetTablePostfix());
++		if (!SafeAppend(szQuery, sizeof(szQuery), iLen, " FROM `gem_shop_port%s`", GetTablePostfix())) return false;
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();

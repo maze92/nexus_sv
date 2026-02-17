@@ -1,0 +1,2567 @@
+diff --git a/server/metin2/Source/Server/common/service.h b/server/metin2/Source/Server/common/service.h
+index 0000000..0000000 100644
+--- a/server/metin2/Source/Server/common/service.h
++++ b/server/metin2/Source/Server/common/service.h
+@@ -1,8 +1,5 @@
+ #if !defined(__INC_COMMON_SERVICE_H__)
+ #define __INC_COMMON_SERVICE_H__
+-
+-#define __LOCALE_SERVICE_EUROPE__
+-#define __LOCALE_SERVICE_OWSAP__
+ 
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ ///////////////////////////////////////////////////////////////////////// Farques
+ #define ENABLE_QUEEN_NETHIS // < Kraliçe Nethis Zindanı
+
+--- a/server/metin2/Source/Server/game/src/battle.cpp
++++ b/server/metin2/Source/Server/game/src/battle.cpp
+@@ -251,8 +251,13 @@
+ 
+ int CalcMagicDamageWithValue(int iDam, LPCHARACTER pkAttacker, LPCHARACTER pkVictim)
+ {
++	if (!pkAttacker || !pkVictim)
++		return 0;
++
+ 	return CalcBattleDamage(iDam, pkAttacker->GetLevel(), pkVictim->GetLevel());
+ }
+ 
+ int CalcMagicDamage(LPCHARACTER pkAttacker, LPCHARACTER pkVictim)
+ {
+ 	int iDam = 0;
+ 
++	if (!pkAttacker || !pkVictim)
++		return 0;
++
+ 	if (pkAttacker->IsNPC())
+ 	{
+ 		iDam = CalcMeleeDamage(pkAttacker, pkVictim, false, false);
+ 	}
+@@ -270,6 +275,9 @@
+ 
+ float CalcAttackRating(LPCHARACTER pkAttacker, LPCHARACTER pkVictim, bool bIgnoreTargetRating)
+ {
++	if (!pkAttacker || !pkVictim)
++		return 0.0f;
++
+ 	int iARSrc;
+ 	int iERSrc;
+ 
+@@ -285,7 +293,7 @@
+ 		int attacker_dx = pkAttacker->GetPolymorphPoint(POINT_DX);
+ 		int attacker_lv = pkAttacker->GetLevel();
+ 
+ 		int victim_dx = pkVictim->GetPolymorphPoint(POINT_DX);
+-		int victim_lv = pkAttacker->GetLevel();
++		int victim_lv = pkVictim->GetLevel();
+ 
+ 		iARSrc = MIN(gPlayerMaxLevelStats, (attacker_dx * 4 + attacker_lv * 2) / 6);
+ 		iERSrc = MIN(gPlayerMaxLevelStats, (victim_dx * 4 + victim_lv * 2) / 6);
+@@ -335,6 +343,9 @@
+ 
+ int CalcAttBonus(LPCHARACTER pkAttacker, LPCHARACTER pkVictim, int iAtk)
+ {
++	if (!pkAttacker || !pkVictim)
++		return iAtk;
++
+ 	// PvP\xbf\xa1\xb4\xc2 \xc0\xfb\xbf\xeb\xc7\xcf\xc1\xf6\xbe\xca\xc0\xbd
+ 	if (!pkVictim->IsPC())
+ 		iAtk += pkAttacker->GetMarriageBonus(UNIQUE_ITEM_MARRIAGE_ATTACK_BONUS);
+@@ -587,6 +598,9 @@
+ 
+ int CalcMeleeDamage(LPCHARACTER pkAttacker, LPCHARACTER pkVictim, bool bIgnoreDefense, bool bIgnoreTargetRating)
+ {
++	if (!pkAttacker || !pkVictim)
++		return 0;
++
+ 	LPITEM pWeapon = pkAttacker->GetWear(WEAR_WEAPON);
+ 	bool bPolymorphed = pkAttacker->IsPolymorphed();
+@@ -764,6 +778,9 @@
+ 
+ int CalcArrowDamage(LPCHARACTER pkAttacker, LPCHARACTER pkVictim, LPITEM pkBow, LPITEM pkArrow, bool bIgnoreDefense)
+ {
++	if (!pkAttacker || !pkVictim)
++		return 0;
++
+ 	int iDam = CalcMeleeDamage(pkAttacker, pkVictim, bIgnoreDefense, false);
+ 
+ 	if (pkBow)
+@@ -875,7 +892,12 @@
+ 
+ int battle_hit(LPCHARACTER pkAttacker, LPCHARACTER pkVictim, int& iRetDam)
+ {
++	iRetDam = 0;
++	if (!pkAttacker || !pkVictim)
++		return (BATTLE_DAMAGE);
++
+ 	int iDam = CalcMeleeDamage(pkAttacker, pkVictim);
+ 	if (iDam <= 0)
+ 		return (BATTLE_DAMAGE);
+@@ -934,7 +956,7 @@
+ 			{
+ #if defined(__ELEMENT_SYSTEM__)
+ 				if (pkVictim->IsPC())
+-					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_DAGGER) - pkVictim->GetPoint(POINT_ATTBONUS_DAGGER))) / 100;
++					iDam = iDam * (100 - (pkVictim->GetPoint(POINT_RESIST_DAGGER) - pkAttacker->GetPoint(POINT_ATTBONUS_DAGGER))) / 100;
+ 				else
+ 					iDam = iDam * (100 - pkVictim->GetPoint(POINT_RESIST_DAGGER)) / 100;
+ #else
+
+--- a/server/metin2/Source/Server/game/src/char_skill.cpp
++++ b/server/metin2/Source/Server/game/src/char_skill.cpp
+@@ -4474,7 +4474,15 @@
+ 			{ { 170, 171, 172, 173, 174, 175, 183 }, { 0, 0, 0, 0, 0, 0, 0 } },
+ 		};
+ 
+-		const DWORD* pSkill = SkillList[GetJob()][GetSkillGroup() - 1];
++		const BYTE bJob = GetJob();
++		const BYTE bGroup = GetSkillGroup();
++		if (bJob >= JOB_MAX_NUM)
++			return false;
++		if (bGroup == 0 || bGroup > SKILL_GROUP_MAX_NUM)
++			return false;
++
++		const DWORD* pSkill = SkillList[bJob][bGroup - 1];
+ 
+ 		for (int i = 0; i < SKILL_COUNT; ++i)
+ 		{
+
+--- a/server/metin2/Source/Server/game/src/char_item.cpp
++++ b/server/metin2/Source/Server/game/src/char_item.cpp
+@@ -8298,6 +8298,9 @@
+ 
+ 			count = MIN(ITEM_MAX_COUNT - item2->GetCount(), count);
+ 
++			if (count == 0)
++				return false;
++
+ 			item->SetCount(item->GetCount() - count);
+ 			item2->SetCount(item2->GetCount() + count);
+ 
+@@ -8350,16 +8353,25 @@
+ 		else if (count < item->GetCount())
+ 		{
+ 			sys_log(0, "%s: ITEM_SPLIT %s (window: %d, cell : %d) -> (window:%d, cell %d) count %d", GetName(), item->GetName(), Cell.window_type, Cell.cell, DestCell.window_type, DestCell.cell, count);
+ 
+-			item->SetCount(item->GetCount() - count);
+-			LPITEM item2 = ITEM_MANAGER::instance().CreateItem(item->GetVnum(), count);
++			LPITEM item2 = ITEM_MANAGER::instance().CreateItem(item->GetVnum(), count);
++			if (!item2)
++				return false;
+ 
+ 			// Copy socket -- by mhh
+ 			FN_copy_item_socket(item2, item);
+ 
+-			item2->AddToCharacter(this, DestCell);
++			if (!item2->AddToCharacter(this, DestCell))
++			{
++				M2_DESTROY_ITEM(item2);
++				return false;
++			}
++
++			item->SetCount(item->GetCount() - count);
+ 
+ 			char szBuf[51 + 1];
+ 			snprintf(szBuf, sizeof(szBuf), "%u %u %u %u ", item2->GetID(), item2->GetCount(), item->GetCount(), item->GetCount() + item2->GetCount());
+ 			LogManager::instance().ItemLog(this, item, "ITEM_SPLIT", szBuf);
+ 		}
+
+--- a/server/metin2/Source/Server/game/src/char_battle.cpp
++++ b/server/metin2/Source/Server/game/src/char_battle.cpp
+@@ -4174,6 +4174,9 @@
+ 
+ void CHARACTER::UpdateAggrPointEx(LPCHARACTER pAttacker, EDamageType type, int dam, CHARACTER::TBattleInfo& info)
+ {
++	if (!pAttacker)
++		return;
++
+ #if defined(__DEFENSE_WAVE__)
+ 	if (GetDefenseWave())
+ 	{
+@@ -4234,12 +4237,15 @@
+ 
+ void CHARACTER::UpdateAggrPoint(LPCHARACTER pAttacker, EDamageType type, int dam)
+ {
+ 	if (IsDead() || IsStun())
+ 		return;
+ 
++	if (!pAttacker)
++		return;
++
+ 	TDamageMap::iterator it = m_map_kDamage.find(pAttacker->GetVID());
+ 	if (it == m_map_kDamage.end())
+ 	{
+ 		m_map_kDamage.insert(TDamageMap::value_type(pAttacker->GetVID(), TBattleInfo(0, dam)));
+ 		it = m_map_kDamage.find(pAttacker->GetVID());
+ 	}
+ 
+ 	UpdateAggrPointEx(pAttacker, type, dam, it->second);
+ }
+
+--- a/server/metin2/Source/Server/game/src/shop.cpp
++++ b/server/metin2/Source/Server/game/src/shop.cpp
+@@ -34,24 +34,36 @@
+ CShop::~CShop()
+ {
+ 	TPacketGCShop pack;
+ 
+ 	pack.header = HEADER_GC_SHOP;
+ 	pack.subheader = SHOP_SUBHEADER_GC_END;
+ 	pack.size = sizeof(TPacketGCShop);
+ 
+ 	Broadcast(&pack, sizeof(pack));
+ 
+-	GuestMapType::iterator it;
+-
+-	it = m_map_guest.begin();
+-	while (it != m_map_guest.end())
+-	{
+-		LPCHARACTER ch = it->first;
+-		ch->SetShop(nullptr);
+-		++it;
+-	}
++	for (GuestMapType::iterator it = m_map_guest.begin(); it != m_map_guest.end(); ++it)
++	{
++		LPCHARACTER ch = it->first;
++		if (!ch)
++			continue;
++
++		if (ch->GetShop() == this)
++			ch->SetShop(NULL);
++
++		// prevent stale shop-owner pointer on guests when a PC shop is destroyed
++		if (m_pkPC && ch->GetShopOwner() == m_pkPC)
++			ch->SetShopOwner(NULL);
++	}
++
++	m_map_guest.clear();
+ 
+ #if !defined(__MYSHOP_EXPANSION__)
+ 	M2_DELETE(m_pGrid);
+ #endif
+ }
+ 
+@@ -509,6 +521,9 @@
+ bool CShop::AddGuest(LPCHARACTER ch, DWORD owner_vid, bool bOtherEmpire)
+ {
+ 	if (!ch)
+ 		return false;
++
++	LPDESC d = ch->GetDesc();
++	if (!d) return false;
+ 
+ 	if (ch->GetExchange())
+ 		return false;
+ 
+ 	if (ch->GetShop())
+ 		return false;
+ 
+ 	ch->SetShop(this);
+@@ -597,8 +612,8 @@
+ 
+ 	pack.size = sizeof(pack) + sizeof(pack2);
+ 
+-	ch->GetDesc()->BufferedPacket(&pack, sizeof(TPacketGCShop));
+-	ch->GetDesc()->Packet(&pack2, sizeof(TPacketGCShopStart));
++	d->BufferedPacket(&pack, sizeof(TPacketGCShop));
++	d->Packet(&pack2, sizeof(TPacketGCShopStart));
+ 	return true;
+ }
+ 
+ void CShop::RemoveGuest(LPCHARACTER ch)
+@@ -616,7 +631,8 @@
+ 	pack.subheader = SHOP_SUBHEADER_GC_END;
+ 	pack.size = sizeof(TPacketGCShop);
+ 
+-	ch->GetDesc()->Packet(&pack, sizeof(pack));
++	if (ch->GetDesc())
++		ch->GetDesc()->Packet(&pack, sizeof(pack));
+ }
+ 
+ void CShop::Broadcast(const void* data, int bytes)
+@@ -638,6 +654,11 @@
+ void CShop::BroadcastUpdateItem(BYTE pos)
+ {
++	if (pos >= m_itemVector.size())
++		return;
++
+ 	TPacketGCShop pack;
+ 	TPacketGCShopUpdateItem pack2;
+ 
+ 	TEMP_BUFFER buf;
+@@ -256,6 +277,7 @@
+ int CShop::Buy(LPCHARACTER ch, BYTE pos
+ )
+ {
++	if (!ch) return SHOP_SUBHEADER_GC_END;
+ 	if (pos >= m_itemVector.size())
+ 	{
+ 		sys_log(0, "Shop::Buy : invalid position %d : %s", pos, ch->GetName());
+ 		return SHOP_SUBHEADER_GC_INVALID_POS;
+ 	}
+@@ -313,7 +335,16 @@
+ 	DWORD dwPrice = r_item.price;
+ #if defined(__CHEQUE_SYSTEM__)
+ 	DWORD dwCheque = r_item.cheque;
+ #endif
+ 
+ 	if (it->second) // if other empire, price is triple
++	{
++		if (dwPrice > (std::numeric_limits<DWORD>::max() / 3))
++		{
++			LogManager::instance().HackLog("SHOP_BUY_GOLD_OVERFLOW_TRIPLE", ch);
++			return SHOP_SUBHEADER_GC_NOT_ENOUGH_MONEY;
++		}
+ 		dwPrice *= 3;
++	}
+ 
+ 	if (ch->GetGold() < dwPrice)
+ 	{
+ 		sys_log(1, "Shop::Buy : Not enough money : %s has %lld, price %u", ch->GetName(), ch->GetGold(), dwPrice);
+ 		return SHOP_SUBHEADER_GC_NOT_ENOUGH_MONEY;
+ 	}
+@@ -379,12 +410,12 @@
+ 	if (iEmptyPos < 0)
+ 	{
+ 		if (m_pkPC)
+ 		{
+ 			sys_log(1, "Shop::Buy at PC Shop : Inventory full : %s size %d", ch->GetName(), item->GetSize());
+ 			return SHOP_SUBHEADER_GC_INVENTORY_FULL;
+ 		}
+ 		else
+ 		{
+ 			sys_log(1, "Shop::Buy : Inventory full : %s size %d", ch->GetName(), item->GetSize());
+ 			M2_DESTROY_ITEM(item);
+ 			return SHOP_SUBHEADER_GC_INVENTORY_FULL;
+ 		}
+ 	}
+ 
+ 	if (dwPrice)
+-		ch->PointChange(POINT_GOLD, -dwPrice, false);
++		ch->PointChange(POINT_GOLD, -static_cast<POINT_VALUE>(dwPrice), false);
+ 
+ #if defined(__CHEQUE_SYSTEM__)
+ 	if (dwCheque)
+-		ch->PointChange(POINT_CHEQUE, -dwCheque, false);
++		ch->PointChange(POINT_CHEQUE, -static_cast<POINT_VALUE>(dwCheque), false);
+ #endif
+@@ -493,7 +524,7 @@
+ 		}
+ 
+-		DBManager::instance().SendMoneyLog(MONEY_LOG_SHOP, item->GetVnum(), -dwPrice);
++		DBManager::instance().SendMoneyLog(MONEY_LOG_SHOP, item->GetVnum(), -static_cast<long>(dwPrice));
+ 	}
+
+--- a/server/metin2/Source/Server/game/src/shop_manager.cpp
++++ b/server/metin2/Source/Server/game/src/shop_manager.cpp
+@@ -65,6 +65,23 @@
+ void CShopManager::Destroy()
+ {
+ 	TShopMap::iterator it = m_map_pkShop.begin();
+ 	std::unordered_set<decltype(m_map_pkShop)::value_type::second_type> collector; // avoid delete duplicate objects(unique key)
+ 	while (it != m_map_pkShop.end())
+ 	{
+ 		//delete it->second;
+ 		collector.insert(it->second);
+ 		++it;
+ 	}
+ 	for (auto& v : collector)
+ 		delete v;
+ 
+ 	m_map_pkShop.clear();
++	m_map_pkShopByNPCVnum.clear(); // avoid dangling pointers
++
++	// also free PC shops on shutdown
++	{
++		TShopMap::iterator itPC = m_map_pkShopByPC.begin();
++		while (itPC != m_map_pkShopByPC.end())
++		{
++			delete itPC->second;
++			++itPC;
++		}
++		m_map_pkShopByPC.clear();
++	}
+ }
+ 
+@@ -170,8 +187,10 @@
+ 	if (pkChr->GetEmpire() != pkChrShopKeeper->GetEmpire())
+ 		bOtherEmpire = true;
+ 
+-	pkShop->AddGuest(pkChr, pkChrShopKeeper->GetVID(), bOtherEmpire);
+-	pkChr->SetShopOwner(pkChrShopKeeper);
++	if (!pkShop->AddGuest(pkChr, pkChrShopKeeper->GetVID(), bOtherEmpire))
++		return false;
++
++	pkChr->SetShopOwner(pkChrShopKeeper);
+ 	sys_log(0, "SHOP: START: %s", pkChr->GetName());
+ 	return true;
+ }
+ 
+@@ -253,11 +272,14 @@
+ 	int ret = pkShop->Buy(ch, pos);
+ 
+ 	if (SHOP_SUBHEADER_GC_OK != ret) // ¹®Á¦°¡ ÀÖ¾úÀ¸¸é º¸³½´Ù.
+ 	{
+ 		TPacketGCShop pack;
+ 
+ 		pack.header = HEADER_GC_SHOP;
+ 		pack.subheader = ret;
+ 		pack.size = sizeof(TPacketGCShop);
+ 
+-		ch->GetDesc()->Packet(&pack, sizeof(pack));
++		if (ch->GetDesc())
++			ch->GetDesc()->Packet(&pack, sizeof(pack));
+ 	}
+ }
+
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -2119,6 +2119,12 @@ void CHARACTER::Disconnect(const char* c_pszReason)
+ 
+ 	sys_log(0, "DISCONNECT: %s (%s)", GetName(), c_pszReason ? c_pszReason : "unset");
+ 
++	// Definitive PC-shop teardown on owner disconnect.
++	// CloseMyShop() will call CShopManager::DestroyPCShop(this) and null m_pkMyShop.
++	if (GetMyShop())
++		CloseMyShop();
++
+ 	if (GetShop())
+ 	{
+ 		GetShop()->RemoveGuest(this);
+ 		SetShop(NULL);
+ 	}
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -4535,6 +4535,14 @@ int CInputMain::Analyze(LPDESC d, BYTE bHeader, const char* c_pData)
+ 	int iExtraLen = 0;
+ 
++	// Phase hardening: if this processor is invoked outside GAME phase,
++	// treat it as a protocol violation (prevents cross-phase packet injection).
++	if (d->GetPhase() != PHASE_GAME)
++	{
++		sys_err("CInputMain::Analyze called in non-GAME phase (phase=%d header=%d)", d->GetPhase(), bHeader);
++		d->SetPhase(PHASE_CLOSE);
++		return 0;
++	}
++
+ 	if (test_server && bHeader != HEADER_CG_MOVE)
+ 		sys_log(0, "CInputMain::Analyze() ==> Header [%d] ", bHeader);
+ 
+@@ -1416,9 +1424,13 @@ void CInputMain::Exchange(LPCHARACTER ch, const char* data)
+ 	if (!ch->CanHandleItem())
+ 		return;
+ 
++	if (ch->IsDead())
++		return;
++
+ 	int iPulse = thecore_pulse();
+ 
+ 	if ((to_ch = CHARACTER_MANAGER::instance().Find(pinfo->arg1)))
+ 	{
++		if (ch->GetDist(to_ch) >= EXCHANGE_MAX_DISTANCE)
++			return;
++
+ 		if (iPulse - to_ch->GetSafeboxLoadTime() < PASSES_PER_SEC(g_nPortalLimitTime))
+ 		{
+ 			to_ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("\xb0ŷ\xa1 \xc8\xc4 %d\xc3\xca \xc0̳\xbb\xbf\xa1 â\xb0\xed\xb8\xa6 \xbf\xad\xbc\xf6 \xbe\xf8\xbd\xc0\xb4ϴ\xd9.", g_nPortalLimitTime));
+ 			return;
+ 		}
+ 
+ 		if (true == to_ch->IsDead())
+ 		{
+ 			return;
+ 		}
+ 	}
+@@ -1490,6 +1502,9 @@ void CInputMain::Exchange(LPCHARACTER ch, const char* data)
+ 		case EXCHANGE_SUBHEADER_CG_START: // arg1 == vid of target character
+ 			if (!ch->GetExchange())
+ 			{
+ 				if ((to_ch = CHARACTER_MANAGER::instance().Find(pinfo->arg1)))
+ 				{
++					if (ch->GetDist(to_ch) >= EXCHANGE_MAX_DISTANCE || to_ch->IsDead())
++						return;
++
+ 					//MONARCH_LIMIT
+ 					/*
+ 					if (to_ch->IsMonarch() || ch->IsMonarch())
+@@ -2414,6 +2429,12 @@ void CInputMain::SafeboxCheckin(LPCHARACTER ch, const char* c_pData)
+ 	if (quest::CQuestManager::instance().GetPCForce(ch->GetPlayerID())->IsRunning() == true)
+ 		return;
+ 
++	if (ch->IsDead())
++		return;
++
++	// Prevent packet injection when safebox is not actually open
++	if (!ch->IsOpenSafebox())
++		return;
++
+ 	TPacketCGSafeboxCheckin* p = (TPacketCGSafeboxCheckin*)c_pData;
+ 
+ 	if (!ch->CanHandleItem())
+ 		return;
+@@ -2509,6 +2530,12 @@ void CInputMain::SafeboxCheckout(LPCHARACTER ch, const char* c_pData, bool bMall)
+ {
+ 	TPacketCGSafeboxCheckout* p = (TPacketCGSafeboxCheckout*)c_pData;
+ 
++	if (ch->IsDead())
++		return;
++
++	// Prevent packet injection when safebox/mall is not actually open
++	if (!ch->IsOpenSafebox())
++		return;
++
+ 	if (!ch->CanHandleItem())
+ 		return;
+ 
+@@ -2680,6 +2707,12 @@ void CInputMain::SafeboxItemMove(LPCHARACTER ch, const char* data)
+ {
+ 	struct command_item_move* pinfo = (struct command_item_move*)data;
+ 
++	if (ch->IsDead())
++		return;
++
++	if (!ch->IsOpenSafebox())
++		return;
++
+ 	if (!ch->CanHandleItem())
+ 		return;
+ 
+ 	if (!ch->GetSafebox())
+
+--- a/server/metin2/Source/Server/game/src/input_login.cpp
++++ b/server/metin2/Source/Server/game/src/input_login.cpp
+@@ -1239,9 +1239,16 @@ int CInputLogin::Analyze(LPDESC d, BYTE bHeader, const char* c_pData)
+ 		case HEADER_CG_EMPIRE:
+ 			Empire(d, c_pData);
+ 			break;
+ 
+ 		case HEADER_CG_MOVE:
+ 		case HEADER_CG_ITEM_USE:
+ 		case HEADER_CG_TARGET:
+-			break;
++			sys_err("CInputLogin: received GAME packet in LOGIN phase (header=%d)", bHeader);
++			d->SetPhase(PHASE_CLOSE);
++			return 0;
+ 
+ 			///////////////////////////////////////
+ 			// Guild Mark
+ 			/////////////////////////////////////
+
+--- a/server/metin2/Source/Server/game/src/input_p2p.cpp
++++ b/server/metin2/Source/Server/game/src/input_p2p.cpp
+@@ -1,4 +1,5 @@
+ #include "stdafx.h"
++#include <vector>
+ 
+ #include "config.h"
+ #include "desc_client.h"
+@@ -56,7 +57,7 @@ int CInputP2P::Relay(LPDESC d, const char* c_pData, size_t uiBytes)
+ 
+ 	LPCHARACTER pkChr = CHARACTER_MANAGER::instance().FindPC(p->szName);
+ 
+ 	const BYTE* c_pbData = (const BYTE*)(c_pData + sizeof(TPacketGGRelay));
+@@ -70,6 +71,11 @@ int CInputP2P::Relay(LPDESC d, const char* c_pData, size_t uiBytes)
+ 		return p->lSize;
+ 	}
+ 
++	LPDESC pkChrDesc = pkChr->GetDesc();
++	if (!pkChrDesc)
++		return p->lSize;
++
+ 	if (*c_pbData == HEADER_GC_WHISPER)
+ 	{
+-		char buf[1024];
+-		memcpy(buf, c_pbData, MIN(p->lSize, sizeof(buf)));
+-		TPacketGCWhisper* p2 = (TPacketGCWhisper*)buf;
++		std::vector<char> buf;
++		buf.resize(p->lSize);
++		memcpy(buf.data(), c_pbData, p->lSize);
++
++		TPacketGCWhisper* p2 = reinterpret_cast<TPacketGCWhisper*>(buf.data());
++		if (p2->wSize < sizeof(TPacketGCWhisper) || p2->wSize > p->lSize)
++			return p->lSize;
+ 
+ 		if (pkChr->IsBlockMode(BLOCK_WHISPER) && !IS_SET(p2->bType, WHISPER_TYPE_GM))
+ 		{
+ 			// \xb1ӼӸ\xbb \xb0ź\xce \xbb\xf3\xc5¿\xa1\xbc\xad \xb1ӼӸ\xbb \xb0ź\xce.
+ 			return p->lSize;
+ 		}
+@@ -98,17 +104,17 @@ int CInputP2P::Relay(LPDESC d, const char* c_pData, size_t uiBytes)
+ 			if (!pkChr->IsEquipUniqueGroup(UNIQUE_GROUP_RING_OF_LANGUAGE))
+ 			{
+ 				if (bToEmpire >= 1 && bToEmpire <= 3 && pkChr->GetEmpire() != bToEmpire)
+ 				{
+ 					ConvertEmpireText(bToEmpire,
+-						buf + sizeof(TPacketGCWhisper),
++						buf.data() + sizeof(TPacketGCWhisper),
+ 						p2->wSize - sizeof(TPacketGCWhisper),
+ 						10 + 2 * pkChr->GetSkillPower(SKILL_LANGUAGE1 + bToEmpire - 1));
+ 				}
+ 			}
+ 		}
+ 
+-		pkChr->GetDesc()->Packet(buf, p->lSize);
++		pkChrDesc->Packet(buf.data(), p->lSize);
+ 	}
+ 	else
+-		pkChr->GetDesc()->Packet(c_pbData, p->lSize);
++		pkChrDesc->Packet(c_pbData, p->lSize);
+ 
+ 	return p->lSize;
+ }
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -1399,14 +1399,36 @@
+ void CInputMain::OnClick(LPCHARACTER ch, const char* data)
+ {
+ 	struct command_on_click* pinfo = (struct command_on_click*)data;
+-	LPCHARACTER victim;
++	LPCHARACTER victim = NULL;
++
++	if (!ch)
++		return;
++
++	// Prevent range-click hacks and dead-state abuse
++	if (ch->IsDead() || !ch->GetSectree())
++		return;
+ 
+ 	if ((victim = CHARACTER_MANAGER::instance().Find(pinfo->vid)))
+-		victim->OnClick(ch);
++	{
++		if (!victim->GetSectree())
++			return;
++
++		// Cross-map interaction is always invalid
++		if (victim->GetMapIndex() != ch->GetMapIndex())
++			return;
++
++		// Range limit (same as shop interaction distance)
++		if (ch->GetDist(victim) >= SHOP_MAX_DISTANCE)
++			return;
++
++		victim->OnClick(ch);
++	}
+ 	else if (test_server)
+ 	{
+ 		sys_err("CInputMain::OnClick %s.Click.NOT_EXIST_VID[%d]", ch->GetName(), pinfo->vid);
+ 	}
+ }
+ 
+@@ -2694,6 +2716,9 @@
+ void CInputMain::PartyInvite(LPCHARACTER ch, const char* c_pData)
+ {
+ 	if (!ch)
+ 		return;
++
++	if (ch->IsDead())
++		return;
+ 
+ 	if (ch->GetArena())
+ 	{
+@@ -2707,6 +2732,19 @@
+ 	LPCHARACTER pInvitee = CHARACTER_MANAGER::instance().Find(p->vid);
+ 	if (ch == pInvitee)
+ 		return;
+ 
+ 	if (!pInvitee || !ch->GetDesc() || !pInvitee->GetDesc() || !pInvitee->IsPC() || !ch->IsPC())
+ 	{
+ 		sys_err("PARTY Cannot find invited character");
+ 		return;
+ 	}
++
++	if (pInvitee->IsDead())
++		return;
++
++	// Visibility / world safety: must be in-world and same map
++	if (!ch->GetSectree() || !pInvitee->GetSectree())
++		return;
++	if (ch->GetMapIndex() != pInvitee->GetMapIndex())
++		return;
++
++	// Proximity enforcement
++	if (ch->GetDist(pInvitee) >= EXCHANGE_MAX_DISTANCE)
++		return;
+ 
+ #if defined(__MESSENGER_BLOCK_SYSTEM__)
+ 	if (CMessengerManager::instance().IsBlocked(ch->GetName(), pInvitee->GetName()))
+@@ -3165,6 +3203,20 @@
+ 		case GUILD_SUBHEADER_CG_ADD_MEMBER:
+ 		{
+ 			const DWORD vid = *reinterpret_cast<const DWORD*>(c_pData);
+ 			LPCHARACTER newmember = CHARACTER_MANAGER::instance().Find(vid);
+ 
+ 			if (!newmember)
+ 			{
+ 				ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<\xb1\xe6\xb5\xe5> \xb1׷\xaf\xc7\xd1 \xbb\xe7\xb6\xf7\xc0\xbb ã\xc0\xbb \xbc\xf6 \xbe\xf8\xbd\xc0\xb4ϴ\xd9."));
+ 				return SubPacketLen;
+ 			}
+ 
+ 			if (!ch->IsPC() || !newmember->IsPC())
+ 				return SubPacketLen;
++
++			if (ch->IsDead() || newmember->IsDead())
++				return SubPacketLen;
++
++			// Visibility / world safety: must be in-world and same map
++			if (!ch->GetSectree() || !newmember->GetSectree())
++				return SubPacketLen;
++			if (ch->GetMapIndex() != newmember->GetMapIndex())
++				return SubPacketLen;
++
++			// Proximity enforcement (same as shop interaction distance)
++			if (ch->GetDist(newmember) >= SHOP_MAX_DISTANCE)
++				return SubPacketLen;
+ 
+ #if defined(__MESSENGER_BLOCK_SYSTEM__)
+ 			if (CMessengerManager::instance().IsBlocked(ch->GetName(), newmember->GetName()))
+ 			{
+
+--- a/server/metin2/Source/Server/db/src/ClientManager.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManager.cpp
+@@ -540,22 +540,42 @@
+ void CClientManager::QUERY_QUEST_SAVE(CPeer* pkPeer, TQuestTable* pTable, DWORD dwLen)
+ {
+ 	if (0 != (dwLen % sizeof(TQuestTable)))
+ 	{
+ 		sys_err("invalid packet size %d, sizeof(TQuestTable) == %d", dwLen, sizeof(TQuestTable));
+ 		return;
+ 	}
+ 
+ 	int iSize = dwLen / sizeof(TQuestTable);
+ 
+ 	char szQuery[1024];
+ 
+ 	for (int i = 0; i < iSize; ++i, ++pTable)
+ 	{
++		char escName[sizeof(pTable->szName) * 2 + 1];
++		char escState[sizeof(pTable->szState) * 2 + 1];
++
++		const size_t nameLen = strnlen(pTable->szName, sizeof(pTable->szName));
++		const size_t stateLen = strnlen(pTable->szState, sizeof(pTable->szState));
++
++		CDBManager::instance().EscapeString(escName, pTable->szName, static_cast<unsigned long>(nameLen));
++		CDBManager::instance().EscapeString(escState, pTable->szState, static_cast<unsigned long>(stateLen));
++
+ 		if (pTable->lValue == 0)
+ 		{
+ 			snprintf(szQuery, sizeof(szQuery), "DELETE FROM quest%s WHERE `dwPID` = %d AND `szName` = '%s' AND `szState` ='%s'",
+-				GetTablePostfix(), pTable->dwPID, pTable->szName, pTable->szState);
++				GetTablePostfix(), pTable->dwPID, escName, escState);
+ 		}
+ 		else
+ 		{
+ 			snprintf(szQuery, sizeof(szQuery), "REPLACE INTO quest%s (`dwPID`, `szName`, `szState`, `lValue`) VALUES(%d, '%s', '%s', %ld)",
+-				GetTablePostfix(), pTable->dwPID, pTable->szName, pTable->szState, pTable->lValue);
++				GetTablePostfix(), pTable->dwPID, escName, escState, pTable->lValue);
+ 		}
+ 
+ 		CDBManager::instance().ReturnQuery(szQuery, QID_QUEST_SAVE, pkPeer->GetHandle(), NULL);
+ 	}
+ }
+@@ -2299,12 +2319,21 @@
+ void CClientManager::BlockChat(TPacketBlockChat* p)
+ {
+ 	char szQuery[256];
+ 
++	char escName[sizeof(p->szName) * 2 + 1];
++	const size_t nameLen = strnlen(p->szName, sizeof(p->szName));
++	CDBManager::instance().EscapeString(escName, p->szName, static_cast<unsigned long>(nameLen));
++
+ 	if (g_stLocale == "sjis")
+-		snprintf(szQuery, sizeof(szQuery), "SELECT `id `FROM player%s WHERE `name` = '%s' COLLATE sjis_japanese_ci", GetTablePostfix(), p->szName);
++		snprintf(szQuery, sizeof(szQuery), "SELECT `id `FROM player%s WHERE `name` = '%s' COLLATE sjis_japanese_ci",
++			GetTablePostfix(), escName);
+ 	else
+-		snprintf(szQuery, sizeof(szQuery), "SELECT `id` FROM player%s WHERE `name` = '%s'", GetTablePostfix(), p->szName);
++		snprintf(szQuery, sizeof(szQuery), "SELECT `id` FROM player%s WHERE `name` = '%s'",
++			GetTablePostfix(), escName);
+ 	std::unique_ptr<SQLMsg> pmsg(CDBManager::instance().DirectQuery(szQuery));
+ 	SQLResult* pRes = pmsg->Get();
+@@ -5005,11 +5034,18 @@
+ void CClientManager::QUERY_MAILBOX_CHECK_NAME(CPeer* pkPeer, DWORD dwHandle, TMailBox* p)
+ {
+ 	TMailBox t;
+ 	std::memcpy(t.szName, "", sizeof(t.szName));
+ 	t.Index = 0; // Index: Mail Count
+ 
+ 	static std::unordered_set<std::string> NameSet;
+ 	bool bFound = NameSet.find(p->szName) != NameSet.end();
+ 
+ 	if (bFound == false)
+ 	{
+-		char s_szQuery[128];
++		char escName[sizeof(p->szName) * 2 + 1];
++		const size_t nameLen = strnlen(p->szName, sizeof(p->szName));
++		CDBManager::instance().EscapeString(escName, p->szName, static_cast<unsigned long>(nameLen));
++
++		char s_szQuery[256];
+ 		//snprintf(s_szQuery, sizeof(s_szQuery), "SELECT * FROM player%s WHERE `name` = '%s' LIMIT 1", GetTablePostfix(), p->szName);
+-		snprintf(s_szQuery, sizeof(s_szQuery), "SELECT * FROM player%s WHERE `name` = convert('%s' using utf8mb4) collate utf8mb4_bin LIMIT 1", GetTablePostfix(), p->szName);
++		snprintf(s_szQuery, sizeof(s_szQuery),
++			"SELECT * FROM player%s WHERE `name` = convert('%s' using utf8mb4) collate utf8mb4_bin LIMIT 1",
++			GetTablePostfix(), escName);
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(s_szQuery));
+ 		bFound = pMsg->Get()->uiNumRows > 0;
+ 	}
+
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+@@ -1206,16 +1206,24 @@
+ 	}
+ 
++	char escPlayerName[sizeof(packet->player_table.name) * 2 + 1];
++	const size_t playerNameLen = strnlen(packet->player_table.name, sizeof(packet->player_table.name));
++	CDBManager::instance().EscapeString(escPlayerName, packet->player_table.name, static_cast<unsigned long>(playerNameLen));
++
+ 	if (g_stLocale == "sjis")
+ 		snprintf(queryStr, sizeof(queryStr),
+ 			"SELECT COUNT(*) AS count FROM player%s WHERE `name` = '%s' COLLATE sjis_japanese_ci",
+-			GetTablePostfix(), packet->player_table.name);
++			GetTablePostfix(), escPlayerName);
+ 	else
+ 		snprintf(queryStr, sizeof(queryStr),
+-			"SELECT COUNT(*) AS count FROM player%s WHERE `name` = '%s'", GetTablePostfix(), packet->player_table.name);
++			"SELECT COUNT(*) AS count FROM player%s WHERE `name` = '%s'", GetTablePostfix(), escPlayerName);
+ 
+ 	std::unique_ptr<SQLMsg> pMsg1(CDBManager::instance().DirectQuery(queryStr));
+@@ -1263,7 +1271,7 @@
+ 		"`playtime`, `skill_level`, `quickslot`) "
+ 		"VALUES (0, "
+ 		"%u, "
+-		"'%s', " // name
++		"'%s', " // name (escaped)
+ 		"%d, " // level
+ 		"%d, " // st
+ 		"%d, " // ht
+@@ -1322,7 +1330,7 @@
+ 		"%d, " // playtime
+ 		"'%s', " // skill_level
+ 		"'%s')", // quickslot
+-		packet->account_id, packet->player_table.name,
++		packet->account_id, escPlayerName,
+ 		packet->player_table.level, packet->player_table.st, packet->player_table.ht, packet->player_table.dx, packet->player_table.iq,
+ 		packet->player_table.job, packet->player_table.voice, packet->player_table.dir,
+ 		packet->player_table.x, packet->player_table.y, packet->player_table.z,
+@@ -1748,7 +1756,12 @@
+ 		// END_OF_MYSHOP_PRICE_LIST
+ 
+-		snprintf(queryStr, sizeof(queryStr), "DELETE FROM `messenger_list%s` WHERE `account` = '%s' OR `companion` = '%s'", GetTablePostfix(), szName, szName);
++		char escName[sizeof(szName) * 2 + 1];
++		const size_t nameLen = strnlen(szName, sizeof(szName));
++		CDBManager::instance().EscapeString(escName, szName, static_cast<unsigned long>(nameLen));
++
++		snprintf(queryStr, sizeof(queryStr), "DELETE FROM `messenger_list%s` WHERE `account` = '%s' OR `companion` = '%s'",
++			GetTablePostfix(), escName, escName);
+ 		CDBManager::instance().AsyncQuery(queryStr);
+ 
+ 		peer->EncodeHeader(HEADER_DG_PLAYER_DELETE_SUCCESS, pi->dwHandle, 1);
+@@ -1826,8 +1839,15 @@
+ void CClientManager::QUERY_HIGHSCORE_REGISTER(CPeer* peer, TPacketGDHighscore* data)
+ {
+-	char szQuery[128];
+-	snprintf(szQuery, sizeof(szQuery), "SELECT `value` FROM highscore%s WHERE `board` = '%s' AND `pid` = %u", GetTablePostfix(), data->szBoard, data->dwPID);
++	char escBoard[sizeof(data->szBoard) * 2 + 1];
++	const size_t boardLen = strnlen(data->szBoard, sizeof(data->szBoard));
++	CDBManager::instance().EscapeString(escBoard, data->szBoard, static_cast<unsigned long>(boardLen));
++
++	char szQuery[256];
++	snprintf(szQuery, sizeof(szQuery),
++		"SELECT `value` FROM highscore%s WHERE `board` = '%s' AND `pid` = %u",
++		GetTablePostfix(), escBoard, data->dwPID);
+ 
+ 	sys_log(0, "HEADER_GD_HIGHSCORE_REGISTER: PID %u", data->dwPID);
+ 
+@@ -1853,10 +1873,16 @@
+ 	if (res->uiNumRows == 0)
+ 	{
+ 		// \xbb\xf5\xb7ο\xee \xc7\xcf\xc0̽\xba\xc4ھ \xbb\xf0\xc0\xd4
+ 		char buf[256];
+-		snprintf(buf, sizeof(buf), "INSERT INTO highscore%s VALUES('%s', %u, %d)", GetTablePostfix(), szBoard, pi->player_id, value);
++		char escBoard[sizeof(szBoard) * 2 + 1];
++		const size_t boardLen = strnlen(szBoard, sizeof(szBoard));
++		CDBManager::instance().EscapeString(escBoard, szBoard, static_cast<unsigned long>(boardLen));
++
++		snprintf(buf, sizeof(buf), "INSERT INTO highscore%s VALUES('%s', %u, %d)",
++			GetTablePostfix(), escBoard, pi->player_id, value);
+ 		CDBManager::instance().AsyncQuery(buf);
+ 	}
+ 	else
+@@ -1875,7 +1901,14 @@
+ 		int old_value = atoi(row[0]);
+ 
+ 		if ((old_value >= value && !pi->account_index) || (old_value <= value && pi->account_index))
+ 		{
+ 			delete pi;
+ 			return;
+ 		}
+ 
+ 		char buf[256];
+-		snprintf(buf, sizeof(buf), "REPLACE INTO highscore%s VALUES('%s', %u, %d)", GetTablePostfix(), szBoard, pi->player_id, value);
++		char escBoard[sizeof(szBoard) * 2 + 1];
++		const size_t boardLen = strnlen(szBoard, sizeof(szBoard));
++		CDBManager::instance().EscapeString(escBoard, szBoard, static_cast<unsigned long>(boardLen));
++
++		snprintf(buf, sizeof(buf), "REPLACE INTO highscore%s VALUES('%s', %u, %d)",
++			GetTablePostfix(), escBoard, pi->player_id, value);
+ 		CDBManager::instance().AsyncQuery(buf);
+ 	}
+
+--- a/server/metin2/Source/Server/db/src/ProtoReader.cpp
++++ b/server/metin2/Source/Server/db/src/ProtoReader.cpp
+@@ -22,44 +22,46 @@
+ 
+ string trim(const string& str) { return trim_left(trim_right(str)); }
+ 
+-static string* StringSplit(string strOrigin, string strTok)
++static std::vector<std::string> StringSplit(const std::string& origin, char delim)
+ {
+-	int cutAt; // \xc0ڸ\xa3\xb4\xc2\xc0\xa7ġ
+-	int index = 0; // \xb9\xae\xc0ڿ\xad\xc0ε\xa6\xbd\xba
+-	string* strResult = new string[30]; //\xb0\xe1\xb0\xfareturn \xc7Һ\xaf\xbc\xf6
+-
+-	// strTok\xc0\xbbã\xc0\xbb\xb6\xa7\xb1\xee\xc1\xf6\xb9ݺ\xb9
+-	while ((cutAt = strOrigin.find_first_of(strTok)) != strOrigin.npos)
+-	{
+-		if (cutAt > 0) // \xc0ڸ\xa3\xb4\xc2\xc0\xa7ġ\xb0\xa10\xba\xb8\xb4\xd9ũ\xb8\xe9(\xbc\xba\xb0\xf8\xbd\xc3)
+-		{
+-			strResult[index++] = strOrigin.substr(0, cutAt); // \xb0\xe1\xb0\xfa\xb9迭\xbf\xa1\xc3߰\xa1
+-		}
+-		strOrigin = strOrigin.substr(cutAt + 1); // \xbf\xf8\xba\xbb\xc0\xba\xc0ڸ\xa5\xbaκ\xd0\xc1\xa6\xbf\xdc\xc7ѳ\xaa\xb8\xd3\xc1\xf6
+-	}
+-
+-	if (strOrigin.length() > 0) // \xbf\xf8\xba\xbb\xc0̾\xc6\xc1\xf7\xb3\xb2\xbe\xd2\xc0\xb8\xb8\xe9
+-	{
+-		strResult[index++] = strOrigin.substr(0, cutAt); // \xb3\xaa\xb8\xd3\xc1\xf6\xb8\xa6\xb0\xe1\xb0\xfa\xb9迭\xbf\xa1\xc3߰\xa1
+-	}
+-
+-	for (int i = 0; i < index; i++)
+-	{
+-		strResult[i] = trim(strResult[i]);
+-	}
+-
+-	return strResult; // \xb0\xe1\xb0\xfareturn
++	std::vector<std::string> out;
++	out.reserve(16);
++
++	std::string cur;
++	cur.reserve(origin.size());
++
++	for (size_t i = 0; i < origin.size(); ++i)
++	{
++		const char c = origin[i];
++		if (c == delim)
++		{
++			if (!cur.empty())
++			{
++				out.push_back(trim(cur));
++				if (out.size() >= 30) // preserve original hard cap
++					break;
++				cur.clear();
++			}
++		}
++		else
++		{
++			cur.push_back(c);
++		}
++	}
++
++	if (!cur.empty() && out.size() < 30)
++		out.push_back(trim(cur));
++
++	return out;
+ }
+ 
+@@ -604,20 +606,20 @@
+ 
+ 	int retValue = 0;
+-	string* arInputString = StringSplit(inputString, "|"); // ...
++	const std::vector<std::string> arInputString = StringSplit(inputString, '|');
+ 	for (int i = 0; i < sizeof(arAntiFlag) / sizeof(arAntiFlag[0]); i++)
+ 	{
+ 		string tempString = arAntiFlag[i];
+-		for (int j = 0; j < 30; j++) // \xc3ִ\xeb 30\xb0\xb3 ...
++		for (size_t j = 0; j < arInputString.size(); j++)
+ 		{
+-			string tempString2 = arInputString[j];
++			const string& tempString2 = arInputString[j];
+ 			if (tempString2.compare(tempString) == 0)
+ 			{
+ 				retValue = retValue + static_cast<int>(pow((float)2, (float)i));
+ 			}
+-
+-			if (tempString2.compare("") == 0)
+-				break;
+ 		}
+ 	}
+
+--- a/server/metin2/Source/Server/db/src/GuildManager.cpp
++++ b/server/metin2/Source/Server/db/src/GuildManager.cpp
+@@ -1256,6 +1256,14 @@ bool CGuildWarReserve::Bet(const char* pszLogin, DWORD dwGold, DWORD dwGuild)
+ {
+ 	char szQuery[1024];
+ 
++	// SQLi hardening: login is a string, must be escaped before building SQL
++	char escLogin[LOGIN_MAX_LEN * 2 + 1];
++	{
++		const size_t len = strnlen(pszLogin, LOGIN_MAX_LEN);
++		CDBManager::instance().EscapeString(escLogin, pszLogin, static_cast<unsigned long>(len));
++	}
++
+ 	if (m_data.dwGuildFrom != dwGuild && m_data.dwGuildTo != dwGuild)
+ 	{
+ 		sys_log(0, "GuildWarReserve::Bet: invalid guild id");
+ 		return false;
+ 	}
+@@ -1280,8 +1288,8 @@ bool CGuildWarReserve::Bet(const char* pszLogin, DWORD dwGold, DWORD dwGuild)
+ 
+ 	snprintf(szQuery, sizeof(szQuery),
+ 		"INSERT INTO guild_war_bet%s (`war_id`, `login`, `gold`, `guild`) VALUES(%u, '%s', %u, %u)",
+-		GetTablePostfix(), m_data.dwID, pszLogin, dwGold, dwGuild);
++		GetTablePostfix(), m_data.dwID, escLogin, dwGold, dwGuild);
+ 
+ 	std::unique_ptr<SQLMsg> pmsg(CDBManager::instance().DirectQuery(szQuery));
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -6511,9 +6511,14 @@ bool CPythonNetworkStream::SendPostWriteConfirm(const char* szName)
+ {
+ 	TPacketCGMailboxWriteConfirm p;
+ 	p.bHeader = HEADER_CG_MAILBOX_WRITE_CONFIRM;
+-	std::strcpy(p.szName, szName);
++	strncpy(p.szName, szName, sizeof(p.szName) - 1);
++	p.szName[sizeof(p.szName) - 1] = '\0';
+ 
+ 	if (!Send(sizeof(p), &p))
+ 	{
+ 		Tracef("SendPostWriteConfirm Error\n");
+ 		return false;
+ 	}
+@@ -6631,11 +6636,19 @@ bool CPythonNetworkStream::SendPostWrite(const char* szName, const char* szTitle, const char* szMessage, const TItemPos& pos, const int iYang, const int iWon)
+ {
+ 	TPacketCGMailboxWrite p;
+ 	p.bHeader = HEADER_CG_MAILBOX_WRITE;
+-	std::strcpy(p.szName, szName);
+-	std::strcpy(p.szTitle, szTitle);
+-	std::strcpy(p.szMessage, szMessage);
++	strncpy(p.szName, szName, sizeof(p.szName) - 1);
++	p.szName[sizeof(p.szName) - 1] = '\0';
++
++	strncpy(p.szTitle, szTitle, sizeof(p.szTitle) - 1);
++	p.szTitle[sizeof(p.szTitle) - 1] = '\0';
++
++	strncpy(p.szMessage, szMessage, sizeof(p.szMessage) - 1);
++	p.szMessage[sizeof(p.szMessage) - 1] = '\0';
++
+ 	p.pos = pos;
+ 	p.iYang = iYang;
+ 	p.iWon = iWon;
+ 
+@@ -6693,7 +6706,10 @@ bool CPythonNetworkStream::SendPetHatchingPacket(const char* c_szName, TItemPos eggPos)
+ {
+ 	TPacketCGPetHatch packet;
+ 	packet.header = HEADER_CG_PET_HATCH;
+-	strncpy(packet.name, c_szName, sizeof(packet.name));
++	strncpy(packet.name, c_szName, sizeof(packet.name) - 1);
++	packet.name[sizeof(packet.name) - 1] = '\0';
+ 	packet.eggPos = eggPos;
+ 
+ 	if (!Send(sizeof(packet), &packet))
+ 		return false;
+@@ -8256,9 +8272,14 @@ bool CPythonNetworkStream::SendRequestEventQuest(const char* pszEventQuest)
+ {
+ 	TPacketCGRequestEventQuest Packet;
+ 	Packet.bHeader = HEADER_CG_REQUEST_EVENT_QUEST;
+-	std::strcpy(Packet.szEventQuest, pszEventQuest);
++	strncpy(Packet.szEventQuest, pszEventQuest, sizeof(Packet.szEventQuest) - 1);
++	Packet.szEventQuest[sizeof(Packet.szEventQuest) - 1] = '\0';
+ 
+ 	if (!Send(sizeof(Packet), &Packet))
+ 	{
+ 		Tracef("SendRequestEventQuest Error\n");
+ 		return false;
+ 	}
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -6391,10 +6391,23 @@ bool CPythonNetworkStream::RecvMailboxAll()
+ {
+ 	TPacketGCMailBox p;
+ 	if (!Recv(sizeof(p), &p))
+ 		return false;
+ 
++	// Safety: prevent unsigned underflow and wraparound loops on malformed sizes
++	if (p.wSize < sizeof(TPacketGCMailBox))
++		return false;
++
++	const unsigned int payloadSize = (p.wSize - sizeof(TPacketGCMailBox));
++	if (payloadSize % sizeof(TPacketGCMailboxProcessAll) != 0)
++		return false;
++
+ 	PyObject* list = PyList_New(0);
+ 
+-	unsigned int iPacketSize = (p.wSize - sizeof(TPacketGCMailBox));
++	unsigned int iPacketSize = payloadSize;
+ 	for (; iPacketSize > 0; iPacketSize -= sizeof(TPacketGCMailboxProcessAll))
+ 	{
+ 		TPacketGCMailboxProcessAll Index;
+ 		if (!Recv(sizeof(Index), &Index))
+ 			return false;
+
+--- a/src-client/Client/UserInterface/Packet.h
++++ b/src-client/Client/UserInterface/Packet.h
+@@ -860,6 +860,18 @@ typedef struct packet_symbol_data
+ 	WORD size;
+ 	DWORD guild_id;
+ } TPacketGCGuildSymbolData;
++
++// Packet layout safety (must match server-side expectations exactly)
++static_assert(sizeof(TPacketCGMarkLogin)   == 1 + 4 + 4, "TPacketCGMarkLogin size mismatch");
++static_assert(sizeof(TPacketCGMarkUpload)  == 1 + 4 + (16 * 12 * 4), "TPacketCGMarkUpload size mismatch");
++static_assert(sizeof(TPacketCGSymbolUpload)== 1 + 2 + 4, "TPacketCGSymbolUpload size mismatch");
++static_assert(sizeof(TPacketGCGuildSymbolData) == 1 + 2 + 4, "TPacketGCGuildSymbolData size mismatch");
++static_assert(sizeof(TChannelStatus) == 2 + 1, "TChannelStatus size mismatch");
+
+--- a/src-client/Client/UserInterface/GuildMarkUploader.cpp
++++ b/src-client/Client/UserInterface/GuildMarkUploader.cpp
+@@ -171,7 +171,7 @@ void CGuildMarkUploader::__Inialize()
+ 
+ 	if (m_pbySymbolBuf)
+ 	{
+-		delete m_pbySymbolBuf;
++		delete[] m_pbySymbolBuf;
+ 	}
+ 
+ 	m_dwSymbolBufSize = 0;
+ 	m_pbySymbolBuf = NULL;
+ }
+@@ -63,34 +63,45 @@ bool CGuildMarkUploader::__Load(const char* c_szFileName, UINT* peError)
+ {
+ 	ILuint uImg;
+ 	ilGenImages(1, &uImg);
+ 	ilBindImage(uImg);
+ 	ilEnable(IL_ORIGIN_SET);
+ 	ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
+ 
+ 	if (!ilLoad(IL_TYPE_UNKNOWN, (const ILstring)c_szFileName))
+ 	{
+ 		*peError = ERROR_LOAD;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+ 
+ 	if (ilGetInteger(IL_IMAGE_WIDTH) != SGuildMark::WIDTH)
+ 	{
+ 		*peError = ERROR_WIDTH;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+ 
+ 	if (ilGetInteger(IL_IMAGE_HEIGHT) != SGuildMark::HEIGHT)
+ 	{
+ 		*peError = ERROR_HEIGHT;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+ 
+ 	ilConvertImage(IL_BGRA, IL_BYTE);
+ 
+ 	ilCopyPixels(0, 0, 0, SGuildMark::WIDTH, SGuildMark::HEIGHT, 1, IL_BGRA, IL_BYTE, m_kMark.m_apxBuf);
+ 
+ 	ilDeleteImages(1, &uImg);
+ 	return true;
+ }
+ 
+ bool CGuildMarkUploader::__LoadSymbol(const char* c_szFileName, UINT* peError)
+ {
+ 	// For Check Image
+ 	ILuint uImg;
+ 	ilGenImages(1, &uImg);
+ 	ilBindImage(uImg);
+ 	ilEnable(IL_ORIGIN_SET);
+ 	ilOriginFunc(IL_ORIGIN_UPPER_LEFT);
+ 	if (!ilLoad(IL_TYPE_UNKNOWN, (const ILstring)c_szFileName))
+ 	{
+ 		*peError = ERROR_LOAD;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+ 	if (ilGetInteger(IL_IMAGE_WIDTH) != 64)
+ 	{
+ 		*peError = ERROR_WIDTH;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+ 	if (ilGetInteger(IL_IMAGE_HEIGHT) != 128)
+ 	{
+ 		*peError = ERROR_HEIGHT;
++		ilDeleteImages(1, &uImg);
+ 		return false;
+ 	}
+-	ilDeleteImages(1, &uImg);
+-	ilShutDown();
++	ilDeleteImages(1, &uImg);
+ 
+ 	/////
+ 
+ 	FILE* file = fopen(c_szFileName, "rb");
+ 	if (!file)
+ 	{
+ 		*peError = ERROR_LOAD;
++		return false;
+ 	}
+ 
+ 	fseek(file, 0, SEEK_END);
+ 	m_dwSymbolBufSize = ftell(file);
+ 	fseek(file, 0, SEEK_SET);
+ 
++	// Symbol upload packet uses WORD size; prevent overflow / mismatch and huge allocations.
++	const DWORD kMaxPayload = 65535u - static_cast<DWORD>(sizeof(TPacketCGSymbolUpload));
++	if (m_dwSymbolBufSize == 0 || m_dwSymbolBufSize > kMaxPayload)
++	{
++		fclose(file);
++		*peError = ERROR_LOAD;
++		return false;
++	}
++
++	if (m_pbySymbolBuf)
++	{
++		delete[] m_pbySymbolBuf;
++		m_pbySymbolBuf = NULL;
++	}
++
+ 	m_pbySymbolBuf = new BYTE[m_dwSymbolBufSize];
+-	fread(m_pbySymbolBuf, m_dwSymbolBufSize, 1, file);
++	if (fread(m_pbySymbolBuf, m_dwSymbolBufSize, 1, file) != 1)
++	{
++		fclose(file);
++		delete[] m_pbySymbolBuf;
++		m_pbySymbolBuf = NULL;
++		m_dwSymbolBufSize = 0;
++		*peError = ERROR_LOAD;
++		return false;
++	}
+ 
+ 	fclose(file);
+ 
+ 	/////
+ 
+ 	m_dwSymbolCRC32 = GetFileCRC32(c_szFileName);
+ 	return true;
+ }
+
+--- a/src-client/Client/UserInterface/GuildMarkDownloader.cpp
++++ b/src-client/Client/UserInterface/GuildMarkDownloader.cpp
+@@ -498,34 +498,58 @@ bool CGuildMarkDownloader::__LoginState_RecvSymbolData()
+ {
+ 	TPacketGCBlankDynamic packet;
+ 	if (!Peek(sizeof(TPacketGCBlankDynamic), &packet))
+ 		return true;
+ 
+ #ifdef _DEBUG
+ 	printf("__LoginState_RecvSymbolData [%d/%d]\n", GetRecvBufferSize(), packet.size);
+ #endif
+-	if (packet.size > GetRecvBufferSize())
+-		return true;
++	// Validate dynamic packet size: must at least contain the header struct.
++	if (packet.size < sizeof(TPacketGCGuildSymbolData))
++		return false;
++
++	// Cap to prevent abuse/oom (WORD max is 65535 anyway).
++	const WORD kMaxPacket = 64 * 1024; // 64KB cap for symbol packets
++	if (packet.size > kMaxPacket)
++		return false;
++
++	// Wait until the full dynamic packet is available.
++	if (!Peek(packet.size))
++		return true;
+ 
+ 	//////////////////////////////////////////////////////////////
+ 
+ 	TPacketGCGuildSymbolData kPacketSymbolData;
+ 	if (!Recv(sizeof(kPacketSymbolData), &kPacketSymbolData))
+ 		return false;
+ 
+-	WORD wDataSize = kPacketSymbolData.size - sizeof(kPacketSymbolData);
++	if (kPacketSymbolData.size < sizeof(kPacketSymbolData))
++		return false;
++	if (kPacketSymbolData.size != packet.size)
++		return false;
++
++	WORD wDataSize = kPacketSymbolData.size - static_cast<WORD>(sizeof(kPacketSymbolData));
+ 	DWORD dwGuildID = kPacketSymbolData.guild_id;
+-	BYTE* pbyBuf = new BYTE[wDataSize];
++	if (wDataSize == 0)
++		return false;
++
++	std::vector<BYTE> buf;
++	buf.resize(wDataSize);
+ 
+-	if (!Recv(wDataSize, pbyBuf))
+-	{
+-		delete[] pbyBuf;
++	if (!Recv(wDataSize, buf.data()))
+ 		return false;
+-	}
+ 
+ 	MyCreateDirectory(g_strGuildSymbolPathName.c_str());
+ 
+ 	std::string strFileName = GetGuildSymbolFileName(dwGuildID);
+ 
+ 	FILE* File = fopen(strFileName.c_str(), "wb");
+ 	if (!File)
+ 	{
+-		delete[] pbyBuf;
+ 		return false;
+ 	}
+-	fwrite(pbyBuf, wDataSize, 1, File);
++	fwrite(buf.data(), wDataSize, 1, File);
+ 	fclose(File);
+ 
+ #ifdef _DEBUG
+ 	printf("__LoginState_RecvSymbolData(filename:%s, datasize:%d, guildid:%d)\n", strFileName.c_str(), wDataSize, dwGuildID);
+ #endif
+ 
+-	delete[] pbyBuf;
+ 	return true;
+ }
+
+--- a/src-client/Client/UserInterface/ServerStateChecker.cpp
++++ b/src-client/Client/UserInterface/ServerStateChecker.cpp
+@@ -68,6 +68,9 @@ void CServerStateChecker::Request()
+ {
+ 	if (m_lstChannel.empty())
+ 		return;
++	if (!m_poWnd)
++		return;
+ 
+ 	if (!m_kStream.Connect(m_lstChannel.begin()->c_szAddr, m_lstChannel.begin()->uPort))
+ 	{
+@@ -112,6 +115,14 @@ void CServerStateChecker::Update()
+ 	int nSize;
+ 	if (!m_kStream.Recv(sizeof(nSize), &nSize))
+ 		return;
++
++	if (nSize < 0)
++	{
++		Initialize();
++		return;
++	}
++	if (static_cast<size_t>(nSize) > m_lstChannel.size() || nSize > 64)
++	{
++		Initialize();
++		return;
++	}
+ 
+ 	for (int i = 0; i < nSize; i++)
+ 	{
+ 		TChannelStatus channelStatus;
+ 		if (!m_kStream.Recv(sizeof(channelStatus), &channelStatus))
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -365,7 +365,7 @@
+     if (ch->IsBlockMode(BLOCK_WHISPER))
+     {
+         if (ch->GetDesc())
+         {
+-            TPacketGCWhisper pack;
++            TPacketGCWhisper pack{};
+             pack.bHeader = HEADER_GC_WHISPER;
+             pack.bType = WHISPER_TYPE_SENDER_BLOCKED;
+             pack.wSize = sizeof(TPacketGCWhisper);
+@@ -404,7 +404,7 @@
+     if (!pkDesc)
+     {
+         if (ch->GetDesc())
+         {
+-            TPacketGCWhisper pack;
++            TPacketGCWhisper pack{};
+             pack.bHeader = HEADER_GC_WHISPER;
+             pack.bType = WHISPER_TYPE_NOT_EXIST;
+             pack.wSize = sizeof(TPacketGCWhisper);
+@@ -425,7 +425,7 @@
+         {
+             if (ch->GetDesc())
+             {
+-                TPacketGCWhisper pack;
++                TPacketGCWhisper pack{};
+                 pack.bHeader = HEADER_GC_WHISPER;
+                 pack.bType = WHISPER_TYPE_SENDER_BLOCKED;
+                 pack.wSize = sizeof(TPacketGCWhisper);
+@@ -437,7 +437,7 @@
+         else if (pkChr && pkChr->IsBlockMode(BLOCK_WHISPER))
+         {
+             if (ch->GetDesc())
+             {
+-                TPacketGCWhisper pack;
++                TPacketGCWhisper pack{};
+                 pack.bHeader = HEADER_GC_WHISPER;
+                 pack.bType = WHISPER_TYPE_TARGET_BLOCKED;
+                 pack.wSize = sizeof(TPacketGCWhisper);
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -885,7 +885,7 @@
+-        TPacketGGShout p;
++        TPacketGGShout p{};
+         p.bHeader = HEADER_GG_SHOUT;
+         p.bEmpire = ch->GetEmpire();
+         strlcpy(p.szText, chatbuf, sizeof(p.szText));
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -907,7 +907,7 @@
+-    TPacketGCChat pack_chat;
++    TPacketGCChat pack_chat{};
+     pack_chat.header = HEADER_GC_CHAT;
+     pack_chat.size = sizeof(TPacketGCChat) + len;
+     pack_chat.type = pinfo->type;
+
+--- a/server/metin2/Source/Server/game/src/shop.cpp
++++ b/server/metin2/Source/Server/game/src/shop.cpp
+@@ -31,7 +31,7 @@
+ CShop::~CShop()
+ {
+-    TPacketGCShop pack;
++    TPacketGCShop pack{};
+     pack.header = HEADER_GC_SHOP;
+     pack.subheader = SHOP_SUBHEADER_GC_END;
+     pack.size = sizeof(TPacketGCShop);
+
+--- a/server/metin2/Source/Server/game/src/guild.cpp
++++ b/server/metin2/Source/Server/game/src/guild.cpp
+@@ -487,7 +487,7 @@ void CGuild::SendLoginPacket(LPCHARACTER ch, DWORD pid)
+     if (!ch->GetDesc())
+         return;
+ 
+-    TPacketGCGuild pack;
++    TPacketGCGuild pack{};
+     pack.header = HEADER_GC_GUILD;
+     pack.size = sizeof(pack) + 4;
+     pack.subheader = GUILD_SUBHEADER_GC_LOGIN;
+@@ -516,7 +516,7 @@ void CGuild::SendLogoutPacket(LPCHARACTER ch, DWORD pid)
+     if (!ch->GetDesc())
+         return;
+ 
+-    TPacketGCGuild pack;
++    TPacketGCGuild pack{};
+     pack.header = HEADER_GC_GUILD;
+     pack.size = sizeof(pack) + 4;
+     pack.subheader = GUILD_SUBHEADER_GC_LOGOUT;
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -2142,7 +2142,7 @@ bool CPythonNetworkStream::SendCharacterPositionPacket(BYTE iPosition)
+-    TPacketCGPosition PositionPacket;
++    TPacketCGPosition PositionPacket{};
+     PositionPacket.header = HEADER_CG_CHARACTER_POSITION;
+     PositionPacket.position = iPosition;
+@@ -2158,7 +2158,7 @@ bool CPythonNetworkStream::SendOnClickPacket(DWORD vid)
+-    TPacketCGOnClick OnClickPacket;
++    TPacketCGOnClick OnClickPacket{};
+     OnClickPacket.header = HEADER_CG_ON_CLICK;
+     OnClickPacket.vid = vid;
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -3940,6 +3940,9 @@ void CInputMain::TargetInfo(LPCHARACTER pChar, const char* c_pszData)
+     const TPacketCGTargetInfo* c_pData = reinterpret_cast<const TPacketCGTargetInfo*>(c_pszData);
+     const LPCHARACTER pkTarget = CHARACTER_MANAGER::instance().Find(c_pData->dwVID);
+     if (pChar == nullptr || pkTarget == nullptr)
+         return;
++
++    if (!pChar->GetDesc())
++        return;
+@@ -3970,8 +3973,8 @@
+         if (TempBuffer.size())
+         {
+-            pChar->GetDesc()->BufferedPacket(&TargetInfoPacket, sizeof(TargetInfoPacket));
+-            pChar->GetDesc()->Packet(TempBuffer.read_peek(), TempBuffer.size());
++            pChar->GetDesc()->BufferedPacket(&TargetInfoPacket, sizeof(TargetInfoPacket));
++            pChar->GetDesc()->Packet(TempBuffer.read_peek(), TempBuffer.size());
+         }
+         else
+             pChar->GetDesc()->Packet(&TargetInfoPacket, sizeof(TargetInfoPacket));
+
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -1066,7 +1066,12 @@
+             idx++;
+         }
+ 
+-        db_clientdesc->DBPacket(HEADER_GD_MYSHOP_PRICELIST_UPDATE, GetDesc()->GetHandle(), &header, sizeof(TItemPriceListTable));
++        LPDESC d = GetDesc();
++        if (!d)
++            return;
++
++        db_clientdesc->DBPacket(HEADER_GD_MYSHOP_PRICELIST_UPDATE, d->GetHandle(), &header, sizeof(TItemPriceListTable));
+     }
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -2209,16 +2209,31 @@ bool CPythonNetworkStream::RecvShopPacket()
+     vecBuffer.clear();
+ 
+     TPacketGCShop packet_shop;
+     if (!Recv(sizeof(packet_shop), &packet_shop))
+         return false;
+ 
+-    int iSize = packet_shop.size - sizeof(packet_shop);
++    if (packet_shop.size < sizeof(packet_shop))
++        return false;
++
++    int iSize = static_cast<int>(packet_shop.size) - static_cast<int>(sizeof(packet_shop));
+     if (iSize > 0)
+     {
+         vecBuffer.resize(iSize);
+         if (!Recv(iSize, &vecBuffer[0]))
+             return false;
+     }
+ 
+     switch (packet_shop.subheader)
+     {
+         case SHOP_SUBHEADER_GC_START:
+         {
++            const int kMin = static_cast<int>(sizeof(DWORD) + sizeof(TPacketGCShopStart));
++            if (iSize < kMin)
++                return false;
++
+             CPythonShop::Instance().Clear();
+ 
+-            DWORD dwVID = *(DWORD*)&vecBuffer[0];
++            DWORD dwVID = *reinterpret_cast<DWORD*>(&vecBuffer[0]);
+ 
+-            TPacketGCShopStart* pShopStartPacket = (TPacketGCShopStart*)&vecBuffer[4];
++            TPacketGCShopStart* pShopStartPacket =
++                reinterpret_cast<TPacketGCShopStart*>(&vecBuffer[sizeof(DWORD)]);
+@@ -2248,10 +2263,18 @@
+         }
+         break;
+ 
+         case SHOP_SUBHEADER_GC_UPDATE_ITEM:
+         {
++            if (iSize < static_cast<int>(sizeof(TPacketGCShopUpdateItem)))
++                return false;
+             TPacketGCShopUpdateItem* pShopUpdateItemPacket = (TPacketGCShopUpdateItem*)&vecBuffer[0];
+             CPythonShop::Instance().SetItemData(pShopUpdateItemPacket->pos, pShopUpdateItemPacket->item);
+             PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "RefreshShop", Py_BuildValue("()"));
+         }
+         break;
+ 
+         case SHOP_SUBHEADER_GC_UPDATE_PRICE:
++            if (iSize < static_cast<int>(sizeof(int)))
++                return false;
+             PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "SetShopSellingPrice", Py_BuildValue("(i)", *(int*)&vecBuffer[0]));
+             break;
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -3713,8 +3713,17 @@ bool CPythonNetworkStream::RecvMessenger()
+     if (!Recv(sizeof(Packet), &Packet))
+         return false;
+ 
+-    UINT uiPacketSize = (Packet.wSize - sizeof(TPacketGCMessenger));
++    if (Packet.wSize < sizeof(TPacketGCMessenger))
++        return false;
++
++    UINT uiPacketSize = (Packet.wSize - sizeof(TPacketGCMessenger));
++    if (uiPacketSize % sizeof(TPacketGCMessengerList) != 0)
++        return false;
++
+     for (; uiPacketSize > 0; uiPacketSize -= sizeof(TPacketGCMessengerList))
+     {
+         TPacketGCMessengerList ListPacket;
+
+--- a/server/metin2/Source/Server/game/src/packet.h
++++ b/server/metin2/Source/Server/game/src/packet.h
+@@ -144,7 +144,6 @@ enum
+     // ...
+-    HEADER_CG_DUNGEON = 110,
+     // ...
+
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -3941,6 +3941,9 @@
+ 	if (pChar == nullptr || pkTarget == nullptr)
+ 		return;
+ 
++	if (!pChar->GetDesc())
++		return;
++
+ 	const DWORD dwVID = pkTarget->GetVID();
+ 	const DWORD dwRaceVnum = pkTarget->GetRaceNum();
+
+--- a/server/metin2/Source/Server/game/src/shop.cpp
++++ b/server/metin2/Source/Server/game/src/shop.cpp
+@@ -33,7 +33,7 @@
+ 
+ CShop::~CShop()
+ {
+-	TPacketGCShop pack;
++	TPacketGCShop pack{};
+ 
+ 	pack.header = HEADER_GC_SHOP;
+ 	pack.subheader = SHOP_SUBHEADER_GC_END;
+@@ -521,7 +521,7 @@
+ 
+ 	m_map_guest.insert(GuestMapType::value_type(ch, bOtherEmpire));
+ 
+-	TPacketGCShop pack;
++	TPacketGCShop pack{};
+ 
+ 	pack.header = HEADER_GC_SHOP;
+ 	pack.subheader = SHOP_SUBHEADER_GC_START;
+@@ -607,7 +607,7 @@
+ 	m_map_guest.erase(ch);
+ 	ch->SetShop(NULL);
+ 
+-	TPacketGCShop pack;
++	TPacketGCShop pack{};
+ 
+ 	pack.header = HEADER_GC_SHOP;
+ 	pack.subheader = SHOP_SUBHEADER_GC_END;
+@@ -637,8 +637,8 @@
+ 
+ void CShop::BroadcastUpdateItem(BYTE pos)
+ {
+-	TPacketGCShop pack;
+-	TPacketGCShopUpdateItem pack2;
++	TPacketGCShop pack{};
++	TPacketGCShopUpdateItem pack2{};
+ 
+ 	TEMP_BUFFER buf;
+
+--- a/server/metin2/Source/Server/game/src/shop_manager.cpp
++++ b/server/metin2/Source/Server/game/src/shop_manager.cpp
+@@ -254,13 +254,17 @@
+ 
+ 	if (SHOP_SUBHEADER_GC_OK != ret) // 문제가 있을때만 보낸다.
+ 	{
+-		TPacketGCShop pack;
++		TPacketGCShop pack{};
+ 
+ 		pack.header = HEADER_GC_SHOP;
+ 		pack.subheader = ret;
+ 		pack.size = sizeof(TPacketGCShop);
+ 
+-		ch->GetDesc()->Packet(&pack, sizeof(pack));
++		LPDESC d = ch->GetDesc();
++		if (!d)
++			return;
++
++		d->Packet(&pack, sizeof(pack));
+ 	}
+ }
+
+--- a/server/metin2/Source/Server/game/src/ShopSearchManager.cpp
++++ b/server/metin2/Source/Server/game/src/ShopSearchManager.cpp
+@@ -32,7 +32,7 @@
+ 
+ void CShopSearchManager::OnBuyShopItem(DWORD itemVnum, DWORD itemCount, uint64_t price)
+ {
+-	TPacketGDShopSearchSoldItem pack;
++	TPacketGDShopSearchSoldItem pack{};
+ 	pack.itemVnum = itemVnum;
+ 	pack.itemCount = itemCount;
+ 	pack.price = price;
+@@ -47,7 +47,10 @@
+ 
+ void CShopSearchManager::PC_RequestSearch(LPCHARACTER ch, const std::string& itemName, WORD page, BYTE entryCountIdx, BYTE sortType)
+ {
+-	TPacketGDShopSearchByName pack;
++	if (!ch || !ch->GetDesc())
++		return;
++
++	TPacketGDShopSearchByName pack{};
+ //	BYTE bLocale = ch->GetDesc() ? ch->GetDesc()->GetLanguage() : LOCALE_EN;
+ //	pack.langID = bLocale; 
+ 	strlcpy(pack.itemName, itemName.c_str(), sizeof(pack.itemName));
+@@ -60,7 +63,10 @@
+ 
+ void CShopSearchManager::PC_RequestSearch(LPCHARACTER ch, const TShopSearchOptions* options, const TShopSearchItemType* itemTypeFlags, const DWORD* vnumList, WORD page, BYTE entryCountIdx, BYTE sortType)
+ {
+-	TPacketGDShopSearchByOptions pack;
++	if (!ch || !ch->GetDesc())
++		return;
++
++	TPacketGDShopSearchByOptions pack{};
+ 	pack.options = *options;
+ 	pack.page = page;
+ 	pack.entryCountIdx = entryCountIdx;
+@@ -78,6 +84,9 @@
+ 
+ void CShopSearchManager::PC_RequestBuy(LPCHARACTER ch, TOfflineItemID itemID, DWORD itemVnum, int64_t itemPrice)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
+ 	if (ch->GetGold() < itemPrice)
+ 		return;
+ 
+@@ -86,7 +95,7 @@
+ 
+ 	ch->PointChange(POINT_GOLD, -itemPrice);
+ 
+-	TPacketGDShopSearchRequestBuy pack;
++	TPacketGDShopSearchRequestBuy pack{};
+ 	pack.ownerID = ch->GetPlayerID();
+ 	pack.offlineID = itemID;
+ 	pack.itemVnum = itemVnum;
+@@ -98,6 +107,9 @@
+ 
+ void CShopSearchManager::PC_RequestSoldInfo(LPCHARACTER ch, DWORD itemVnum)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
+ 	db_clientdesc->DBPacket(HEADER_GD_SHOP_SEARCH_REQUEST_SOLD_INFO, ch->GetDesc()->GetHandle(), &itemVnum, sizeof(DWORD));
+ }
+ 
+@@ -107,14 +119,28 @@
+ 
+ void CShopSearchManager::DB_ResultSearch(LPCHARACTER ch, WORD maxPageNum, const TShopSearchClientItem* items, WORD itemCount)
+ {
+-	TPacketGCShopSearchResult pack;
++	if (!ch || !ch->GetDesc())
++		return;
++
++	if (itemCount > 0 && items == NULL)
++		return;
++
++	const size_t maxCount = (0xFFFF - sizeof(TPacketGCShopSearchResult)) / sizeof(TShopSearchClientItem);
++	if (itemCount > maxCount)
++	{
++		sys_err("DB_ResultSearch: itemCount overflow (%u)", itemCount);
++		return;
++	}
++
++	TPacketGCShopSearchResult pack{};
+ 	pack.header = HEADER_GC_SHOP_SEARCH_RESULT;
+ 	pack.size = sizeof(pack) + sizeof(TShopSearchClientItem) * itemCount;
+ 	pack.itemCount = itemCount;
+ 	pack.maxPageNum = maxPageNum;
+ 
+ 	ch->GetDesc()->BufferedPacket(&pack, sizeof(pack));
+-	ch->GetDesc()->Packet(items, sizeof(TShopSearchClientItem) * itemCount);
++	if (itemCount > 0)
++		ch->GetDesc()->Packet(items, sizeof(TShopSearchClientItem) * itemCount);
+ }
+ 
+ void CShopSearchManager::DB_BuyFromShop(const TPacketDGShopSearchBuyFromShop* data)
+@@ -156,7 +182,7 @@
+ #else
+ 		data->itemPrice, item->GetSockets(), item->GetAttributes(), item->GetTransmutationVnum());
+ #endif
+-	TPacketGDShopSearchBoughtFromShop pack;
++	TPacketGDShopSearchBoughtFromShop pack{};
+ 	pack.buyerDBHandle = data->buyerDBHandle;
+ 	ITEM_MANAGER::Instance().GetPlayerItem(item, &pack.item);
+ 	pack.item.dwOwner = data->buyerPID;
+@@ -183,6 +209,11 @@
+ 		TPlayerItem* itemData = (TPlayerItem*) data;
+ 
+ 		LPITEM item = ITEM_MANAGER::instance().CreateItem(itemData->dwVnum, itemData->dwCount);
++		if (!item)
++		{
++			sys_err("DB_BuyResult: cannot create item");
++			return;
++		}
+ 		item->SetAttributes(itemData->aAttr);
+ #if defined(__ITEM_APPLY_RANDOM__)
+ 		item->SetRandomApplies(itemData->aApplyRandom);
+@@ -221,7 +252,7 @@
+ 
+ 	if (ch)
+ 	{
+-		TPacketGCShopSearchBuyResult pack;
++		TPacketGCShopSearchBuyResult pack{};
+ 		pack.header = HEADER_GC_SHOP_SEARCH_BUY_RESULT;
+ 		pack.result = resultType;
+ 
+@@ -231,7 +262,7 @@
+ 
+ void CShopSearchManager::DB_SoldInfo(LPCHARACTER ch, bool hasResults, const TShopSearchSoldItemInfo* results)
+ {
+-	TPacketGCShopSearchSoldInfo pack;
++	TPacketGCShopSearchSoldInfo pack{};
+ 	pack.header = HEADER_GC_SHOP_SEARCH_SOLD_INFO;
+ 	pack.size = sizeof(pack);
+ 	pack.results = hasResults;
+
+--- a/server/metin2/Source/Server/game/src/guild.cpp
++++ b/server/metin2/Source/Server/game/src/guild.cpp
+@@ -49,7 +49,7 @@
+ 
+ 		DWORD id;
+ 		const char* name;
+-		TPacketGCGuild p;
++		TPacketGCGuild p{};
+ 	};
+ }
+ 
+@@ -326,7 +326,7 @@
+ 
+ void CGuild::SendOnlineRemoveOnePacket(DWORD pid)
+ {
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 4;
+ 	pack.subheader = GUILD_SUBHEADER_GC_REMOVE;
+@@ -352,7 +352,7 @@
+ 	if (!d)
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 1 + GUILD_GRADE_COUNT * (sizeof(TGuildGrade) + 1);
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE;
+@@ -380,7 +380,7 @@
+ 
+ void CGuild::SendListOneToAll(DWORD pid)
+ {
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(TPacketGCGuild);
+ 	pack.subheader = GUILD_SUBHEADER_GC_LIST;
+@@ -431,7 +431,7 @@
+ 	if (!(d = ch->GetDesc()))
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(TPacketGCGuild);
+ 	pack.subheader = GUILD_SUBHEADER_GC_LIST;
+@@ -487,7 +487,7 @@
+ 	if (!ch->GetDesc())
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 4;
+ 	pack.subheader = GUILD_SUBHEADER_GC_LOGIN;
+@@ -516,7 +516,7 @@
+ 	if (!ch->GetDesc())
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 4;
+ 	pack.subheader = GUILD_SUBHEADER_GC_LOGOUT;
+@@ -722,7 +722,7 @@
+ 		{
+ 			strlcpy(m_data.grade_array[grade].grade_name, name, sizeof(m_data.grade_array[grade].grade_name));
+ 
+-			TPacketGCGuild pack;
++			TPacketGCGuild pack{};
+ 
+ 			pack.header = HEADER_GC_GUILD;
+ 			pack.size = sizeof(pack);
+@@ -752,7 +752,7 @@
+ 		{
+ 			m_data.grade_array[grade].auth_flag = auth;
+ 
+-			TPacketGCGuild pack;
++			TPacketGCGuild pack{};
+ 			pack.header = HEADER_GC_GUILD;
+ 			pack.size = sizeof(pack);
+ 			pack.subheader = GUILD_SUBHEADER_GC_GRADE_AUTH;
+@@ -838,7 +838,7 @@
+ 	grade--;
+ 	strlcpy(m_data.grade_array[grade].grade_name, grade_name, sizeof(m_data.grade_array[grade].grade_name));
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack);
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE_NAME;
+@@ -878,7 +878,7 @@
+ 
+ 	m_data.grade_array[grade].auth_flag = auth;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack);
+ 	pack.subheader = GUILD_SUBHEADER_GC_GRADE_AUTH;
+@@ -908,7 +908,7 @@
+ 	if (!d)
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(TPacketGCGuild) + sizeof(TPacketGCGuildInfo);
+ 	pack.subheader = GUILD_SUBHEADER_GC_INFO;
+@@ -969,7 +969,7 @@
+ 	cit->second.offer_exp += amount / 100;
+ 	cit->second._dummy = 0;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 
+ 	for (TGuildMemberOnlineContainer::iterator it = m_memberOnline.begin(); it != m_memberOnline.end(); ++it)
+@@ -1097,7 +1097,7 @@
+ 
+ 	std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery("SELECT id, name, content FROM guild_comment%s WHERE guild_id = %u ORDER BY notice DESC, id DESC LIMIT %d", get_table_postfix(), m_data.guild_id, GUILD_COMMENT_MAX_COUNT));
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 1;
+ 	pack.subheader = GUILD_SUBHEADER_GC_COMMENTS;
+@@ -1160,7 +1160,7 @@
+ 
+ 	TGuildMemberOnlineContainer::iterator itOnline = m_memberOnline.begin();
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 5;
+ 	pack.subheader = GUILD_SUBHEADER_GC_CHANGE_MEMBER_GENERAL;
+@@ -1208,7 +1208,7 @@
+ 
+ 	TGuildMemberOnlineContainer::iterator itOnline = m_memberOnline.begin();
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 5;
+ 	pack.subheader = GUILD_SUBHEADER_GC_CHANGE_MEMBER_GRADE;
+@@ -1468,7 +1468,7 @@
+ 	if (!d)
+ 		return;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 
+ 	pack.header = HEADER_GC_GUILD;
+ 	pack.size = sizeof(pack) + 6 + GUILD_SKILL_COUNT;
+@@ -1617,7 +1617,7 @@
+ 			}
+ 		}
+ 
+-		TPacketGCGuild pack;
++		TPacketGCGuild pack{};
+ 		pack.header = HEADER_GC_GUILD;
+ 		pack.size = sizeof(pack) + 5;
+ 		pack.subheader = GUILD_SUBHEADER_GC_CHANGE_EXP;
+@@ -1679,7 +1679,7 @@
+ 
+ 	db_clientdesc->DBPacket(HEADER_GD_GUILD_CHANGE_MEMBER_DATA, 0, &gd_guild, sizeof(gd_guild));
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	pack.header = HEADER_GC_GUILD;
+ 	cit->second._dummy = 0;
+ 
+@@ -1709,7 +1709,7 @@
+ 	cit->second.grade = grade;
+ 	cit->second._dummy = 0;
+ 
+-	TPacketGCGuild pack;
++	TPacketGCGuild pack{};
+ 	memset(&pack, 0, sizeof(pack));
+ 	pack.header = HEADER_GC_GUILD;
+ 
+@@ -1963,7 +1963,7 @@
+ {
+ 	m_data.gold = iGold;
+ 
+-	TPacketGCGuild p;
++	TPacketGCGuild p{};
+ 	p.header = HEADER_GC_GUILD;
+ 	p.size = sizeof(p) + sizeof(int);
+ 	p.subheader = GUILD_SUBHEADER_GC_MONEY_CHANGE;
+@@ -2105,7 +2105,7 @@
+ 
+ 	DWORD gid = GetID();
+ 
+-	TPacketGCGuild p;
++	TPacketGCGuild p{};
+ 	p.header = HEADER_GC_GUILD;
+ 	p.size = sizeof(p) + sizeof(DWORD) + GUILD_NAME_MAX_LEN + 1;
+ 	p.subheader = GUILD_SUBHEADER_GC_GUILD_INVITE;
+
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -1067,7 +1067,11 @@
+ 			idx++;
+ 		}
+ 
+-		db_clientdesc->DBPacket(HEADER_GD_MYSHOP_PRICELIST_UPDATE, GetDesc()->GetHandle(), &header, sizeof(TItemPriceListTable));
++		LPDESC d = GetDesc();
++		if (!d)
++			return;
++
++		db_clientdesc->DBPacket(HEADER_GD_MYSHOP_PRICELIST_UPDATE, d->GetHandle(), &header, sizeof(TItemPriceListTable));
+ 	}
+ 	// END_OF_MYSHOP_PRICE_LIST
+ 	else if (CountSpecifyItem(50200))
+@@ -1078,7 +1082,7 @@
+ 	if (m_pkExchange)
+ 		m_pkExchange->Cancel();
+ 
+-	TPacketGCShopSign p;
++	TPacketGCShopSign p{};
+ 
+ 	p.bHeader = HEADER_GC_SHOP_SIGN;
+ 	p.dwVID = GetVID();
+@@ -1125,7 +1129,7 @@
+ 		SetMyPrivShopTabCount(1);
+ #endif
+ 
+-		TPacketGCShopSign p;
++		TPacketGCShopSign p{};
+ 
+ 		p.bHeader = HEADER_GC_SHOP_SIGN;
+ 		p.dwVID = GetVID();
+@@ -1656,7 +1660,7 @@
+ 
+ 	if (GetMyShop())
+ 	{
+-		TPacketGCShopSign p;
++		TPacketGCShopSign p{};
+ 		p.bHeader = HEADER_GC_SHOP_SIGN;
+ 		p.dwVID = GetVID();
+ 		strlcpy(p.szSign, m_stShopSign.c_str(), sizeof(p.szSign));
+
+--- a/server/metin2/Source/Server/game/src/packet.h
++++ b/server/metin2/Source/Server/game/src/packet.h
+@@ -144,7 +144,7 @@
+ 	//HEADER_CG_UNUSED = 107,
+ 	//HEADER_CG_UNUSED = 108,
+ 	HEADER_CG_LOGIN2 = 109,
+-	HEADER_CG_DUNGEON = 110,
++	// HEADER_CG_DUNGEON = 110, // zombie: no handler registered
+ 	HEADER_CG_LOGIN3 = 111,
+ 
+ 	HEADER_CG_GUILD_SYMBOL_UPLOAD = 112,
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -2139,7 +2139,7 @@
+ 
+ bool CPythonNetworkStream::SendCharacterPositionPacket(BYTE iPosition)
+ {
+-	TPacketCGPosition PositionPacket;
++	TPacketCGPosition PositionPacket{};
+ 
+ 	PositionPacket.header = HEADER_CG_CHARACTER_POSITION;
+ 	PositionPacket.position = iPosition;
+@@ -2155,7 +2155,7 @@
+ 
+ bool CPythonNetworkStream::SendOnClickPacket(DWORD vid)
+ {
+-	TPacketCGOnClick OnClickPacket;
++	TPacketCGOnClick OnClickPacket{};
+ 	OnClickPacket.header = HEADER_CG_ON_CLICK;
+ 	OnClickPacket.vid = vid;
+ 
+@@ -2214,6 +2214,9 @@
+ 	if (!Recv(sizeof(packet_shop), &packet_shop))
+ 		return false;
+ 
++	if (packet_shop.size < sizeof(packet_shop))
++		return false;
++
+ 	int iSize = packet_shop.size - sizeof(packet_shop);
+ 	if (iSize > 0)
+ 	{
+@@ -2226,6 +2229,10 @@
+ 	{
+ 		case SHOP_SUBHEADER_GC_START:
+ 		{
++			const int kMin = (int)(sizeof(DWORD) + sizeof(TPacketGCShopStart));
++			if (iSize < kMin)
++				return false;
++
+ 			CPythonShop::Instance().Clear();
+ 
+ 			DWORD dwVID = *(DWORD*)&vecBuffer[0];
+@@ -2253,6 +2260,9 @@
+ 
+ 		case SHOP_SUBHEADER_GC_UPDATE_ITEM:
+ 		{
++			if (iSize < (int)sizeof(TPacketGCShopUpdateItem))
++				return false;
++
+ 			TPacketGCShopUpdateItem* pShopUpdateItemPacket = (TPacketGCShopUpdateItem*)&vecBuffer[0];
+ 			CPythonShop::Instance().SetItemData(pShopUpdateItemPacket->pos, pShopUpdateItemPacket->item);
+ 			PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "RefreshShop", Py_BuildValue("()"));
+@@ -2260,6 +2270,8 @@
+ 		break;
+ 
+ 		case SHOP_SUBHEADER_GC_UPDATE_PRICE:
++			if (iSize < (int)sizeof(int))
++				return false;
+ 			PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "SetShopSellingPrice", Py_BuildValue("(i)", *(int*)&vecBuffer[0]));
+ 			break;
+ 
+@@ -3712,7 +3724,12 @@
+ 	if (!Recv(sizeof(Packet), &Packet))
+ 		return false;
+ 
++	if (Packet.wSize < sizeof(TPacketGCMessenger))
++		return false;
++
+ 	UINT uiPacketSize = (Packet.wSize - sizeof(TPacketGCMessenger));
++	if (uiPacketSize % sizeof(TPacketGCMessengerList) != 0)
++		return false;
+ 	for (; uiPacketSize > 0; uiPacketSize -= sizeof(TPacketGCMessengerList))
+ 	{
+ 		TPacketGCMessengerList ListPacket;
+
+--- a/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
+@@ -21,14 +21,23 @@
+ template <class Func> Func CDungeon::ForEachMember(Func f)
+ {
+-	auto it = m_set_pkCharacter.begin();
+-	for (; it != m_set_pkCharacter.end(); ++it)
+-	{
+-		sys_log(0, "Dungeon ForEachMember %s", (*it)->GetName());
+-		f(*it);
+-	}
++	// Safe iteration: f() may trigger logout/warp which can remove the character
++	// from m_set_pkCharacter, so we must advance the iterator before calling f().
++	auto it = m_set_pkCharacter.begin();
++	while (it != m_set_pkCharacter.end())
++	{
++		LPCHARACTER ch = *it;
++		++it;
++
++		if (!ch)
++			continue;
++
++		sys_log(0, "Dungeon ForEachMember %s", ch->GetName());
++		f(ch);
++	}
+ 	return f;
+ }
+
+--- a/server/metin2/Source/Server/game/src/party.cpp
++++ b/server/metin2/Source/Server/game/src/party.cpp
+@@ -1098,7 +1098,12 @@
+ 
+ LPCHARACTER CParty::GetLeaderCharacter()
+ {
+-	return m_memberMap[GetLeaderPID()].pCharacter;
++	TMemberMap::iterator it = m_memberMap.find(GetLeaderPID());
++	if (it == m_memberMap.end())
++		return NULL;
++
++	return it->second.pCharacter;
+ }
+
+--- a/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/questlua_dungeon.cpp
+@@ -452,6 +452,12 @@
+ 
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+ 
++		// Prevent invalid/unloaded map index from freezing/crashing core
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
++		{
++			sys_err("d.new_jump: invalid map index %ld", lMapIndex);
++			return 0;
++		}
++
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+ 
+ 		if (!pDungeon)
+@@ -476,6 +482,12 @@
+ 
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+ 
++		// Prevent invalid/unloaded map index from freezing/crashing core
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
++		{
++			sys_err("d.new_jump_all: invalid map index %ld", lMapIndex);
++			return 0;
++		}
++
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+ 
+ 		if (!pDungeon)
+@@ -500,6 +512,12 @@
+ 
+ 		long lMapIndex = (long)lua_tonumber(L, 1);
+ 
++		// Prevent invalid/unloaded map index from freezing/crashing core
++		if (SECTREE_MANAGER::instance().GetMap(lMapIndex) == NULL)
++		{
++			sys_err("d.new_jump_party: invalid map index %ld", lMapIndex);
++			return 0;
++		}
++
+ 		LPDUNGEON pDungeon = CDungeonManager::instance().Create(lMapIndex);
+ 
+ 		if (!pDungeon)
+
+--- a/server/metin2/Source/Server/game/src/dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/dungeon.cpp
+@@ -72,10 +72,16 @@
+ 
+ 	void operator()(LPCHARACTER ch)
+ 	{
+-		ch->GetDesc()->BufferedPacket(&p1, sizeof(TPacketGCDungeon));
+-		ch->GetDesc()->Packet(&p2, sizeof(TPacketGCDungeonDestPosition));
++		if (!ch)
++			return;
++
++		LPDESC d = ch->GetDesc();
++		if (!d)
++			return;
++
++		d->BufferedPacket(&p1, sizeof(TPacketGCDungeon));
++		d->Packet(&p2, sizeof(TPacketGCDungeonDestPosition));
+ 	}
+ 
+ 	TPacketGCDungeon p1;
+
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -564,6 +564,8 @@
+ 	m_iSyncHackCount = 0;
+ 
+ #ifdef ENABLE_EXTENDED_BATTLE_PASS
++	for (TPlayerExtBattlePassMission* pMission : m_listExtBattlePass)
++		delete pMission;
+ 	m_listExtBattlePass.clear();
+ 	m_bIsLoadedExtBattlePass = false;
+ 	m_dwLastReciveExtBattlePassInfoTime = 0;
+@@ -634,6 +636,12 @@
+ void CHARACTER::Destroy()
+ {
+ 	CloseMyShop();
++#ifdef ENABLE_EXTENDED_BATTLE_PASS
++	for (TPlayerExtBattlePassMission* pMission : m_listExtBattlePass)
++		delete pMission;
++	m_listExtBattlePass.clear();
++	m_bIsLoadedExtBattlePass = false;
++#endif
+ #ifdef __OFFLINE_SHOP__
+ 	RemoveFromViewingOfflineShops();
+ #endif
+@@ -11705,7 +11713,11 @@
+ 				if (!foundMission)
+ 				{
+ 					if (!IsExtBattlePassRegistered(bBattlePassType, bBattlePassID))
+-						DBManager::instance().DirectQuery("INSERT INTO player.battlepass_playerindex SET player_id=%d, player_name='%s', battlepass_type=%d, battlepass_id=%d, start_time=NOW()", GetPlayerID(), GetName(), bBattlePassType, bBattlePassID);
++						{
++							char szNameEsc[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++							DBManager::instance().EscapeString(szNameEsc, sizeof(szNameEsc), GetName(), strlen(GetName()));
++							DBManager::instance().DirectQuery("INSERT INTO player.battlepass_playerindex SET player_id=%d, player_name='%s', battlepass_type=%d, battlepass_id=%d, start_time=NOW()", GetPlayerID(), szNameEsc, bBattlePassType, bBattlePassID);
++						}
+ 					
+ 					TPlayerExtBattlePassMission* newMission = new TPlayerExtBattlePassMission;
+ 					newMission->dwPlayerId = GetPlayerID();
+@@ -11847,7 +11859,11 @@
+ 		if (!foundMission)
+ 		{
+ 			if (!IsExtBattlePassRegistered(bBattlePassType, bBattlePassID))
+-				DBManager::instance().DirectQuery("INSERT INTO player.battlepass_playerindex SET player_id=%d, player_name='%s', battlepass_type=%d, battlepass_id=%d, start_time=NOW()", GetPlayerID(), GetName(), bBattlePassType, bBattlePassID);
++				{
++					char szNameEsc[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++					DBManager::instance().EscapeString(szNameEsc, sizeof(szNameEsc), GetName(), strlen(GetName()));
++					DBManager::instance().DirectQuery("INSERT INTO player.battlepass_playerindex SET player_id=%d, player_name='%s', battlepass_type=%d, battlepass_id=%d, start_time=NOW()", GetPlayerID(), szNameEsc, bBattlePassType, bBattlePassID);
++				}
+ 
+ 			TPlayerExtBattlePassMission* newMission = new TPlayerExtBattlePassMission;
+ 			newMission->dwPlayerId = GetPlayerID();
+
+--- a/server/metin2/Source/Server/game/src/guild.cpp
++++ b/server/metin2/Source/Server/game/src/guild.cpp
+@@ -1071,10 +1071,10 @@
+ {
+ 	SQLMsg* pmsg;
+ 
+-	if (GetMember(ch->GetPlayerID())->grade == GUILD_LEADER_GRADE)
++	if (pMember->grade == GUILD_LEADER_GRADE)
+ 		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u", get_table_postfix(), comment_id, m_data.guild_id);
+ 	else
+-		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u AND name = '%s'", get_table_postfix(), comment_id, m_data.guild_id, ch->GetName());
++		pmsg = DBManager::instance().DirectQuery("DELETE FROM guild_comment%s WHERE id = %u AND guild_id = %u AND name = '%s'", get_table_postfix(), comment_id, m_data.guild_id, szNameEsc);
+ 
+ 	if (pmsg->Get()->uiAffectedRows == 0 || pmsg->Get()->uiAffectedRows == (uint32_t)-1)
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<>    Դϴ."));
+@@ -1297,7 +1297,7 @@
+ {
+ 	LPCHARACTER victim = NULL;
+ 
+-	if (!GetMember(ch->GetPlayerID()) || !HasGradeAuth(GetMember(ch->GetPlayerID())->grade, GUILD_AUTH_USE_SKILL))
++	if (!GetMember(ch->GetPlayerID()) || !HasGradeAuth(pMember->grade, GUILD_AUTH_USE_SKILL))
+ 		return;
+ 
+ 	sys_log(0, "GUILD_USE_SKILL : cname(%s), skill(%d)", ch ? ch->GetName() : "", dwVnum);
+
+--- a/server/metin2/Source/Server/game/src/guild_manager.cpp
++++ b/server/metin2/Source/Server/game/src/guild_manager.cpp
+@@ -201,6 +201,10 @@
+ 	{
+ 		sys_log(0, "	No need for auth server");
+ 		return;
++
++	char szGuildNameEsc[(GUILD_NAME_MAX_LEN + 1) * 2 + 1];
++	DBManager::instance().EscapeString(szGuildNameEsc, sizeof(szGuildNameEsc), gcp.name, strlen(gcp.name));
++
+ 	}
+ 
+ 	std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery("SELECT id FROM guild%s", get_table_postfix()));
+
+--- a/server/metin2/Source/Server/game/src/input_login.cpp
++++ b/server/metin2/Source/Server/game/src/input_login.cpp
+@@ -734,8 +734,11 @@
+ 	ch->SendGreetMessage();
+ 	_send_bonus_info(ch);
+ 
++	char szNameEsc[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++	DBManager::instance().EscapeString(szNameEsc, sizeof(szNameEsc), ch->GetName(), strlen(ch->GetName()));
++
+ 	std::unique_ptr<SQLMsg> pMsg(DBManager::instance().DirectQuery("UPDATE player%s SET `last_play` = NOW() WHERE `name` = '%s'",
+-		get_table_postfix(), ch->GetName())
++		get_table_postfix(), szNameEsc)
+ 	);
+ 
+ 	ch->LoadSafeboxBuff();
+
+--- a/server/metin2/Source/Server/game/src/questlua_pc.cpp
++++ b/server/metin2/Source/Server/game/src/questlua_pc.cpp
+@@ -2504,6 +2504,9 @@
+ 
+ 		const char* szName = lua_tostring(L, 1);
+ 
++	char szNameEsc[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++	DBManager::instance().EscapeString(szNameEsc, sizeof(szNameEsc), szName ? szName : "", szName ? strlen(szName) : 0);
++
+ 		if (check_name(szName) == false)
+ 		{
+ 			lua_pushnumber(L, 2);
+@@ -2511,7 +2514,7 @@
+ 		}
+ 
+ 		char szQuery[1024];
+-		snprintf(szQuery, sizeof(szQuery), "SELECT COUNT(*) FROM player%s WHERE name='%s'", get_table_postfix(), szName);
++		snprintf(szQuery, sizeof(szQuery), "SELECT COUNT(*) FROM player%s WHERE name='%s'", get_table_postfix(), szNameEsc);
+ 		std::unique_ptr<SQLMsg> pmsg(DBManager::instance().DirectQuery(szQuery));
+ 
+ 		if (pmsg->Get()->uiNumRows > 0)
+
+--- a/server/metin2/Source/Server/game/src/cube.cpp
++++ b/server/metin2/Source/Server/game/src/cube.cpp
+@@ -448,6 +448,7 @@
+ 				pRewardItem->SetItemSetValue(pkCube.iSetValue);
+ #endif
+ 				ITEM_MANAGER::instance().RemoveItem(pNotRemoveItem, "CUBE COPY");
++				pNotRemoveItem = nullptr;
+ 			}
+ 			else
+ 			{
+
+--- a/server/metin2/Source/Server/game/src/minigame_catchking.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_catchking.cpp
+@@ -512,10 +512,13 @@
+ 	if (!pkChar->GetDesc())
+ 		return;
+ 
++	char szNameEsc[(CHARACTER_NAME_MAX_LEN + 1) * 2 + 1];
++	DBManager::instance().EscapeString(szNameEsc, sizeof(szNameEsc), pkChar->GetName(), strlen(pkChar->GetName()));
++
+ 	char querySelect[256];
+ 
+ 	snprintf(querySelect, sizeof(querySelect),
+-		"SELECT max_score FROM log.catck_king_event WHERE name = '%s' LIMIT 1;", pkChar->GetName());
++		"SELECT max_score FROM log.catck_king_event WHERE name = '%s' LIMIT 1;", szNameEsc);
+ 
+ 	std::unique_ptr<SQLMsg> pSelectMsg(DBManager::instance().DirectQuery(querySelect));
+ 	SQLResult* resSelect = pSelectMsg->Get();
+@@ -527,9 +530,9 @@
+ 		str_to_number(maxScore, row[0]);
+ 
+ 		if (dwScore > maxScore)
+-			DBManager::instance().DirectQuery("UPDATE log.catck_king_event SET max_score = %d, total_score = total_score + %d WHERE name = '%s';", dwScore, dwScore, pkChar->GetName());
++			DBManager::instance().DirectQuery("UPDATE log.catck_king_event SET max_score = %d, total_score = total_score + %d WHERE name = '%s';", dwScore, dwScore, szNameEsc);
+ 		else
+-			DBManager::instance().DirectQuery("UPDATE log.catck_king_event SET total_score = total_score + %d WHERE name = '%s';", dwScore, pkChar->GetName());
++			DBManager::instance().DirectQuery("UPDATE log.catck_king_event SET total_score = total_score + %d WHERE name = '%s';", dwScore, szNameEsc);
+ 	}
+ 	else
+ 	{
+
+--- a/server/metin2/Source/Server/game/src/battlepass_manager.cpp
++++ b/server/metin2/Source/Server/game/src/battlepass_manager.cpp
+@@ -1298,7 +1298,7 @@
+ 				TPacketGCExtBattlePassGeneralInfo packet;
+ 				packet.bHeader = HEADER_GC_EXT_BATTLE_PASS_GENERAL_INFO;
+ 				packet.bBattlePassType = 1;
+-				strcpy(packet.szSeasonName, season_name);
++				strlcpy(packet.szSeasonName, season_name, sizeof(packet.szSeasonName));
+ 				packet.dwBattlePassID = timeInfo[0].bBattlePassId;
+ 				packet.dwBattlePassStartTime = timeInfo[0].dwStartTime;
+ 				packet.dwBattlePassEndTime = timeInfo[0].dwEndTime;
+@@ -1325,7 +1325,7 @@
+ 				TPacketGCExtBattlePassGeneralInfo packet;
+ 				packet.bHeader = HEADER_GC_EXT_BATTLE_PASS_GENERAL_INFO;
+ 				packet.bBattlePassType = 2;
+-				strcpy(packet.szSeasonName, season_name);
++				strlcpy(packet.szSeasonName, season_name, sizeof(packet.szSeasonName));
+ 				packet.dwBattlePassID = timeInfo[0].bBattlePassId;
+ 				packet.dwBattlePassStartTime = timeInfo[0].dwStartTime;
+ 				packet.dwBattlePassEndTime = timeInfo[0].dwEndTime;
+@@ -1352,7 +1352,7 @@
+ 				TPacketGCExtBattlePassGeneralInfo packet;
+ 				packet.bHeader = HEADER_GC_EXT_BATTLE_PASS_GENERAL_INFO;
+ 				packet.bBattlePassType = 3;
+-				strcpy(packet.szSeasonName, season_name);
++				strlcpy(packet.szSeasonName, season_name, sizeof(packet.szSeasonName));
+ 				packet.dwBattlePassID = timeInfo[0].bBattlePassId;
+ 				packet.dwBattlePassStartTime = timeInfo[0].dwStartTime;
+ 				packet.dwBattlePassEndTime = timeInfo[0].dwEndTime;
+
+--- a/server/metin2/Source/Server/game/src/char.h
++++ b/server/metin2/Source/Server/game/src/char.h
+@@ -2723,7 +2723,7 @@
+ 	char* GetItemAward_cmd() { return itemAward_cmd; }
+ 	//bool GetItemAward_flag() { return itemAward_flag; }
+ 	void SetItemAward_vnum(unsigned int vnum) { itemAward_vnum = vnum; }
+-	void SetItemAward_cmd(char* cmd) { strcpy(itemAward_cmd, cmd); }
++	void SetItemAward_cmd(char* cmd) { strlcpy(itemAward_cmd, cmd ? cmd : "", sizeof(itemAward_cmd)); }
+ 	//void SetItemAward_flag(bool flag) { itemAward_flag = flag; }
+ 
+ #if defined(__MOVE_COSTUME_ATTR__)
+
+--- a/server/metin2/Source/Server/game/src/desc_manager.h
++++ b/server/metin2/Source/Server/game/src/desc_manager.h
+@@ -18,6 +18,15 @@
+ 	typedef std::map<DWORD, LPDESC> DESC_ACCOUNTID_MAP;
+ 	typedef std::unordered_map<std::string, LPDESC> DESC_LOGINNAME_MAP;
+ 	typedef std::map<DWORD, DWORD> DESC_HANDLE_RANDOM_KEY_MAP;
++
++	struct SIpConnStat
++	{
++		DWORD dwWindowStart;
++		int iWindowCount;
++		int iActive;
++		SIpConnStat() : dwWindowStart(0), iWindowCount(0), iActive(0) {}
++	};
++	typedef std::unordered_map<std::string, SIpConnStat> IP_CONN_MAP;
+ 
+ public:
+ 	DESC_MANAGER();
+@@ -72,9 +81,17 @@
+ #endif 
+ 
+ private:
++	bool CheckAndUpdateIPConnection(const char* host);
++	void DecreaseIPActive(const char* host);
++
+ 	bool m_bDisconnectInvalidCRC;
+ 
+ 	DESC_HANDLE_RANDOM_KEY_MAP m_map_handle_random_key;
++
++	IP_CONN_MAP m_map_ip_conn;
++	int m_iMaxConnPerIP;
++	int m_iMaxConnPerIPWindow;
++	int m_iConnWindowSec;
+ 
+ 	CLIENT_DESC_SET m_set_pkClientDesc;
+ 	DESC_SET m_set_pkDesc;
+
+--- a/server/metin2/Source/Server/game/src/desc_manager.cpp
++++ b/server/metin2/Source/Server/game/src/desc_manager.cpp
+@@ -53,6 +53,9 @@
+ 
+ DESC_MANAGER::DESC_MANAGER() : m_bDestroyed(false)
+ {
++	m_iMaxConnPerIP = 3;
++	m_iMaxConnPerIPWindow = 20;
++	m_iConnWindowSec = 10;
+ 	Initialize();
+ 	//NOTE : Destroy  Initialize  θ°   ̳..-_-;  
+ 
+@@ -143,6 +146,56 @@
+ 
+ 	return (crc);
+ }
++
++bool DESC_MANAGER::CheckAndUpdateIPConnection(const char* host)
++{
++	if (!host || !*host)
++		return false;
++
++	const DWORD now = get_global_time();
++	SIpConnStat& st = m_map_ip_conn[host];
++
++	if (st.dwWindowStart == 0 || (now - st.dwWindowStart) >= (DWORD)m_iConnWindowSec)
++	{
++		st.dwWindowStart = now;
++		st.iWindowCount = 0;
++	}
++
++	if (st.iWindowCount >= m_iMaxConnPerIPWindow)
++	{
++		sys_log(0, "IP rate limit: %s (%d connects/%ds)", host, st.iWindowCount, m_iConnWindowSec);
++		return false;
++	}
++
++	if (st.iActive >= m_iMaxConnPerIP)
++	{
++		sys_log(0, "IP active limit: %s (%d active)", host, st.iActive);
++		return false;
++	}
++
++	++st.iWindowCount;
++	++st.iActive;
++	return true;
++}
++
++void DESC_MANAGER::DecreaseIPActive(const char* host)
++{
++	if (!host || !*host)
++		return;
++
++	IP_CONN_MAP::iterator it = m_map_ip_conn.find(host);
++	if (it == m_map_ip_conn.end())
++		return;
++
++	if (it->second.iActive > 0)
++		--it->second.iActive;
++
++	// prune idle entries after 60s to keep the map bounded
++	const DWORD now = get_global_time();
++	if (it->second.iActive <= 0 && it->second.dwWindowStart != 0 && (now - it->second.dwWindowStart) > 60)
++		m_map_ip_conn.erase(it);
++}
++
+ 
+ LPDESC DESC_MANAGER::AcceptDesc(LPFDWATCH fdw, socket_t s)
+ {
+@@ -168,6 +221,11 @@
+ 
+ 	if (!IsValidIP(admin_ip, host)) // admin_ip  ϵ IP  ִ   ֹ ʴ´.
+ 	{
++		if (!CheckAndUpdateIPConnection(host))
++		{
++			socket_close(desc);
++			return NULL;
++		}
+ 		if (m_iSocketsConnected >= MAX_ALLOW_USER)
+ 		{
+ 			sys_err("max connection reached. MAX_ALLOW_USER = %d", MAX_ALLOW_USER);
+@@ -251,6 +309,8 @@
+ 	// Explicit call to the virtual function Destroy()
+ 	d->Destroy();
+ 
++	DecreaseIPActive(d->GetHostName());
++
+ 	M2_DELETE(d);
+ 	--m_iSocketsConnected;
+ }

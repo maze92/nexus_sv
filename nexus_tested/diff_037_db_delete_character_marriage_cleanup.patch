@@ -1,0 +1,71 @@
+--- a/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
++++ b/server/metin2/Source/Server/db/src/ClientManagerPlayer.cpp
+@@ -1,6 +1,7 @@
+ #include "stdafx.h"
+
+ 
+
+ #include "ClientManager.h"
+
++#include "Marriage.h"
+
+ 
+
+ #include "Main.h"
+
+ #include "QID.h"
+
+@@ -1009,6 +1010,7 @@
+ 		if (dwPID == 0)
+
+ 			str_to_number(dwPID, row[0]);
+
+ 
+
++
+
+ 		str_to_number(r.dwType, row[1]);
+
+ 		str_to_number(r.wApplyOn, row[2]);
+
+ 		str_to_number(r.lApplyValue, row[3]);
+
+@@ -1635,6 +1637,13 @@
+ 		DWORD dwPID = 0;
+
+ 		str_to_number(dwPID, row[0]);
+
+ 
+
++		// Robustness: if a married character is deleted, force marriage cleanup so the online partner
+
++		// does not keep stale relationship state/pointers in memory.
+
++		if (auto* pMarriage = marriage::CManager::instance().Get(dwPID))
+
++		{
+
++			marriage::CManager::instance().Remove(pMarriage->pid1, pMarriage->pid2);
+
++		}
+
++
+
+ 		int deletedLevelLimit = 0;
+
+ 		str_to_number(deletedLevelLimit, row[1]);
+
+ 
+
+@@ -1660,6 +1669,7 @@
+ 		char queryStr[QUERY_MAX_LEN];
+
+ 
+
+ 		snprintf(queryStr, sizeof(queryStr), "INSERT INTO player_deleted%s SELECT * FROM player%s WHERE `id` = %d",
+
++
+
+ 			GetTablePostfix(), GetTablePostfix(), pi->player_id);
+
+ 		std::unique_ptr<SQLMsg> pIns(CDBManager::instance().DirectQuery(queryStr));

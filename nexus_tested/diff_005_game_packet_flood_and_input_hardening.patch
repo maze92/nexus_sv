@@ -1,0 +1,174 @@
+--- a/server/metin2/Source/Server/game/src/desc.h
++++ b/server/metin2/Source/Server/game/src/desc.h
+@@ -271,7 +271,25 @@
+ 	void SetOffTime(int offtime) { m_offtime = offtime; }
+ 	void SetPlayTime(int playtime) { m_playtime = playtime; }
+ 
+-	void RawPacket(const void* c_pvData, int iSize);
++	
++	// -----------------------------------------------------------------------
++	// Production hardening: basic packet/byte rate limiting per connection.
++	// This mitigates connect+packet floods without relying only on firewall.
++	// -----------------------------------------------------------------------
++	bool CheckInputRate(size_t bytesRead);
++	bool RegisterBadHeader(BYTE header, bool isZeroHeader);
++	bool ShouldLogBadHeader() const;
++
++private:
++	DWORD m_dwInputRateWindowStart;
++	int   m_iInputRateBytes;
++	DWORD m_dwBadHeaderWindowStart;
++	int   m_iBadHeaderCount;
++	DWORD m_dwZeroHeaderWindowStart;
++	int   m_iZeroHeaderCount;
++
++public:
++void RawPacket(const void* c_pvData, int iSize);
+ 	void ChatPacket(BYTE type, const char* format, ...);
+ 
+ #if defined(__SEND_SEQUENCE__)
+--- a/server/metin2/Source/Server/game/src/desc.cpp
++++ b/server/metin2/Source/Server/game/src/desc.cpp
+@@ -67,6 +67,14 @@
+ 
+ 	m_pLogFile = NULL;
+ 
++	m_dwInputRateWindowStart = 0;
++	m_iInputRateBytes = 0;
++	m_dwBadHeaderWindowStart = 0;
++	m_iBadHeaderCount = 0;
++	m_dwZeroHeaderWindowStart = 0;
++	m_iZeroHeaderCount = 0;
++
++
+ #if !defined(__IMPROVED_PACKET_ENCRYPTION__)
+ 	m_bEncrypted = false;
+ #endif
+@@ -103,6 +111,61 @@
+ 
+ 	m_pkDisconnectEvent = NULL;
+ }
++
++bool DESC::CheckInputRate(size_t bytesRead)
++{
++	const DWORD now = get_dword_time();
++
++	// 1s window
++	if (m_dwInputRateWindowStart == 0 || now - m_dwInputRateWindowStart >= 1000)
++	{
++		m_dwInputRateWindowStart = now;
++		m_iInputRateBytes = 0;
++	}
++
++	m_iInputRateBytes += static_cast<int>(bytesRead);
++
++	// Stricter before entering the game phase to mitigate login floods.
++	const int limit = (m_iPhase < PHASE_GAME) ? (128 * 1024) : (512 * 1024);
++
++	return m_iInputRateBytes <= limit;
++}
++
++bool DESC::RegisterBadHeader(BYTE /*header*/, bool isZeroHeader)
++{
++	const DWORD now = get_dword_time();
++
++	// 10s window
++	if (m_dwBadHeaderWindowStart == 0 || now - m_dwBadHeaderWindowStart >= 10000)
++	{
++		m_dwBadHeaderWindowStart = now;
++		m_iBadHeaderCount = 0;
++	}
++
++	if (m_dwZeroHeaderWindowStart == 0 || now - m_dwZeroHeaderWindowStart >= 10000)
++	{
++		m_dwZeroHeaderWindowStart = now;
++		m_iZeroHeaderCount = 0;
++	}
++
++	if (isZeroHeader)
++		++m_iZeroHeaderCount;
++	else
++		++m_iBadHeaderCount;
++
++	// If we get spammed with invalid headers, close quickly.
++	if (m_iBadHeaderCount > 5 || m_iZeroHeaderCount > 128)
++		return false;
++
++	return true;
++}
++
++bool DESC::ShouldLogBadHeader() const
++{
++	// Log the first occurrence and then every 5th to prevent disk spam.
++	return (m_iBadHeaderCount <= 1) || (m_iBadHeaderCount % 5 == 0);
++}
++
+ 
+ void DESC::Destroy()
+ {
+@@ -276,6 +339,13 @@
+ 		return -1;
+ 	else if (bytes_read == 0)
+ 		return 0;
++
++	if (!CheckInputRate(static_cast<size_t>(bytes_read)))
++	{
++		sys_log(0, "INPUT_FLOOD: host=%s phase=%d bytes=%zd", GetHostName(), m_iPhase, bytes_read);
++		SetPhase(PHASE_CLOSE);
++		return -1;
++	}
+ 
+ 	buffer_write_proceed(m_lpInputBuffer, bytes_read);
+ 
+--- a/server/metin2/Source/Server/game/src/input.cpp
++++ b/server/metin2/Source/Server/game/src/input.cpp
+@@ -75,10 +75,15 @@
+ 	for (m_iBufferLeft = iBytes; m_iBufferLeft > 0;)
+ 	{
+ 		BYTE bHeader = (BYTE) * (c_pData);
+-		const char* c_pszName;
++		const char* c_pszName = "UNKNOWN";
+ 
+ 		if (bHeader == 0) // ȣȭ ó Ƿ 0  ŵѴ.
+ 			iPacketLen = 1;
++			if (!lpDesc->RegisterBadHeader(bHeader, true))
++			{
++				lpDesc->SetPhase(PHASE_CLOSE);
++				return true;
++			}
+ 		else if (!m_pPacketInfo->Get(bHeader, &iPacketLen, &c_pszName))
+ 		{
+ 			sys_err("UNKNOWN HEADER: %d, LAST HEADER: %d(len:%d), %s, REMAIN BYTES: %d, fd: %d",
+--- a/server/metin2/Source/Server/game/src/minigame_catchking.cpp
++++ b/server/metin2/Source/Server/game/src/minigame_catchking.cpp
+@@ -534,7 +534,7 @@
+ 	else
+ 	{
+ 		DBManager::instance().DirectQuery("REPLACE INTO log.catck_king_event (name, empire, max_score, total_score) VALUES ('%s', %d, %d, %d);",
+-			pkChar->GetName(), pkChar->GetEmpire(), dwScore, dwScore);
++			szNameEsc, pkChar->GetEmpire(), dwScore, dwScore);
+ 	}
+ }
+ 
+--- a/server/metin2/Source/Server/game/src/main.cpp
++++ b/server/metin2/Source/Server/game/src/main.cpp
+@@ -858,6 +858,9 @@
+ 	sys_log(0, "<shutdown> CTextFileLoader::DestroySystem()...");
+ 	CTextFileLoader::DestroySystem();
+ 
++	sys_log(0, "<shutdown> PanamaDestroy()...");
++	PanamaDestroy();
++
+ 	sys_log(0, "<shutdown> thecore_destroy()...");
+ 	thecore_destroy();
+ }
+--- a/server/metin2/Source/Server/game/src/panama.cpp
++++ b/server/metin2/Source/Server/game/src/panama.cpp
+@@ -66,6 +66,7 @@
+ 		M2_DELETE_ARRAY(it->second);
+ 		++it;
+ 	}
++	s_panamaVector.clear();
+ }
+ 
+ void SendPanamaList(LPDESC d)
