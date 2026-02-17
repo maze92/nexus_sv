@@ -1,0 +1,59 @@
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.cpp
+--- "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.cpp"	2026-02-16 17:22:47.297592704 +0000
++++ /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.cpp	2026-02-16 18:13:16.429585430 +0000
+@@ -2081,6 +2081,9 @@
+ 
+ void CHARACTER::FlushDelayedSaveItem()
+ {
++	if (m_bSkipSave)
++		return;
++
+ 	int i = 0;
+ 
+ 	// 저장 안된 소지품을 전부 저장시킨다.
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.h" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.h
+--- "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char.h"	2026-02-16 17:22:47.299950888 +0000
++++ /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char.h	2026-02-16 18:12:04.469682773 +0000
+@@ -999,6 +999,8 @@
+ 
+ 	void Save(); // DelayedSave
+ 	void SaveReal(); // 실제 저장
++	void SetSkipSave(bool b) { m_bSkipSave = b; }
++	bool IsSkipSave() const { return m_bSkipSave; }
+ 	void FlushDelayedSaveItem();
+ 
+ 	const char* GetName() const;
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char_affect.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char_affect.cpp
+--- "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/char_affect.cpp"	2026-02-16 17:22:47.314208161 +0000
++++ /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/char_affect.cpp	2026-02-16 18:12:44.037433365 +0000
+@@ -389,8 +389,11 @@
+ 	return false;
+ }
+ 
+-void CHARACTER::SaveAffect()
+-{
++void CHARACTER::SaveAffect()
++{
++	if (m_bSkipSave)
++		return;
++
+ 	TPacketGDAddAffect p = {};
+ 
+ 	AffectContainerList::iterator it = m_list_pkAffect.begin();
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/desc.cpp" /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/desc.cpp
+--- "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/desc.cpp"	2026-02-16 17:22:47.330524609 +0000
++++ /mnt/data/tmp_PATCH_BUNDLE_20B_20_double_login_no_save_on_loading.patch/game/src/desc.cpp	2026-02-16 18:12:22.658862316 +0000
+@@ -912,6 +912,13 @@
+ 		if (m_pkDisconnectEvent)
+ 			return;
+ 
++		if (IsPhase(PHASE_LOADING))
++		{
++			GetCharacter()->SetSkipSave(true);
++			SetPhase(PHASE_CLOSE);
++			return;
++		}
++
+ 		GetCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("다른 컴퓨터에서 로그인 하여 접속을 종료 합니다."));
+ 		DelayedDisconnect(5);
+ 	}
