@@ -1,0 +1,57 @@
+diff --git a/server/metin2/Source/Server/game/src/guild.cpp b/server/metin2/Source/Server/game/src/guild.cpp
+index 5b68b12..e4b5988 100644
+--- a/server/metin2/Source/Server/game/src/guild.cpp
++++ b/server/metin2/Source/Server/game/src/guild.cpp
+@@ -196,6 +196,9 @@ bool CGuild::RequestRemoveMember(DWORD pid)
+ 	if (it->second.grade == GUILD_LEADER_GRADE)
+ 		return false;
+ 
++	if (UnderAnyWar() != 0)
++		return false;
++
+ 	TPacketGuild gd_guild;
+ 
+ 	gd_guild.dwGuild = GetID();
+@@ -1907,6 +1910,16 @@ void CGuild::AdvanceLevel(int iLevel)
+ 
+ void CGuild::RequestDepositMoney(LPCHARACTER ch, int iGold)
+ {
++	if (!ch)
++		return;
++	if (iGold <= 0)
++		return;
++	// Prevent negative/overflow deposits (guild bank max is 2,000,000,000 Yang).
++	const long long llMaxGuildGold = 2000000000LL;
++	const long long llNewGold = (long long)m_data.gold + (long long)iGold;
++	if (llNewGold > llMaxGuildGold || llNewGold < 0)
++		return;
++
+ 	if (false == ch->CanDeposit())
+ 	{
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<길드> 잠시후에 이용해주십시오"));
+@@ -1933,6 +1946,15 @@ void CGuild::RequestDepositMoney(LPCHARACTER ch, int iGold)
+ 
+ void CGuild::RequestWithdrawMoney(LPCHARACTER ch, int iGold)
+ {
++	if (!ch)
++		return;
++	if (iGold <= 0)
++		return;
++	// Prevent negative/overflow withdrawals.
++	const long long llMaxGuildGold = 2000000000LL;
++	if ((long long)iGold > (long long)m_data.gold || (long long)m_data.gold > llMaxGuildGold)
++		return;
++
+ 	if (false == ch->CanDeposit())
+ 	{
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<길드> 잠시후에 이용해주십시오"));
+@@ -1961,6 +1983,9 @@ void CGuild::RequestWithdrawMoney(LPCHARACTER ch, int iGold)
+ 
+ void CGuild::RecvMoneyChange(int iGold)
+ {
++	if (iGold < 0)
++		iGold = 0;
++
+ 	m_data.gold = iGold;
+ 
+ 	TPacketGCGuild p;

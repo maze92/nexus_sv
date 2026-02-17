@@ -1,0 +1,49 @@
+diff --git a/server/metin2/Source/Server/db/src/Main.cpp b/server/metin2/Source/Server/db/src/Main.cpp
+index 941aac5..3d9c18b 100644
+--- a/server/metin2/Source/Server/db/src/Main.cpp
++++ b/server/metin2/Source/Server/db/src/Main.cpp
+@@ -1,4 +1,9 @@
+ #include "stdafx.h"
++
++#include <cctype>
++
++#include <cstring>
++
+ #include "Config.h"
+ #include "Peer.h"
+ #include "DBManager.h"
+@@ -419,10 +424,31 @@ int Start()
+ 
+ void SetTablePostfix(const char* c_pszTablePostfix)
+ {
++	g_stTablePostfix.clear();
++
+ 	if (!c_pszTablePostfix || !*c_pszTablePostfix)
+-		g_stTablePostfix = "";
+-	else
+-		g_stTablePostfix = c_pszTablePostfix;
++		return;
++
++	// Security: table postfix must be short and strictly [A-Za-z0-9_]
++	// to prevent SQL injection via table names if config gets tampered.
++	const size_t len = strnlen(c_pszTablePostfix, 32);
++	if (len == 0 || len > 10)
++	{
++		sys_err("Table postfix rejected (len=%zu): '%s'", len, c_pszTablePostfix);
++		return;
++	}
++
++	for (size_t i = 0; i < len; ++i)
++	{
++		const unsigned char c = static_cast<unsigned char>(c_pszTablePostfix[i]);
++		if (!(isalnum(c) || c == '_'))
++		{
++			sys_err("Table postfix rejected (bad char 0x%02X): '%s'", c, c_pszTablePostfix);
++			return;
++		}
++	}
++
++	g_stTablePostfix.assign(c_pszTablePostfix, len);
+ }
+ 
+ const char* GetTablePostfix()
