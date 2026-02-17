@@ -33,10 +33,10 @@ CHANGELOGS
 [FIX] 030 - diff_030 - Enforce de restrição por género para impedir equip indevido em costumes (game/src/char_item.cpp);
 [FIX] 031 - diff_031 - Ajustes de robustez e validações no char_item (game/src/char_item.cpp);
 [FIX] 032 - diff_032 - Ajustes de robustez e validações no login/input (game/src/input_main.cpp, game/src/guild.cpp);
-[FIX] 033 - diff_033 - Sanity-check de packets para impedir inputs malformados no mining.cpp	2026-02-17 03:22:02 (server/metin2/Source/Server/game/src/mining.cpp	2026-02-17 03:22:02.033382186 +0000);
-[FIX] 034 - diff_034 - Ajustes de robustez e validações no battle.cpp	2026-02-17 03:22:13 (server/metin2/Source/Server/game/src/battle.cpp	2026-02-17 03:22:13.959487959 +0000);
-[FIX] 035 - diff_035 - Ajustes de robustez e validações no char_skill.cpp	2026-02-17 03:16:18 (server/metin2/Source/Server/game/src/char_skill.cpp	2026-02-17 03:16:18.003083554 +0000);
-[FIX] 036 - diff_036 - Sanity-check de packets para impedir inputs malformados no shop (server/metin2/Source/Server/game/src/shop.h	2026-02-17 03:16:26.100195163 +0000, server/metin2/Source/Server/game/src/shop.cpp	2026-02-17 03:21:42.454186310 +0000);
+[FIX] 033 - diff_033 - Sanity-check de packets para impedir inputs malformados no mining.cpp (server/metin2/Source/Server/game/src/mining.cpp);
+[FIX] 034 - diff_034 - Ajustes de robustez e validações no battle.cpp	(server/metin2/Source/Server/game/src/battle.cpp);
+[FIX] 035 - diff_035 - Ajustes de robustez e validações no char_skill.cpp	(server/metin2/Source/Server/game/src/char_skill.cpp);
+[FIX] 036 - diff_036 - Sanity-check de packets para impedir inputs malformados no shop (server/metin2/Source/Server/game/src/shop.h, server/metin2/Source/Server/game/src/shop.cpp);
 [FIX] 037 - diff_037 - Ajustes de robustez e validações no item (server/metin2/Source/Server/game/src/item.cpp);
 [FIX] 038 - diff_038 - Ajustes de robustez e validações no dungeon (server/metin2/Source/Server/game/src/questlua_dungeon.cpp);
 [FIX] 039 - diff_039 - Clamps/validações contra over/underflow no char_battle (server/metin2/Source/Server/game/src/char_battle.cpp);
