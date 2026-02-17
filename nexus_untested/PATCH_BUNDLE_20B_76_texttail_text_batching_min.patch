@@ -1,0 +1,272 @@
+--- a/Nexus OS/src-client/Client/EterLib/GrpTextInstance.h+++ b/Nexus OS/src-client/Client/EterLib/GrpTextInstance.h@@ -32,6 +32,11 @@ public:
+ 	static void Hyperlink_UpdateMousePos(int x, int y);
+ 	static int  Hyperlink_GetText(char* buf, int len);
++
++	// Tier 24: Reduce per-text RenderState churn by batching multiple text renders
++	static void BeginBatch();
++	static void EndBatch();
++	static bool IsBatching();
+ 
+ public:
+ 	CGraphicTextInstance();
+@@ -161,6 +166,11 @@ 	static CGraphicTextInstance* New();
+ 	static void Delete(CGraphicTextInstance* pkInst);
+ 
++	// Tier 24: batching state
++	static int ms_iBatchDepth;
++	static DWORD ms_dwBatchFogEnable;
++	static DWORD ms_dwBatchLighting;
++
+ 	static CDynamicPool<CGraphicTextInstance> ms_kPool;
+ };
+ 
+--- a/Nexus OS/src-client/Client/EterLib/GrpTextInstance.cpp+++ b/Nexus OS/src-client/Client/EterLib/GrpTextInstance.cpp@@ -18,6 +18,11 @@ 
+ CDynamicPool<CGraphicTextInstance> CGraphicTextInstance::ms_kPool;
+ 
++// Tier 24: text batching (avoid per-instance Save/Restore state churn)
++int CGraphicTextInstance::ms_iBatchDepth = 0;
++DWORD CGraphicTextInstance::ms_dwBatchFogEnable = 0;
++DWORD CGraphicTextInstance::ms_dwBatchLighting = 0;
++
+ static int gs_mx = 0;
+ static int gs_my = 0;
+ 
+@@ -38,6 +43,47 @@ 	int codePage = GetDefaultCodePage();
+ 
+ 	return Ymir_WideCharToMultiByte(codePage, 0, gs_hyperlinkText.c_str(), gs_hyperlinkText.length(), buf, len, NULL, NULL);
++}
++
++void CGraphicTextInstance::BeginBatch()
++{
++	if (++ms_iBatchDepth != 1)
++		return;
++
++	STATEMANAGER.SaveRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
++	STATEMANAGER.SaveRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
++	ms_dwBatchFogEnable = STATEMANAGER.GetRenderState(D3DRS_FOGENABLE);
++	ms_dwBatchLighting = STATEMANAGER.GetRenderState(D3DRS_LIGHTING);
++	STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, FALSE);
++	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, FALSE);
++
++	// Shared render states for text
++	STATEMANAGER.SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
++	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
++}
++
++void CGraphicTextInstance::EndBatch()
++{
++	if (ms_iBatchDepth <= 0)
++		return;
++
++	if (--ms_iBatchDepth != 0)
++		return;
++
++	STATEMANAGER.RestoreRenderState(D3DRS_SRCBLEND);
++	STATEMANAGER.RestoreRenderState(D3DRS_DESTBLEND);
++	STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, ms_dwBatchFogEnable);
++	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, ms_dwBatchLighting);
++}
++
++bool CGraphicTextInstance::IsBatching()
++{
++	return ms_iBatchDepth > 0;
+ }
+ 
+ int CGraphicTextInstance::__DrawCharacter(CGraphicFontTexture* pFontTexture, WORD codePage, wchar_t text, DWORD dwColor)
+@@ -686,20 +732,27 @@ 
+ 	//WORD FillRectIndices[6] = { 0, 2, 1, 2, 3, 1 };
+ 
+-	STATEMANAGER.SaveRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+-	STATEMANAGER.SaveRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+-	DWORD dwFogEnable = STATEMANAGER.GetRenderState(D3DRS_FOGENABLE);
+-	DWORD dwLighting = STATEMANAGER.GetRenderState(D3DRS_LIGHTING);
+-	STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, FALSE);
+-	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, FALSE);
+-
+-	STATEMANAGER.SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+-	STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
++	const bool bBatching = IsBatching();
++	DWORD dwFogEnable = 0;
++	DWORD dwLighting = 0;
++
++	if (!bBatching)
++	{
++		STATEMANAGER.SaveRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
++		STATEMANAGER.SaveRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
++		dwFogEnable = STATEMANAGER.GetRenderState(D3DRS_FOGENABLE);
++		dwLighting = STATEMANAGER.GetRenderState(D3DRS_LIGHTING);
++		STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, FALSE);
++		STATEMANAGER.SetRenderState(D3DRS_LIGHTING, FALSE);
++
++		STATEMANAGER.SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
++		STATEMANAGER.SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
++	}
+ 
+ #if defined(__VERTEX_BUFFER_PERFORMANCE__)
+ 	{
+@@ -1616,11 +1669,14 @@ 		}
+ 	}
+ 
+-	STATEMANAGER.RestoreRenderState(D3DRS_SRCBLEND);
+-	STATEMANAGER.RestoreRenderState(D3DRS_DESTBLEND);
+-
+-	STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, dwFogEnable);
+-	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, dwLighting);
++	if (!bBatching)
++	{
++		STATEMANAGER.RestoreRenderState(D3DRS_SRCBLEND);
++		STATEMANAGER.RestoreRenderState(D3DRS_DESTBLEND);
++
++		STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, dwFogEnable);
++		STATEMANAGER.SetRenderState(D3DRS_LIGHTING, dwLighting);
++	}
+ 
+ 	// ±Ý°­°æ ¸µÅ© ¶ç¿öÁÖ´Â ºÎºÐ.
+ 	if (m_hyperlinkVector.size() != 0)
+--- a/Nexus OS/src-client/Client/UserInterface/PythonTextTail.cpp+++ b/Nexus OS/src-client/Client/UserInterface/PythonTextTail.cpp@@ -562,6 +562,8 @@ {
+ 	TTextTailList::iterator itor;
+ 
++	// Tier 24: batch text renders to reduce render-state thrash in crowded maps (shops/cities)
++	CGraphicTextInstance::BeginBatch();
+ 	for (itor = m_CharacterTextTailList.begin(); itor != m_CharacterTextTailList.end(); ++itor)
+ 	{
+ 		TTextTail* pTextTail = *itor;
+@@ -583,10 +585,7 @@ 		pTextTail->pTextInstance->Render();
+ 
+ 		if (pTextTail->pMarkInstance && pTextTail->pGuildNameTextInstance)
+-		{
+-			pTextTail->pMarkInstance->Render();
+ 			pTextTail->pGuildNameTextInstance->Render();
+-		}
+ 
+ 		if (pTextTail->pTitleTextInstance)
+ 			pTextTail->pTitleTextInstance->Render();
+@@ -603,29 +602,61 @@ 			pTextTail->pAIFlagTextInstance->Render();
+ #endif
+ 
++#if defined(ENABLE_LEFT_SEAT)
++		if (pTextTail->pLeftSeatTextInstance)
++			pTextTail->pLeftSeatTextInstance->Render();
++#endif
++	}
++	CGraphicTextInstance::EndBatch();
++
++	// Icons that are NOT text (marks / country flags)
++	for (itor = m_CharacterTextTailList.begin(); itor != m_CharacterTextTailList.end(); ++itor)
++	{
++		TTextTail* pTextTail = *itor;
++#if defined(ENABLE_GRAPHIC_ON_OFF)
++		CInstanceBase* pInstance = CPythonCharacterManager::Instance().GetInstancePtr(pTextTail->dwVirtualID);
++		if (!pInstance)
++			continue;
++
++		if (!pInstance->CanRenderActor())
++			continue;
++
++		if (pInstance->IsNPC() && !CPythonGraphicOnOff::Instance().CanRenderNPCName())
++		{
++			DWORD dwPickedActorID;
++			if (!CPythonPlayer::Instance().GetPickedActorID(&dwPickedActorID) || dwPickedActorID != pTextTail->dwVirtualID)
++				continue;
++		}
++#endif
++		if (pTextTail->pMarkInstance && pTextTail->pGuildNameTextInstance)
++			pTextTail->pMarkInstance->Render();
++
+ #if defined(ENABLE_MULTI_LANGUAGE_SYSTEM)
+ 		if (pTextTail->pCountryFlagImageInstance && CPythonSystem::Instance().IsAlwaysShowCountry())
+ 			pTextTail->pCountryFlagImageInstance->Render();
+ #endif
+-
+-#if defined(ENABLE_LEFT_SEAT)
+-		if (pTextTail->pLeftSeatTextInstance)
+-			pTextTail->pLeftSeatTextInstance->Render();
+-#endif
+ 	}
+ 
+ #if defined(ENABLE_GRAPHIC_ON_OFF)
+ 	if (CPythonGraphicOnOff::Instance().CanRenderDropItem(2))
+ 	{
++		// Pass 1: boxes
+ 		for (itor = m_ItemTextTailList.begin(); itor != m_ItemTextTailList.end(); ++itor)
+ 		{
+ 			TTextTail* pTextTail = *itor;
+-
+ 			RenderTextTailBox(pTextTail);
++		}
++
++		// Pass 2: text (batched)
++		CGraphicTextInstance::BeginBatch();
++		for (itor = m_ItemTextTailList.begin(); itor != m_ItemTextTailList.end(); ++itor)
++		{
++			TTextTail* pTextTail = *itor;
+ 			pTextTail->pTextInstance->Render();
+ 			if (pTextTail->pOwnerTextInstance)
+ 				pTextTail->pOwnerTextInstance->Render();
+ 		}
++		CGraphicTextInstance::EndBatch();
+ 	}
+ 	else if (CPythonGraphicOnOff::Instance().CanRenderDropItem(4))
+ 	{
+@@ -639,31 +670,44 @@ 				if (pTextTail)
+ 				{
+ 					RenderTextTailBox(pTextTail);
++					CGraphicTextInstance::BeginBatch();
+ 					pTextTail->pTextInstance->Render();
+ 					if (pTextTail->pOwnerTextInstance)
+ 						pTextTail->pOwnerTextInstance->Render();
++					CGraphicTextInstance::EndBatch();
+ 				}
+ 			}
+ 		}
+ 	}
+ #else
++	// Pass 1: boxes
+ 	for (itor = m_ItemTextTailList.begin(); itor != m_ItemTextTailList.end(); ++itor)
+ 	{
+ 		TTextTail* pTextTail = *itor;
+-
+ 		RenderTextTailBox(pTextTail);
++	}
++
++	// Pass 2: text (batched)
++	CGraphicTextInstance::BeginBatch();
++	for (itor = m_ItemTextTailList.begin(); itor != m_ItemTextTailList.end(); ++itor)
++	{
++		TTextTail* pTextTail = *itor;
+ 		pTextTail->pTextInstance->Render();
+ 		if (pTextTail->pOwnerTextInstance)
+ 			pTextTail->pOwnerTextInstance->Render();
+ 	}
+-#endif
+-
++	CGraphicTextInstance::EndBatch();
++#endif
++
++	// Chat tails are pure text, so batch them too
++	CGraphicTextInstance::BeginBatch();
+ 	for (TChatTailMap::iterator itorChat = m_ChatTailMap.begin(); itorChat != m_ChatTailMap.end(); ++itorChat)
+ 	{
+ 		TTextTail* pTextTail = itorChat->second;
+ 		if (pTextTail->pOwner->isShow())
+ 			RenderTextTailName(pTextTail);
+ 	}
++	CGraphicTextInstance::EndBatch();
+ }
+ 
+ void CPythonTextTail::RenderTextTailBox(TTextTail* pTextTail)

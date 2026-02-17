@@ -1,0 +1,67 @@
+--- /mnt/data/_patch_orig/char_h_char.h	2026-02-17 04:36:06.864906001 +0000
++++ "/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/char.h"	2026-02-17 05:22:00.231902022 +0000
+@@ -1931,6 +1931,9 @@
+ 	void SkipComboAttackByTime(int interval);
+ 	DWORD GetSkipComboAttackByTime() const;
+ 
++		// Flood guard: rate-limit FUNC_COMBO packets (DoS mitigation)
++		bool CheckComboFlood(DWORD dwTime);
++
+ protected:
+ 	BYTE m_bComboSequence;
+ 	DWORD m_dwLastComboTime;
+@@ -1938,6 +1941,8 @@
+ 	BYTE m_bComboIndex;
+ 	int m_iComboHackCount;
+ 	DWORD m_dwSkipComboAttackByTime;
++		DWORD m_dwComboFloodWindow;
++		BYTE m_bComboFloodCount;
+ 
+ protected:
+ 	void UpdateAggrPointEx(LPCHARACTER ch, EDamageType type, int dam, TBattleInfo& info);
+--- /mnt/data/_patch_orig/char_cpp_char.cpp	2026-02-17 04:36:27.065177991 +0000
++++ "/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/char.cpp"	2026-02-17 05:23:26.241316079 +0000
+@@ -10747,6 +10747,31 @@
+ 				GetName(), bCostumeSubType);
+ 			return;
+ 		}
++
++bool CHARACTER::CheckComboFlood(DWORD dwTime)
++{
++	// Window is 1 second buckets; allow small burst but block sustained floods.
++	const DWORD dwWindow = dwTime / 1000;
++
++	if (m_dwComboFloodWindow != dwWindow)
++	{
++		m_dwComboFloodWindow = dwWindow;
++		m_bComboFloodCount = 0;
++	}
++
++	++m_bComboFloodCount;
++
++	// Allow up to 2 combo packets / second. Above that: ignore.
++	if (m_bComboFloodCount > 2)
++	{
++		// Hard cap: if someone is clearly flooding, drop them.
++		if (m_bComboFloodCount > 10 && GetDesc())
++			GetDesc()->DelayedDisconnect(3);
++		return true;
++	}
++
++	return false;
++}
+ 	}
+ 
+ 	if (IsDead() || IsWarping())
+--- /mnt/data/_patch_orig/input_main_cpp_input_main.cpp	2025-06-29 08:40:16.000000000 +0000
++++ "/mnt/data/nexus_src/Nexus OS/server/metin2/Source/Server/game/src/input_main.cpp"	2026-02-17 05:23:33.670223055 +0000
+@@ -1903,6 +1903,9 @@
+ 		//
+ 		if (pinfo->bFunc == FUNC_COMBO && g_bCheckMultiHack)
+ 		{
++			// DoS mitigation: rate-limit combo packets
++			if (ch->CheckComboFlood(dwCurTime))
++				return;
+ 			CheckComboHack(ch, pinfo->bArg, pinfo->dwTime, CheckSpeedHack); // ÄÞº¸ Ã¼Å©
+ 		}
+ 	}

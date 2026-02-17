@@ -1,0 +1,169 @@
+--- Server/game/src/char.h
++++ Server/game/src/char.h
+@@ -3148,6 +3148,10 @@
+ 	void SetLastRequestTime(DWORD dwRequestTime) { m_dwLastRequestTime = dwRequestTime; }
+ 	DWORD GetLastRequestTime() const { return m_dwLastRequestTime; }
+ 
++#ifdef __SHOP_SEARCH__
++	bool CheckShopSearchFlood();
++#endif
++
+ public:
+ 	LPEVENT m_pLeftSeatWaitTimerEvent;
+ 	LPEVENT m_pLeftSeatLogoutTimerEvent;
+@@ -3157,6 +3161,11 @@
+ 	DWORD m_dwLeftSeatWaitTime;
+ 	DWORD m_dwLeftSeatLogoutTime;
+ 	DWORD m_dwLastRequestTime;
++
++#ifdef __SHOP_SEARCH__
++	DWORD	m_dwLastShopSearchRequestTime;
++	BYTE	m_bShopSearchFloodCount;
++#endif
+ #endif
+ 
+ #if defined(__ELEMENTAL_DUNGEON__)
+--- Server/game/src/char.cpp
++++ Server/game/src/char.cpp
+@@ -501,6 +501,11 @@
+ 
+ 	m_iMyShopTime = 0;
+ 
++#ifdef __SHOP_SEARCH__
++	m_dwLastShopSearchRequestTime = 0;
++	m_bShopSearchFloodCount = 0;
++#endif
++
+ #if defined(__MYSHOP_DECO__)
+ 	m_bMyShopDecoType = 0;
+ 	m_bMyShopDecoState = 0;
+@@ -9898,6 +9903,39 @@
+ 	m_dwLastComboTime = time;
+ }
+ 
++
++#ifdef __SHOP_SEARCH__
++bool CHARACTER::CheckShopSearchFlood()
++{
++	const DWORD now = get_dword_time();
++
++	// reset burst if enough time passed
++	if (now - m_dwLastShopSearchRequestTime > 2000)
++		m_bShopSearchFloodCount = 0;
++
++	const DWORD delta = now - m_dwLastShopSearchRequestTime;
++	m_dwLastShopSearchRequestTime = now;
++
++	// Allow at most ~1 request / 700ms. Faster => ignore, repeated => disconnect.
++	if (delta < 700)
++	{
++		if (m_bShopSearchFloodCount < 255)
++			++m_bShopSearchFloodCount;
++
++		if (m_bShopSearchFloodCount >= 8)
++		{
++			sys_log(0, "SHOP_SEARCH_FLOOD: pid %u name %s count %u", GetPlayerID(), GetName(), m_bShopSearchFloodCount);
++			if (GetDesc())
++				GetDesc()->DelayedDisconnect(3);
++		}
++
++		return false;
++	}
++
++	return true;
++}
++#endif
++
+ DWORD CHARACTER::GetLastComboTime() const
+ {
+ 	return m_dwLastComboTime;
+--- Server/game/src/input_main.cpp
++++ Server/game/src/input_main.cpp
+@@ -1,4 +1,5 @@
+ #include "stdafx.h"
++#include <cstring>
+ #include "constants.h"
+ #include "config.h"
+ #include "utils.h"
+@@ -5144,13 +5145,41 @@
+ #ifdef __SHOP_SEARCH__
+ void CInputMain::ShopSearchByName(LPCHARACTER ch, const char* data)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
++	if (!ch->CheckShopSearchFlood())
++		return;
++
+ 	TPacketCGShopSearchByName* p = (TPacketCGShopSearchByName*)data;
++
++	const size_t nameLen = strnlen(p->itemName, sizeof(p->itemName));
++	if (nameLen == 0 || nameLen >= sizeof(p->itemName))
++		return;
++
++	// Prevent extremely expensive broad searches (e.g. "a")
++	if (nameLen < 2)
++	{
++		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("Search term is too short."));
++		return;
++	}
++
+ 	CShopSearchManager::PC_RequestSearch(ch, p->itemName, p->page, p->entryCountIdx, p->sortType);
+ }
+ 
+ int CInputMain::ShopSearchByOptions(LPCHARACTER ch, const char* data, size_t uiBytes)
+ {
++	if (!ch || !ch->GetDesc())
++		return -1;
++
++	if (!ch->CheckShopSearchFlood())
++		return -1;
++
+ 	TPacketCGShopSearchByOptions* p = (TPacketCGShopSearchByOptions*)data;
++
++	// Hard upper bounds to avoid pathological packets.
++	if (p->options.typeFlagCount > 32 || p->options.specificVnumCount > 32)
++		return -1;
+ 	data += sizeof(TPacketCGShopSearchByOptions);
+ 	uiBytes -= sizeof(TPacketCGShopSearchByOptions);
+ 
+@@ -5171,6 +5200,13 @@
+ 
+ void CInputMain::ShopSearchBuy(LPCHARACTER ch, const char* data)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
++	// Buying can also be spammed; keep it under control.
++	if (!ch->CheckShopSearchFlood())
++		return;
++
+ 	TPacketCGShopSearchBuy* p = (TPacketCGShopSearchBuy*)data;
+ 
+ 	CShopSearchManager::PC_RequestBuy(ch, p->itemID, p->itemVnum, p->itemPrice);
+@@ -5178,6 +5214,12 @@
+ 
+ void CInputMain::ShopSearchOwnerMessage(LPCHARACTER ch, const char* data)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
++	if (!ch->CheckShopSearchFlood())
++		return;
++
+ 	TPacketCGShopSearchOwnerMessage* p = (TPacketCGShopSearchOwnerMessage*)data;
+ 
+ 	TPacketGCShopSearchOwnerMessage pack;
+@@ -5202,6 +5244,12 @@
+ 
+ void CInputMain::ShopSearchRequestSoldInfo(LPCHARACTER ch, const char* data)
+ {
++	if (!ch || !ch->GetDesc())
++		return;
++
++	if (!ch->CheckShopSearchFlood())
++		return;
++
+ 	TPacketCGShopSearchRequestSoldInfo* p = (TPacketCGShopSearchRequestSoldInfo*)data;
+ 
+ 	CShopSearchManager::PC_RequestSoldInfo(ch, p->itemVnum);
