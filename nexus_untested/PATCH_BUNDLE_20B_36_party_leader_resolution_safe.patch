@@ -1,0 +1,27 @@
+--- a/party.cpp
++++ b/party.cpp
+@@ -1100,7 +1100,11 @@
+ 
+ LPCHARACTER CParty::GetLeaderCharacter()
+ {
+-	return m_memberMap[GetLeaderPID()].pCharacter;
++	TMemberMap::iterator it = m_memberMap.find(GetLeaderPID());
++	if (it == m_memberMap.end())
++		return NULL;
++
++	return it->second.pCharacter;
+ }
+ 
+ bool CParty::SetRole(DWORD dwPID, BYTE bRole, bool bSet)
+
+--- a/party.h
++++ b/party.h
+@@ -148,7 +148,7 @@
+ 
+ 	DWORD GetLeaderPID();
+ 	LPCHARACTER GetLeaderCharacter();
+-	LPCHARACTER GetLeader() { return m_pkChrLeader; }
++	LPCHARACTER GetLeader() { return GetLeaderCharacter(); }
+ 
+ 	DWORD GetMemberCount();
+ 	DWORD GetNearMemberCount() { return m_iCountNearPartyMember; }

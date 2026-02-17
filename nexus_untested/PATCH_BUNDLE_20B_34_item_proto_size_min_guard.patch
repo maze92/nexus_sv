@@ -1,0 +1,19 @@
+--- a/ProtoReader.cpp
++++ b/ProtoReader.cpp
+@@ -1543,7 +1543,15 @@
+ 
+ 	itemTable->bType = get_Item_Type_Value(csvTable.AsStringByIndex(col++));
+ 	itemTable->bSubType = get_Item_SubType_Value(itemTable->bType, csvTable.AsStringByIndex(col++));
+-	itemTable->bSize = atoi(csvTable.AsStringByIndex(col++));
++	{
++		int iSize = atoi(csvTable.AsStringByIndex(col++));
++		if (iSize < 1)
++		{
++			sys_err("item_proto invalid size=%d (vnum=%u name=%s) - forcing size=1", iSize, itemTable->dwVnum, itemTable->szName);
++			iSize = 1;
++		}
++		itemTable->bSize = iSize;
++	}
+ 	itemTable->ullAntiFlags = get_Item_AntiFlag_Value(csvTable.AsStringByIndex(col++));
+ 	itemTable->dwFlags = get_Item_Flag_Value(csvTable.AsStringByIndex(col++));
+ 	itemTable->dwWearFlags = get_Item_WearFlag_Value(csvTable.AsStringByIndex(col++));
