@@ -56,7 +56,6 @@ CHANGELOGS
 [FIX] 051 - diff_051 - Clamp de durações negativas para evitar affects inválidos no game (server/metin2/Source/Server/game/src/char_affect.cpp);
 [FIX] 052 - diff_052 - Lock atómico no exchange para bloquear concorrência/dupe no game (server/metin2/Source/Server/game/src/exchange.h, server/metin2/Source/Server/game/src/exchange.cpp);
 [FIX] 053 - diff_053 - Flush consistente do exchange no DB para evitar state desync no game (server/metin2/Source/Server/game/src/exchange.cpp);
-[FIX] 054 - diff_054 - Fix de drag de equipamento para bloquear slots inválidos/desync no uiinventory (client/pack/root/uiinventory.py);
 [FIX] 055 - diff_055 - VID único/seguro em dungeon para evitar colisões de entidade no game (server/metin2/Source/Server/game/src/dungeon.h, server/metin2/Source/Server/game/src/dungeon.cpp);
 [FIX] 056 - diff_056 - Conversão de tempo thread-safe para evitar data races em localtime/gmtime no game (server/metin2/Source/Server/libthecore/src/utils.c, server/metin2/Source/Server/libthecore/src/log.c (+7));
 [FIX] 057 - diff_057 - Conversão de tempo thread-safe para evitar data races em localtime/gmtime no client (src-client/Client/EterPythonLib/PythonGraphicModule.cpp, src-client/Client/GameLib/Property.cpp (+2));
