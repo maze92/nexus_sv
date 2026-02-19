@@ -1,0 +1,44 @@
+--- a/Nexus OS/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/Nexus OS/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -1052,8 +1052,24 @@
+ void CInputMain::ItemPickup(LPCHARACTER ch, const char* data)
+ {
+ 	struct command_item_pickup* pinfo = (struct command_item_pickup*)data;
+-	if (ch)
+-		ch->PickupItem(pinfo->vid);
++	if (!ch)
++		return;
++
++	LPITEM item = ITEM_MANAGER::instance().FindByVID(pinfo->vid);
++	if (!item || !item->GetSectree())
++		return;
++
++	if (ch->GetGMLevel() == GM_PLAYER)
++	{
++		const int dist = DISTANCE_APPROX(item->GetX() - ch->GetX(), item->GetY() - ch->GetY());
++		if (dist > 300)
++		{
++			sys_err("ITEM_PICKUP_DISTANCE: %s pid=%u vid=%u dist=%d", ch->GetName(), ch->GetPlayerID(), pinfo->vid, dist);
++			return;
++		}
++	}
++
++	ch->PickupItem(pinfo->vid);
+ }
+ 
+ void CInputMain::QuickslotAdd(LPCHARACTER ch, const char* data)
+@@ -3305,6 +3321,14 @@
+ 				offer /= 100;
+ 				offer *= 100;
+ 
++				DWORD cur_exp = ch->GetExp();
++				if (ch->IsDead() || offer == 0 || offer > cur_exp)
++				{
++					sys_err("GUILD_OFFER invalid exp offer=%u cur=%u pid=%u name=%s", offer, cur_exp, ch->GetPlayerID(), ch->GetName());
++					ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("<\xb1\xe6\xb5\xe5> \xb0\xe6\xc7\xe8\xc1\xf7 \xc5\xf5\xc0\xda\xbf\xa1 \xbd\xc7\xc6\xd0\xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9."));
++					return SubPacketLen;
++				}
++
+ 				if (pGuild->OfferExp(ch, offer))
+ 				{
+ #ifdef ENABLE_EXTENDED_BATTLE_PASS
