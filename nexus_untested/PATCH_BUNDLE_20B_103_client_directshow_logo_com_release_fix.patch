@@ -1,0 +1,31 @@
+--- a/src-client/Client/UserInterface/PythonApplicationLogo.cpp
++++ b/src-client/Client/UserInterface/PythonApplicationLogo.cpp
+@@ -43,8 +43,13 @@
+ 	MultiByteToWideChar(CP_ACP, 0, szName, -1, wFileName, MAX_PATH);
+ 	if (FAILED(m_pGraphBuilder->RenderFile(wFileName, NULL))) { return 0; }
+ 
+-	IBaseFilter* pSrc;
++	IBaseFilter* pSrc = NULL;
+ 	m_pGraphBuilder->AddSourceFilter(wFileName, L"Source", &pSrc);
++	if (pSrc)
++	{
++		pSrc->Release();
++		pSrc = NULL;
++	}
+ 
+ 	// Media Control
+ 	if (FAILED(m_pGraphBuilder->QueryInterface(IID_IMediaControl, (VOID**)&m_pMediaCtrl))) { return 0; }
+@@ -226,7 +231,12 @@
+ 
+ 	if (m_pBasicVideo != NULL) m_pBasicVideo->Release(); m_pBasicVideo = NULL;
+ 	if (m_pVideoWnd != NULL) m_pVideoWnd->Release(); m_pVideoWnd = NULL;
+-	if (m_pMediaCtrl != NULL) m_pMediaCtrl->Release(); m_pMediaCtrl = NULL;
++	if (m_pMediaCtrl != NULL)
++	{
++		m_pMediaCtrl->Stop();
++		m_pMediaCtrl->Release();
++		m_pMediaCtrl = NULL;
++	}
+ 	if (m_pSampleGrabber != NULL) m_pSampleGrabber->Release(); m_pSampleGrabber = NULL;
+ 	if (m_pFilterSG != NULL) m_pFilterSG->Release(); m_pFilterSG = NULL;
+ 	if (m_pGraphBuilder != NULL) m_pGraphBuilder->Release(); m_pGraphBuilder = NULL;

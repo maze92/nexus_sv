@@ -1,0 +1,33 @@
+--- a/src-client/Client/UserInterface/UserInterface.cpp
++++ b/src-client/Client/UserInterface/UserInterface.cpp
+@@ -70,6 +70,21 @@
+ #endif
+ 
+ #include <stdlib.h>
++
++#if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
++#	include <xmmintrin.h>
++static void __EnableFTZ_DAZ()
++{
++	// Avoid severe CPU slowdowns on denormalized floats (FTZ/DAZ).
++	// FTZ = Flush-To-Zero (bit 15), DAZ = Denormals-Are-Zero (bit 6).
++	unsigned int mxcsr = _mm_getcsr();
++	mxcsr |= (1u << 15);
++	mxcsr |= (1u << 6);
++	_mm_setcsr(mxcsr);
++}
++#else
++static void __EnableFTZ_DAZ() {}
++#endif
+ #include <cryptopp/cryptoppLibLink.h>
+ bool __IS_TEST_SERVER_MODE__ = false;
+ 
+@@ -177,6 +192,8 @@
+ 	HINSTANCE m_hInstance;
+ 	std::map<DWORD, std::string> m_kMap_dwID_stLocale;
+ } gs_kAppStrTable;
++
++	__EnableFTZ_DAZ();
+ 
+ void ApplicationStringTable_Initialize(HINSTANCE hInstance)
+ {
