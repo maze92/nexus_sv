@@ -1,0 +1,313 @@
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/libthecore/src/utils.c"	2025-06-02 10:31:24.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/libthecore/src/utils.c"	2026-02-19 09:10:38.080592798 +0000
+@@ -110,14 +110,27 @@
+ 
+ char* time_str(time_t ct)
+ {
+-	static char* time_s;
++	/* Thread-safe: avoid localtime()/asctime() static buffers */
++	static char time_buf[64];
++	struct tm tm_buf;
+ 
+-	time_s = asctime(localtime(&ct));
+-
+-	time_s[strlen(time_s) - 6] = '\0';
+-	time_s += 4;
++#if defined(_WIN32)
++	if (localtime_s(&tm_buf, &ct) != 0)
++	{
++		thecore_snprintf(time_buf, sizeof(time_buf), "??? ?? ??:??:??");
++		return time_buf;
++	}
++#else
++	if (localtime_r(&ct, &tm_buf) == NULL)
++	{
++		thecore_snprintf(time_buf, sizeof(time_buf), "??? ?? ??:??:??");
++		return time_buf;
++	}
++#endif
+ 
+-	return (time_s);
++	/* Match original: "Mon Jun 30 21:49:08 1993" -> "Jun 30 21:49:08" */
++	strftime(time_buf, sizeof(time_buf), "%b %e %H:%M:%S", &tm_buf);
++	return time_buf;
+ }
+ 
+ void trim_and_lower(const char* src, char* dest, size_t dest_size)
+@@ -268,7 +281,11 @@
+ 	if (!curr_tm)
+ 	{
+ 		time_t time_s = time(0);
+-		new_tm = *localtime(&time_s);
++		#if defined(_WIN32)
++		localtime_s(&new_tm, &time_s);
++#else
++		localtime_r(&time_s, &new_tm);
++#endif
+ 	}
+ 	else
+ 		thecore_memcpy(&new_tm, curr_tm, sizeof(struct tm));
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/libthecore/src/log.c"	2023-12-17 08:13:26.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/libthecore/src/log.c"	2026-02-19 09:10:38.081639243 +0000
+@@ -44,6 +44,25 @@
+ 
+ static unsigned int log_level_bits = 0;
+ 
++static void thecore_localtime_str(time_t ct, char* out, size_t out_size)
++{
++	struct tm tm_buf;
++#if defined(_WIN32)
++	if (localtime_s(&tm_buf, &ct) != 0)
++	{
++		thecore_snprintf(out, out_size, "??? ?? ??:??:??");
++		return;
++	}
++#else
++	if (localtime_r(&ct, &tm_buf) == NULL)
++	{
++		thecore_snprintf(out, out_size, "??? ?? ??:??:??");
++		return;
++	}
++#endif
++	strftime(out, out_size, "%b %e %H:%M:%S", &tm_buf);
++}
++
+ void log_set_level(unsigned int bit)
+ {
+ 	log_level_bits |= bit;
+@@ -110,16 +129,13 @@
+ {
+ 	va_list args;
+ 	time_t ct = time(0);
+-	char* time_s = asctime(localtime(&ct));
+-
++	char time_s[64];
++	thecore_localtime_str(ct, time_s, sizeof(time_s));
+ 	char buf[1024 + 2]; // \n을 붙이기 위해..
+ 	int len;
+ 
+ 	if (!log_file_err)
+-		return;
+-
+-	time_s[strlen(time_s) - 1] = '\0';
+-	len = snprintf(buf, 1024, "SYSERR: %-15.15s :: %s: ", time_s + 4, func);
++		return;	len = snprintf(buf, 1024, "SYSERR: %-15.15s :: %s: ", time_s, func);
+ 	buf[1025] = '\0';
+ 
+ 	if (len < 1024)
+@@ -144,16 +160,13 @@
+ {
+ 	va_list args;
+ 	time_t ct = time(0);
+-	char* time_s = asctime(localtime(&ct));
+-
++	char time_s[64];
++	thecore_localtime_str(ct, time_s, sizeof(time_s));
+ 	char buf[1024 + 2]; // \n을 붙이기 위해..
+ 	int len;
+ 
+ 	if (!log_file_err)
+-		return;
+-
+-	time_s[strlen(time_s) - 1] = '\0';
+-	len = snprintf(buf, 1024, "SYSERR: %-15.15s :: %s: ", time_s + 4, func);
++		return;	len = snprintf(buf, 1024, "SYSERR: %-15.15s :: %s: ", time_s, func);
+ 	buf[1025] = '\0';
+ 
+ 	if (len < 1024)
+@@ -195,12 +208,9 @@
+ 	if (log_file_sys)
+ 	{
+ 		time_t ct = time(0);
+-		char* time_s = asctime(localtime(&ct));
+-
+-		fprintf(log_file_sys->fp, "%s", sys_log_header_string);
+-
+-		time_s[strlen(time_s) - 1] = '\0';
+-		fprintf(log_file_sys->fp, "%-15.15s :: ", time_s + 4);
++		char time_s[64];
++	thecore_localtime_str(ct, time_s, sizeof(time_s));
++		fprintf(log_file_sys->fp, "%s", sys_log_header_string);		fprintf(log_file_sys->fp, "%-15.15s :: ", time_s);
+ 
+ 		va_start(args, format);
+ 		vfprintf(log_file_sys->fp, format, args);
+@@ -251,7 +261,11 @@
+ 	time_t time_s;
+ 
+ 	time_s = time(0);
+-	curr_tm = *localtime(&time_s);
++	#if defined(_WIN32)
++		localtime_s(&curr_tm, &time_s);
++#else
++		localtime_r(&time_s, &curr_tm);
++#endif
+ 
+ 	fp = fopen(filename, openmode);
+ 
+@@ -394,7 +408,11 @@
+ 	char system_cmd[128];
+ 
+ 	time_s = time(0);
+-	curr_tm = *localtime(&time_s);
++	#if defined(_WIN32)
++		localtime_s(&curr_tm, &time_s);
++#else
++		localtime_r(&time_s, &curr_tm);
++#endif
+ 
+ 	if (curr_tm.tm_mday != logfile->last_day)
+ 	{
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/desc.cpp"	2025-06-26 17:14:54.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/game/src/desc.cpp"	2026-02-19 09:10:38.082059639 +0000
+@@ -636,7 +636,13 @@
+ 	va_list args;
+ 
+ 	time_t ct = get_global_time();
+-	struct tm tm = *localtime(&ct);
++	#if defined(_WIN32)
++	struct tm tm;
++	localtime_s(&tm, &ct);
++#else
++	struct tm tm;
++	localtime_r(&ct, &tm);
++#endif
+ 
+ 	fprintf(m_pLogFile,
+ 		"%02d %02d %02d:%02d:%02d | ",
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/db.cpp"	2025-06-24 06:40:00.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/game/src/db.cpp"	2026-02-19 09:10:38.082684454 +0000
+@@ -368,9 +368,13 @@
+ 						str_to_number(retValue, row[col]);
+ 
+ 						time_t create_time = retValue;
+-						struct tm* tm1;
+-						tm1 = localtime(&create_time);
+-						strftime(szCreateDate, 255, "%Y%m%d", tm1);
++						struct tm tm1;
++#if defined(_WIN32)
++					localtime_s(&tm1, &create_time);
++#else
++					localtime_r(&create_time, &tm1);
++#endif
++					strftime(szCreateDate, 255, "%Y%m%d", &tm1);
+ 
+ 						sys_log(0, "Create_Time %d %s", retValue, szCreateDate);
+ 						sys_log(0, "Block Time %d ", strncmp(szCreateDate, g_stBlockDate.c_str(), 8));
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/debug_allocator_adapter.h"	2024-12-27 19:09:36.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/game/src/debug_allocator_adapter.h"	2026-02-19 09:10:38.082960450 +0000
+@@ -77,7 +77,13 @@
+ 	{
+ 		char buf[24];
+ 		time_t t = ::time(NULL);
+-		::strftime(buf, 24, "%Y-%m-%d %H:%M:%S", ::localtime(&t));
++		std::tm tm_buf;
++#if defined(_WIN32)
++		localtime_s(&tm_buf, &t);
++#else
++		localtime_r(&t, &tm_buf);
++#endif
++		::strftime(buf, 24, "%Y-%m-%d %H:%M:%S", &tm_buf);
+ 		return stream << buf;
+ 	}
+ 	std::ofstream stream;
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/db/src/ClientManager.cpp"	2025-06-28 12:23:32.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/db/src/ClientManager.cpp"	2026-02-19 09:10:38.084005584 +0000
+@@ -3248,7 +3248,11 @@
+ 		return;
+ 
+ 	ct = time(0);
+-	lt = *localtime(&ct);
++	#if defined(_WIN32)
++		localtime_s(&lt, &ct);
++#else
++		localtime_r(&ct, &lt);
++#endif
+ 	time_s = asctime(&lt);
+ 
+ 	time_s[strlen(time_s) - 1] = '\0';
+@@ -4800,7 +4804,13 @@
+ void CClientManager::UpdateEnvironment()
+ {
+ 	time_t CurrentTime = time(nullptr);
+-	tm* tm = localtime(&CurrentTime);
++	tm tm_buf;
++#if defined(_WIN32)
++		localtime_s(&tm_buf, &CurrentTime);
++#else
++		localtime_r(&CurrentTime, &tm_buf);
++#endif
++		tm* tm = &tm_buf;
+ 
+ 	auto SendFlag = [&](const char* flag, BYTE val)
+ 		{
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/db/src/ShopSearchManager.cpp"	2025-06-24 14:18:02.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/db/src/ShopSearchManager.cpp"	2026-02-19 09:10:38.084281180 +0000
+@@ -665,7 +665,13 @@
+ int CShopSearchManager::GetCurrentMonthDay()
+ {
+ 	time_t now = time(NULL);
+-	return localtime(&now)->tm_mday;
++	struct tm tm_now;
++#if defined(_WIN32)
++	localtime_s(&tm_now, &now);
++#else
++	localtime_r(&now, &tm_now);
++#endif
++	return tm_now.tm_mday;
+ }
+ 
+ #endif
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/db/src/HB.cpp"	2024-12-27 19:09:36.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/db/src/HB.cpp"	2026-02-19 09:10:38.084665080 +0000
+@@ -50,7 +50,12 @@
+ bool PlayerHB::Query(DWORD id)
+ {
+ 	time_t ct = time(0);
+-	struct tm curr_tm = *localtime(&ct);
++	struct tm curr_tm;
++#if defined(_WIN32)
++	localtime_s(&curr_tm, &ct);
++#else
++	localtime_r(&ct, &curr_tm);
++#endif
+ 	char szTableName[64];
+ 	snprintf(szTableName, sizeof(szTableName), "hb_%02d%02d%02d%02d_player%s",
+ 		curr_tm.tm_year - 100, curr_tm.tm_mon + 1, curr_tm.tm_mday, curr_tm.tm_hour, GetTablePostfix());
+--- "/mnt/data/work/nexus_orig/Nexus OS/server/metin2/Source/Server/liblua/src/lib/liolib.c"	2024-12-27 19:09:38.000000000 +0000
++++ "/mnt/data/work/nexus/Nexus OS/server/metin2/Source/Server/liblua/src/lib/liolib.c"	2026-02-19 09:10:38.085656669 +0000
+@@ -657,16 +657,33 @@
+ {
+ 	const char* s = luaL_optstring(L, 1, "%c");
+ 	time_t t = (time_t)(luaL_optnumber(L, 2, -1));
++	struct tm stm_buf;
+ 	struct tm* stm;
+ 	if (t == (time_t)(-1)) /* no time given? */
+ 		t = time(NULL); /* use current time */
+ 	if (*s == '!')
+ 	{ /* UTC? */
+-		stm = gmtime(&t);
++#if defined(_WIN32)
++		if (gmtime_s(&stm_buf, &t) != 0)
++			stm = NULL;
++		else
++			stm = &stm_buf;
++#else
++		stm = gmtime_r(&t, &stm_buf);
++#endif
+ 		s++; /* skip `!' */
+ 	}
+ 	else
+-		stm = localtime(&t);
++	{
++#if defined(_WIN32)
++		if (localtime_s(&stm_buf, &t) != 0)
++			stm = NULL;
++		else
++			stm = &stm_buf;
++#else
++		stm = localtime_r(&t, &stm_buf);
++#endif
++	}
+ 	if (stm == NULL) /* invalid date? */
+ 		lua_pushnil(L);
+ 	else if (strcmp(s, "*t") == 0)
