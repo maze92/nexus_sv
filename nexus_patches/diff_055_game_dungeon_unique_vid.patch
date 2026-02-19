@@ -1,0 +1,234 @@
+diff --git a/server/metin2/Source/Server/game/src/dungeon.h b/server/metin2/Source/Server/game/src/dungeon.h
+--- a/server/metin2/Source/Server/game/src/dungeon.h
++++ b/server/metin2/Source/Server/game/src/dungeon.h
+@@ -21,7 +21,7 @@
+ class CDungeon
+ {
+ 	typedef std::unordered_map<LPPARTY, int> TPartyMap;
+-	typedef std::map<std::string, LPCHARACTER> TUniqueMobMap;
++	typedef std::map<std::string, DWORD> TUniqueMobMap;
+ 
+ public:
+ 	// <Factor> Non-persistent identifier type
+diff --git a/server/metin2/Source/Server/game/src/dungeon.cpp b/server/metin2/Source/Server/game/src/dungeon.cpp
+--- a/server/metin2/Source/Server/game/src/dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/dungeon.cpp
+@@ -525,7 +525,16 @@
+ 		sys_err("Unknown Key : %s", key.c_str());
+ 		return;
+ 	}
+-	it->second->SetMaxHP(dwMaxHP);
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		sys_err("UniqueSetMaxHP: stale unique key %s (vid %u)", key.c_str(), it->second);
++		m_map_UniqueMob.erase(it);
++		return;
++	}
++
++	ch->SetMaxHP(dwMaxHP);
+ }
+ 
+ void CDungeon::UniqueSetHP(const std::string& key, int iHP)
+@@ -536,7 +545,16 @@
+ 		sys_err("Unknown Key : %s", key.c_str());
+ 		return;
+ 	}
+-	it->second->SetHP(iHP);
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		sys_err("UniqueSetHP: stale unique key %s (vid %u)", key.c_str(), it->second);
++		m_map_UniqueMob.erase(it);
++		return;
++	}
++
++	ch->SetHP(iHP);
+ }
+ 
+ void CDungeon::UniqueSetDefGrade(const std::string& key, int iGrade)
+@@ -547,7 +565,16 @@
+ 		sys_err("Unknown Key : %s", key.c_str());
+ 		return;
+ 	}
+-	it->second->PointChange(POINT_DEF_GRADE, iGrade - it->second->GetPoint(POINT_DEF_GRADE));
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		sys_err("UniqueSetDefGrade: stale unique key %s (vid %u)", key.c_str(), it->second);
++		m_map_UniqueMob.erase(it);
++		return;
++	}
++
++	ch->PointChange(POINT_DEF_GRADE, iGrade - ch->GetPoint(POINT_DEF_GRADE));
+ }
+ 
+ void CDungeon::SpawnMoveUnique(const char* key, DWORD vnum, const char* pos_from, const char* pos_to)
+@@ -589,7 +616,7 @@
+ 
+ 		if (ch)
+ 		{
+-			m_map_UniqueMob.insert(make_pair(std::string(key), ch));
++			m_map_UniqueMob.insert(make_pair(std::string(key), ch->GetVID()));
+ 			ch->AddAffect(AFFECT_DUNGEON_UNIQUE, POINT_NONE, 0, AFF_DUNGEON_UNIQUE, 65535, 0, true);
+ 			ch->SetDungeon(this);
+ 
+@@ -633,7 +660,7 @@
+ 
+ 		if (ch)
+ 		{
+-			m_map_UniqueMob.insert(make_pair(std::string(key), ch));
++			m_map_UniqueMob.insert(make_pair(std::string(key), ch->GetVID()));
+ 			ch->SetDungeon(this);
+ 			ch->AddAffect(AFFECT_DUNGEON_UNIQUE, POINT_NONE, 0, AFF_DUNGEON_UNIQUE, 65535, 0, true);
+ 			break;
+@@ -650,7 +677,7 @@
+ 	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(vid);
+ 	if (ch)
+ 	{
+-		m_map_UniqueMob.insert(make_pair(std::string(key), ch));
++		m_map_UniqueMob.insert(make_pair(std::string(key), ch->GetVID()));
+ 		ch->AddAffect(AFFECT_DUNGEON_UNIQUE, POINT_NONE, 0, AFF_DUNGEON_UNIQUE, 65535, 0, true);
+ 	}
+ }
+@@ -676,9 +703,13 @@
+ 		sys_err("Unknown Key or Dead: %s", key.c_str());
+ 		return;
+ 	}
+-	LPCHARACTER ch = it->second;
++
++	DWORD vid = it->second;
+ 	m_map_UniqueMob.erase(it);
+-	M2_DESTROY_CHARACTER(ch);
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(vid);
++	if (ch)
++		M2_DESTROY_CHARACTER(ch);
+ }
+ 
+ void CDungeon::KillUnique(const std::string& key)
+@@ -689,9 +720,13 @@
+ 		sys_err("Unknown Key or Dead: %s", key.c_str());
+ 		return;
+ 	}
+-	LPCHARACTER ch = it->second;
++
++	DWORD vid = it->second;
+ 	m_map_UniqueMob.erase(it);
+-	ch->Dead();
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(vid);
++	if (ch)
++		ch->Dead();
+ }
+ 
+ DWORD CDungeon::GetUniqueVID(const std::string& key)
+@@ -702,15 +737,19 @@
+ 		sys_err("Unknown Key or Dead: %s", key.c_str());
+ 		return 0;
+ 	}
+-	return it->second->GetVID();
++	return it->second;
+ }
+ 
+ bool CDungeon::IsUnique(LPCHARACTER pChar)
+ {
++	if (!pChar)
++		return false;
++
++	const DWORD vid = pChar->GetVID();
+ 	TUniqueMobMap::iterator it = m_map_UniqueMob.begin();
+ 	for (; it != m_map_UniqueMob.end(); ++it)
+ 	{
+-		if (it->second == pChar)
++		if (it->second == vid)
+ 			return true;
+ 	}
+ 	return false;
+@@ -724,7 +763,16 @@
+ 		sys_err("Unknown Key or Dead: %s", key.c_str());
+ 		return NULL;
+ 	}
+-	return it->second;
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		sys_err("GetUnique: stale unique key %s (vid %u)", key.c_str(), it->second);
++		m_map_UniqueMob.erase(it);
++		return NULL;
++	}
++
++	return ch;
+ }
+ 
+ float CDungeon::GetUniqueHpPerc(const std::string& key)
+@@ -735,24 +783,37 @@
+ 		sys_err("Unknown Key : %s", key.c_str());
+ 		return 0.0f;
+ 	}
+-	return (100.f * it->second->GetHP()) / it->second->GetMaxHP();
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		sys_err("GetUniqueHpPerc: stale unique key %s (vid %u)", key.c_str(), it->second);
++		m_map_UniqueMob.erase(it);
++		return 0.0f;
++	}
++
++	const int maxHp = ch->GetMaxHP();
++	if (maxHp <= 0)
++		return 0.0f;
++
++	return (100.f * ch->GetHP()) / maxHp;
+ }
+ 
+ void CDungeon::DeadCharacter(LPCHARACTER ch)
+ {
+-	if (!ch->IsPC())
++	if (!ch || ch->IsPC())
++		return;
++
++	const DWORD vid = ch->GetVID();
++	TUniqueMobMap::iterator it = m_map_UniqueMob.begin();
++	while (it != m_map_UniqueMob.end())
+ 	{
+-		TUniqueMobMap::iterator it = m_map_UniqueMob.begin();
+-		while (it != m_map_UniqueMob.end())
++		if (it->second == vid)
+ 		{
+-			if (it->second == ch)
+-			{
+-				//sys_log(0,"Dead unique %s", it->first.c_str());
+-				m_map_UniqueMob.erase(it);
+-				break;
+-			}
+-			++it;
++			m_map_UniqueMob.erase(it);
++			break;
+ 		}
++		++it;
+ 	}
+ }
+ 
+@@ -764,7 +825,15 @@
+ 		sys_err("Unknown Key or Dead : %s", key.c_str());
+ 		return true;
+ 	}
+-	return it->second->IsDead();
++
++	LPCHARACTER ch = CHARACTER_MANAGER::instance().Find(it->second);
++	if (!ch)
++	{
++		m_map_UniqueMob.erase(it);
++		return true;
++	}
++
++	return ch->IsDead();
+ }
+ 
+ void CDungeon::Spawn(DWORD vnum, const char* pos)

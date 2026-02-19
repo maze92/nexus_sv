@@ -1,0 +1,24 @@
+--- Nexus OS/client/pack/root/uiinventory.py
++++ Nexus OS/client/pack/root/uiinventory.py
+@@ -1605,7 +1605,8 @@
+ 			attachedItemVID = mouseModule.mouseController.GetAttachedItemIndex()
+ 
+ 			if player.SLOT_TYPE_INVENTORY == attachedSlotType or\
+-				player.SLOT_TYPE_BELT_INVENTORY == attachedSlotType:
++				player.SLOT_TYPE_BELT_INVENTORY == attachedSlotType or\
++				player.SLOT_TYPE_EQUIPMENT == attachedSlotType:
+ 				if attachedSlotPos >= player.ITEM_SLOT_COUNT:
+ 					mouseModule.mouseController.DeattachObject()
+ 					return
+@@ -1662,7 +1663,10 @@
+ 			else:
+ 				selectedItemVNum = player.GetItemIndex(window_type, itemSlotIndex)
+ 				itemCount = player.GetItemCount(window_type, itemSlotIndex)
+-				attachSlotType = player.WindowTypeToSlotType(window_type)
++				if window_type == player.EQUIPMENT:
++					attachSlotType = player.SLOT_TYPE_EQUIPMENT
++				else:
++					attachSlotType = player.WindowTypeToSlotType(window_type)
+ 
+ 				if app.ENABLE_GROWTH_PET_SYSTEM:
+ 					if self.__CanAttachGrowthPetItem(selectedItemVNum, itemSlotIndex):
