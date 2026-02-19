@@ -46,3 +46,17 @@ CHANGELOGS
 [FIX] 043 - diff_043 - Sanity-check de packets/inputs para bloquear dados malformados no dungeon (server/metin2/Source/Server/game/src/dungeon.cpp, server/metin2/Source/Server/game/src/dungeon.h);
 [FIX] 044 - diff_044 - Guards de tamanho/mínimos para evitar leitura inválida no proto (server/metin2/Source/Server/game/src/item.h);
 [FIX] 045 - diff_045 - Frustum + distance culling para reduzir custo CPU em shadows/effects no MapOutdoorRender/Area (src-client/Client/GameLib/MapOutdoorRender.cpp, src-client/Client/GameLib/Area.cpp);
+
+19.02.2026
+[FIX] 046 - diff_046 - Dead-reckoning para reduzir rubberband/drift e endurecer micro-speedhack no game (server/metin2/Source/Server/game/src/char.h, server/metin2/Source/Server/game/src/char.cpp (+1));
+[FIX] 047 - diff_047 - RNG mais seguro para reduzir previsibilidade em rolls críticos no game (server/metin2/Source/Server/libthecore/include/utils.h, server/metin2/Source/Server/libthecore/src/utils.c (+2));
+[FIX] 048 - diff_048 - Limite máximo de packet/payload para bloquear abusos na rede no game (server/metin2/Source/Server/game/src/input.cpp);
+[FIX] 049 - diff_049 - Flush/guard da TEA key para evitar desync de cifragem no handshake no game (server/metin2/Source/Server/game/src/desc.cpp);
+[FIX] 050 - diff_050 - Guard de pickup em offers de guild para bloquear race/abuso no game (server/metin2/Source/Server/game/src/input_main.cpp);
+[FIX] 051 - diff_051 - Clamp de durações negativas para evitar affects inválidos no game (server/metin2/Source/Server/game/src/char_affect.cpp);
+[FIX] 052 - diff_052 - Lock atómico no exchange para bloquear concorrência/dupe no game (server/metin2/Source/Server/game/src/exchange.h, server/metin2/Source/Server/game/src/exchange.cpp);
+[FIX] 053 - diff_053 - Flush consistente do exchange no DB para evitar state desync no game (server/metin2/Source/Server/game/src/exchange.cpp);
+[FIX] 054 - diff_054 - Fix de drag de equipamento para bloquear slots inválidos/desync no uiinventory (client/pack/root/uiinventory.py);
+[FIX] 055 - diff_055 - VID único/seguro em dungeon para evitar colisões de entidade no game (server/metin2/Source/Server/game/src/dungeon.h, server/metin2/Source/Server/game/src/dungeon.cpp);
+[FIX] 056 - diff_056 - Conversão de tempo thread-safe para evitar data races em localtime/gmtime no game (server/metin2/Source/Server/libthecore/src/utils.c, server/metin2/Source/Server/libthecore/src/log.c (+7));
+[FIX] 057 - diff_057 - Conversão de tempo thread-safe para evitar data races em localtime/gmtime no client (src-client/Client/EterPythonLib/PythonGraphicModule.cpp, src-client/Client/GameLib/Property.cpp (+2));
