@@ -1,0 +1,281 @@
+--- a/db/src/Cache.cpp
++++ b/db/src/Cache.cpp
+@@ -573,6 +573,9 @@
+ 	}
+ 	else
+ 	{
++		char name_esc[sizeof(m_data.szName) * 2 + 1];
++		CDBManager::instance().EscapeString(name_esc, m_data.szName, strlen(m_data.szName));
++
+ 		size_t queryLen;
+ 		queryLen = snprintf(szQuery, sizeof(szQuery),
+ 			"REPLACE INTO growth_pet%s SET "
+@@ -604,7 +607,7 @@
+ 			m_data.dwOwner,
+ 			m_data.dwVnum,
+ 			m_data.bState,
+-			m_data.szName,
++			name_esc,
+ 			m_data.bSize,
+ 			m_data.dwLevel,
+ 			m_data.bLevelStep,
+
+--- a/game/src/growth_pet.cpp
++++ b/game/src/growth_pet.cpp
+@@ -144,7 +144,8 @@
+ 	{
+ 		info->pPet->GetGrowthPet()->EffectPacket(SE_GYEONGGONG_BOOM);
+ 
+-		const DWORD dwPetLevel = info->pPet->GetPetPoint(POINT_UPBRINGING_PET_LEVEL) - 81;
++		const int lvl = (int)info->pPet->GetPetPoint(POINT_UPBRINGING_PET_LEVEL);
++		const DWORD dwPetLevel = (lvl > 81) ? (DWORD)(lvl - 81) : 0;
+ 		info->pSkillPoly->SetVar("lv", dwPetLevel);
+ 		info->pSkillPoly->SetVar("k", info->bSkillLevel);
+ 		WORD wSkillValue = (WORD)info->pSkillPoly->Eval();
+@@ -771,7 +772,8 @@
+ 		return;
+ 
+ 	const DWORD dwPetVnum = m_pSummonItem->GetVnum();
+-	const DWORD dwPetLevel = GetPetPoint(POINT_UPBRINGING_PET_LEVEL) - 81;
++	const int lvl = (int)GetPetPoint(POINT_UPBRINGING_PET_LEVEL);
++	const DWORD dwPetLevel = (lvl > 81) ? (DWORD)(lvl - 81) : 0;
+ 
+ 	TPacketGCPetSkillUpdate packet;
+ 	packet.header = HEADER_GC_PET_SKILL_UPDATE;
+@@ -1904,6 +1906,12 @@
+ 	if (!m_pOwner)
+ 		return;
+ 
++	if (!pSkillBookItem)
++		return;
++
++	if (bSlot >= PET_SKILL_COUNT_MAX)
++		return;
++
+ 	if (GetPetPoint(POINT_UPBRINGING_PET_EVOL_LEVEL) < PET_GROWTH_SKILL_OPEN_EVOL_LEVEL)
+ 		return;
+ 
+@@ -1941,6 +1949,9 @@
+ 	if (!m_pOwner)
+ 		return;
+ 
++	if (bSlot >= PET_SKILL_COUNT_MAX)
++		return;
++
+ 	if (GetPetPoint(POINT_UPBRINGING_PET_EVOL_LEVEL) < PET_GROWTH_SKILL_OPEN_EVOL_LEVEL)
+ 		return;
+ 
+@@ -1967,6 +1978,15 @@
+ 
+ void CGrowthPet::DeleteSkill(BYTE bSlot, LPITEM pSkillDeleteItem)
+ {
++	if (!m_pOwner)
++		return;
++
++	if (!pSkillDeleteItem)
++		return;
++
++	if (bSlot >= PET_SKILL_COUNT_MAX)
++		return;
++
+ 	if (GetPetPoint(POINT_UPBRINGING_PET_EVOL_LEVEL) < PET_GROWTH_SKILL_OPEN_EVOL_LEVEL)
+ 		return;
+ 	
+@@ -2038,7 +2058,8 @@
+ 		return false;
+ 
+ 	const BYTE bSkillLevel = GetSkillLevelBySlot(iSkillSlot);
+-	const DWORD dwPetLevel = GetPetPoint(POINT_UPBRINGING_PET_LEVEL) - 81;
++	const int lvl = (int)GetPetPoint(POINT_UPBRINGING_PET_LEVEL);
++	const DWORD dwPetLevel = (lvl > 81) ? (DWORD)(lvl - 81) : 0;
+ 	pSkillPoly->SetVar("lv", dwPetLevel);
+ 	pSkillPoly->SetVar("k", bSkillLevel);
+ 	const WORD wSkillValue = (WORD)pSkillPoly->Eval();
+
+--- a/game/src/char.h
++++ b/game/src/char.h
+@@ -1935,6 +1935,11 @@
+ 		// Flood guard: rate-limit FUNC_COMBO packets (DoS mitigation)
+ 		bool CheckComboFlood(DWORD dwTime);
+ 
++#ifdef __GROWTH_PET_SYSTEM__
++		// Flood guard: rate-limit Growth Pet packets (DoS mitigation)
++		bool CheckGrowthPetFlood();
++#endif
++
+ protected:
+ 	BYTE m_bComboSequence;
+ 	DWORD m_dwLastComboTime;
+@@ -1945,6 +1950,11 @@
+ 	DWORD m_dwComboFloodWindow;
+ 	BYTE m_bComboFloodCount;
+ 
++#ifdef __GROWTH_PET_SYSTEM__
++	DWORD m_dwLastGrowthPetRequestTime;
++	BYTE m_bGrowthPetFloodCount;
++#endif
++
+ protected:
+ 	void UpdateAggrPointEx(LPCHARACTER ch, EDamageType type, int dam, TBattleInfo& info);
+ 	void ChangeVictimByAggro(int iNewAggro, LPCHARACTER pNewVictim);
+
+--- a/game/src/char.cpp
++++ b/game/src/char.cpp
+@@ -506,6 +506,11 @@
+ 	m_bShopSearchFloodCount = 0;
+ #endif
+ 
++#ifdef __GROWTH_PET_SYSTEM__
++	m_dwLastGrowthPetRequestTime = 0;
++	m_bGrowthPetFloodCount = 0;
++#endif
++
+ #if defined(__MYSHOP_DECO__)
+ 	m_bMyShopDecoType = 0;
+ 	m_bMyShopDecoState = 0;
+@@ -9960,6 +9965,38 @@
+ 			if (GetDesc())
+ 				GetDesc()->DelayedDisconnect(3);
+ 		}
++
++		return false;
++	}
++
++	return true;
++}
++#endif
++
++#ifdef __GROWTH_PET_SYSTEM__
++bool CHARACTER::CheckGrowthPetFlood()
++{
++	const DWORD now = get_dword_time();
++
++	// reset burst if enough time passed
++	if (now - m_dwLastGrowthPetRequestTime > 2000)
++		m_bGrowthPetFloodCount = 0;
++
++	const DWORD delta = now - m_dwLastGrowthPetRequestTime;
++	m_dwLastGrowthPetRequestTime = now;
++
++	// Allow at most ~1 request / 250ms. Faster => ignore, repeated => disconnect.
++	if (delta < 250)
++	{
++		if (m_bGrowthPetFloodCount < 255)
++			++m_bGrowthPetFloodCount;
++
++		if (m_bGrowthPetFloodCount >= 30)
++		{
++			sys_log(0, "GROWTH_PET_FLOOD: pid %u name %s count %u", GetPlayerID(), GetName(), m_bGrowthPetFloodCount);
++			if (GetDesc())
++				GetDesc()->DelayedDisconnect(3);
++		}
+ 
+ 		return false;
+ 	}
+
+--- a/game/src/input_main.cpp
++++ b/game/src/input_main.cpp
+@@ -5315,6 +5315,9 @@
+ 
+ 	if (!ch || !ch->GetDesc())
+ 		return;
++
++	if (!ch->CheckGrowthPetFlood())
++		return;
+ 	
+ 	CGrowthPetManager::Instance().EggHatch(ch, p->name, p->eggPos);
+ }
+@@ -5373,6 +5376,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	if (ch->GetActiveGrowthPet())
+ 		ch->GetActiveGrowthPet()->Feed(p);
+ 	else
+@@ -5386,6 +5392,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pDetermineItem = ch->GetInventoryItem(p->determinePos.cell);
+ 	if (!pDetermineItem)
+ 		return;
+@@ -5409,6 +5418,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pUpBringingItem = ch->GetInventoryItem(p->upBringingPos.cell);
+ 	if (!pUpBringingItem)
+ 		return;
+@@ -5437,6 +5449,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pUpBringingItem = ch->GetInventoryItem(p->upBringingPos.cell);
+ 	if (!pUpBringingItem)
+ 		return;
+@@ -5458,6 +5473,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pSkillBookItem = ch->GetInventoryItem(p->learnSkillPos.cell);
+ 	if (!pSkillBookItem)
+ 		return;
+@@ -5478,6 +5496,12 @@
+ {
+ 	const TPacketCGPetSkillUpgrade* p = reinterpret_cast<const TPacketCGPetSkillUpgrade*>(c_pData);
+ 
++	if (!ch || !ch->GetDesc())
++		return;
++
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	if (!ch->GetActiveGrowthPet())
+ 	{
+ 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("Activate your pet first."));
+@@ -5494,6 +5518,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pDeleteSkillItem = ch->GetInventoryItem(p->deleteSkillPos.cell);
+ 	if (!pDeleteSkillItem)
+ 		return;
+@@ -5517,6 +5544,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pDeleteAllSkillItem = ch->GetInventoryItem(p->deleteAllSkillPos.cell);
+ 	if (!pDeleteAllSkillItem)
+ 		return;
+@@ -5540,6 +5570,9 @@
+ 	if (!ch || !ch->GetDesc())
+ 		return;
+ 
++	if (!ch->CheckGrowthPetFlood())
++		return;
++
+ 	LPITEM pNameChangeItem = ch->GetInventoryItem(p->changeNamePos.cell);
+ 	if (!pNameChangeItem)
+ 		return;
+
