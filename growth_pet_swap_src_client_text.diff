@@ -1,0 +1,8784 @@
+--- a/src-client/Client/EterPythonLib/PythonGraphic.cpp
++++ b/src-client/Client/EterPythonLib/PythonGraphic.cpp
+@@ -514,20 +514,12 @@
+ 	if (CGraphicBase::SetPDTStream(vertices, 4))
+
+ 		STATEMANAGER.DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 4, 0, 2);
+
+ }
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void CPythonGraphic::RenderCoolTimeBox(float fxCenter, float fyCenter, float fRadius, float fTime, D3DXCOLOR& diffuseColor)
+
+-#else
+
+-void CPythonGraphic::RenderCoolTimeBox(float fxCenter, float fyCenter, float fRadius, float fTime, D3DXCOLOR color)
+
+-#endif
+
+ {
+
+ 	if (fTime >= 1.0f)
+
+ 		return;
+
+ 
+
+ 	fTime = max(0.0f, fTime);
+
+ 
+
+-#ifndef ENABLE_GROWTH_PET_SYSTEM
+
+-	static D3DXCOLOR color = D3DXCOLOR(0.0f, 0.0f, 0.0f, 0.5f);
+
+-#endif
+
+ 	static WORD s_wBoxIndicies[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+ 	static D3DXVECTOR2 s_v2BoxPos[8] =
+
+ 	{
+
+@@ -549,22 +541,12 @@
+ 	vertex.position.x = fxCenter;
+
+ 	vertex.position.y = fyCenter;
+
+ 	vertex.position.z = 0.0f;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	vertex.diffuse = diffuseColor;
+
+-#else
+
+-	vertex.diffuse = color;
+
+-#endif
+
+ 	vertex.texCoord.x = 0.0f;
+
+ 	vertex.texCoord.x = 0.0f;
+
+ 	vertices.push_back(vertex);
+
+ 	vertex.position.x = fxCenter;
+
+ 	vertex.position.y = fyCenter - fRadius;
+
+ 	vertex.position.z = 0.0f;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	vertex.diffuse = diffuseColor;
+
+-#else
+
+-	vertex.diffuse = color;
+
+-#endif
+
+ 	vertex.texCoord.x = 0.0f;
+
+ 	vertex.texCoord.x = 0.0f;
+
+ 	vertices.push_back(vertex);
+
+@@ -612,173 +594,6 @@
+ 	}
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void CPythonGraphic::RenderCoolTimeBoxInverse(float fxCenter, float fyCenter, float fRadius, float fTime)
+
+-{
+
+-	if (fTime > 1.0f)
+
+-		fTime = 1.0f;
+
+-
+
+-	fTime = max(0.0f, fTime);
+
+-
+
+-	static D3DXCOLOR color = D3DXCOLOR(0.0f, 0.0f, 0.0f, 0.5f);
+
+-
+
+-	static D3DXVECTOR2 s_v2BoxPos[8] =
+
+-	{
+
+-		D3DXVECTOR2(+1.0f, -1.0f),
+
+-		D3DXVECTOR2(+1.0f,  0.0f),
+
+-		D3DXVECTOR2(+1.0f, +1.0f),
+
+-		D3DXVECTOR2(0.0f, +1.0f),
+
+-		D3DXVECTOR2(-1.0f, +1.0f),
+
+-		D3DXVECTOR2(-1.0f,  0.0f),
+
+-		D3DXVECTOR2(-1.0f, -1.0f),
+
+-		D3DXVECTOR2(0.0f, -1.0f),
+
+-	};
+
+-
+
+-	int iTriCount = int(fTime * 8.0f);
+
+-	float fLastPercentage = ((fTime * 8.0f + 1.0f) - (fTime * 8.0f));
+
+-
+
+-	std::vector<TPDTVertex> vertices;
+
+-	TPDTVertex vertex;
+
+-	vertex.position.x = fxCenter;
+
+-	vertex.position.y = fyCenter;
+
+-	vertex.position.z = 0.0f;
+
+-	vertex.diffuse = color;
+
+-	vertex.texCoord.x = 0.0f;
+
+-	vertex.texCoord.x = 0.0f;
+
+-	vertices.push_back(vertex);
+
+-
+
+-	vertex.position.x = fxCenter;
+
+-	vertex.position.y = fyCenter - fRadius;
+
+-	vertex.position.z = 0.0f;
+
+-	vertex.diffuse = color;
+
+-	vertex.texCoord.x = 0.0f;
+
+-	vertex.texCoord.x = 0.0f;
+
+-	vertices.push_back(vertex);
+
+-
+
+-	for (int j = 0; j < iTriCount; ++j)
+
+-	{
+
+-		vertex.position.x = s_v2BoxPos[j].x * fRadius + fxCenter;
+
+-		vertex.position.y = s_v2BoxPos[j].y * fRadius + fyCenter;
+
+-		vertices.push_back(vertex);
+
+-	}
+
+-
+
+-	if (fLastPercentage > 0.0f)
+
+-	{
+
+-		D3DXVECTOR2* pv2Pos;
+
+-		D3DXVECTOR2* pv2LastPos;
+
+-
+
+-		pv2LastPos = &s_v2BoxPos[(iTriCount + 8) % 8];
+
+-		pv2Pos = &s_v2BoxPos[((iTriCount + 7) % 8)];
+
+-		vertex.position.x = ((pv2Pos->x - pv2LastPos->x) * fLastPercentage + pv2LastPos->x) * fRadius + fxCenter;
+
+-		vertex.position.y = ((pv2Pos->y - pv2LastPos->y) * fLastPercentage + pv2LastPos->y) * fRadius + fyCenter;
+
+-
+
+-		vertices.push_back(vertex);
+
+-		++iTriCount;
+
+-	}
+
+-
+
+-	if (vertices.empty())
+
+-		return;
+
+-
+
+-	if (SetPDTStream(vertices.data(), vertices.size()))
+
+-	{
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+
+-		STATEMANAGER.SetTexture(0, NULL);
+
+-		STATEMANAGER.SetTexture(1, NULL);
+
+-		STATEMANAGER.SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+
+-		DWORD cullMode;
+
+-		STATEMANAGER.GetRenderState(D3DRS_CULLMODE, &cullMode);
+
+-		STATEMANAGER.SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+
+-		STATEMANAGER.DrawPrimitive(D3DPT_TRIANGLEFAN, 0, iTriCount);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_COLORARG1);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_COLOROP);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_ALPHAARG1);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_ALPHAOP);
+
+-		STATEMANAGER.SetRenderState(D3DRS_CULLMODE, cullMode);
+
+-	}
+
+-}
+
+-#else
+
+-void CPythonGraphic::RenderCoolTimeBoxInverse(float fxCenter, float fyCenter, float fRadius, float fTime)
+
+-{
+
+-	fTime = min(1.0f, fTime);
+
+-	fTime = max(0.0f, fTime);
+
+-
+
+-	static D3DXCOLOR color = D3DXCOLOR(0.0f, 0.0f, 0.0f, 0.5f);
+
+-	static D3DXVECTOR2 s_v2BoxPos[8] =
+
+-	{
+
+-		D3DXVECTOR2(+1.0f, -1.0f),
+
+-		D3DXVECTOR2(+1.0f,  0.0f),
+
+-		D3DXVECTOR2(+1.0f, +1.0f),
+
+-		D3DXVECTOR2(0.0f, +1.0f),
+
+-		D3DXVECTOR2(-1.0f, +1.0f),
+
+-		D3DXVECTOR2(-1.0f,  0.0f),
+
+-		D3DXVECTOR2(-1.0f, -1.0f),
+
+-		D3DXVECTOR2(0.0f, -1.0f),
+
+-	};
+
+-
+
+-	int iTriCount = int(8.0f * fTime);
+
+-	const float fLastPercentage = 1.0f;
+
+-
+
+-	std::vector<TPDTVertex> vertices;
+
+-
+
+-	TPDTVertex vertex;
+
+-
+
+-	vertex.position = TPosition(fxCenter, fyCenter, 0.0f);
+
+-	vertex.texCoord = TTextureCoordinate(0.0f, 0.0f);
+
+-	vertex.diffuse = color;
+
+-	vertices.push_back(vertex);
+
+-
+
+-	vertex.position = TPosition(fxCenter, fyCenter - fRadius, 0.0f);
+
+-	vertex.texCoord = TTextureCoordinate(0.0f, 0.0f);
+
+-	vertex.diffuse = color;
+
+-	vertices.push_back(vertex);
+
+-
+
+-	for (int j = 0; j < iTriCount; ++j)
+
+-	{
+
+-		vertex.position.x = fxCenter + s_v2BoxPos[j].x * fRadius;
+
+-		vertex.position.y = fyCenter + s_v2BoxPos[j].y * fRadius;
+
+-		vertices.push_back(vertex);
+
+-	}
+
+-
+
+-	if (fLastPercentage > 0.0f)
+
+-	{
+
+-		const int iPos = (iTriCount + 7) % 8;
+
+-
+
+-		vertex.position.x = ((s_v2BoxPos[iPos].x - s_v2BoxPos[(iTriCount + 8) % 8].x) * fLastPercentage + s_v2BoxPos[(iTriCount + 8) % 8].x) * fRadius + fxCenter;
+
+-		vertex.position.y = (fLastPercentage * (s_v2BoxPos[iPos].y - s_v2BoxPos[(iTriCount + 8) % 8].y) + s_v2BoxPos[(iTriCount + 8) % 8].y) * fRadius + fyCenter;
+
+-		vertices.push_back(vertex);
+
+-
+
+-		++iTriCount;
+
+-	}
+
+-
+
+-	if (vertices.empty())
+
+-		return;
+
+-
+
+-	if (SetPDTStream(&vertices[0], vertices.size()))
+
+-	{
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+
+-		STATEMANAGER.SaveTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+
+-		STATEMANAGER.SetTexture(0, NULL);
+
+-		STATEMANAGER.SetTexture(1, NULL);
+
+-		STATEMANAGER.SetVertexShader(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+
+-
+
+-		const DWORD dwState = STATEMANAGER.GetRenderState(D3DRS_CULLMODE);
+
+-		STATEMANAGER.SetRenderState(D3DRS_CULLMODE, D3DBLEND_SRCCOLOR);
+
+-
+
+-		STATEMANAGER.DrawPrimitive(D3DPT_TRIANGLEFAN, 0, iTriCount);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_COLORARG1);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_COLOROP);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_ALPHAARG1);
+
+-		STATEMANAGER.RestoreTextureStageState(0, D3DTSS_ALPHAOP);
+
+-
+
+-		STATEMANAGER.SetRenderState(D3DRS_CULLMODE, dwState);
+
+-	}
+
+-}
+
+-#endif
+
+ 
+
+ long CPythonGraphic::GenerateColor(float r, float g, float b, float a)
+
+ {
+
+--- a/src-client/Client/EterPythonLib/PythonGraphic.h
++++ b/src-client/Client/EterPythonLib/PythonGraphic.h
+@@ -39,13 +39,6 @@
+ 	void RenderImage(CGraphicImageInstance* pImageInstance, float x, float y);
+
+ 	void RenderAlphaImage(CGraphicImageInstance* pImageInstance, float x, float y, float aLeft, float aRight);
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	void RenderCoolTimeBox(float fxCenter, float fyCenter, float fRadius, float fTime, D3DXCOLOR& diffuseColor);
+
+-	void RenderCoolTimeBoxInverse(float fxCenter, float fyCenter, float fRadius, float fTime);
+
+-#else
+
+-	void RenderCoolTimeBox(float fxCenter, float fyCenter, float fRadius, float fTime, D3DXCOLOR color);
+
+-	void RenderCoolTimeBoxInverse(float fxCenter, float fyCenter, float fRadius, float fTime);
+
+-#endif
+
+ 
+
+ 	bool SaveJPEG(const char* pszFileName, LPBYTE pbyBuffer, UINT uWidth, UINT uHeight);
+
+ 	bool SaveScreenShot(const char* szFileName);
+
+--- a/src-client/Client/EterPythonLib/PythonSlotWindow.cpp
++++ b/src-client/Client/EterPythonLib/PythonSlotWindow.cpp
+@@ -347,13 +347,6 @@
+ 	m_dwSlotStyle = dwStyle;
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void CSlotWindow::SetSlotScale(float fx, float fy)
+
+-{
+
+-	m_fScaleX = fx;
+
+-	m_fScaleY = fy;
+
+-}
+
+-#endif
+
+ 
+
+ void CSlotWindow::HideSlotButton(DWORD dwSlotIndex)
+
+ {
+
+@@ -411,13 +404,6 @@
+ 	rpCoverButton->SetDownVisual(c_szDownImageName);
+
+ 	rpCoverButton->SetDisableVisual(c_szDisableImageName);
+
+ 	rpCoverButton->Enable();
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	rpCoverButton->SetScale(m_fScaleX, m_fScaleY);
+
+-#else
+
+-#if defined(ENABLE_SLOT_SCALE)
+
+-	rpCoverButton->SetScale(m_v2Scale.x, m_v2Scale.y);
+
+-#endif
+
+-#endif
+
+ 	rpCoverButton->Show();
+
+ 
+
+ 	// NOTE : Cover ư Plus ư  ӽ ڵ带..
+
+@@ -498,12 +484,6 @@
+ 	__CreateBaseImage(c_szFileName, fr, fg, fb, fa);
+
+ }
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-void CSlotWindow::SetSlotBaseImageScale(const char* c_szFileName, float fr, float fg, float fb, float fa, float sx, float sy)
+
+-{
+
+-	__CreateBaseImageScale(c_szFileName, fr, fg, fb, fa, sx, sy);
+
+-}
+
+-#endif
+
+ 
+
+ void CSlotWindow::SetBaseImageScale(float fx, float fy)
+
+ {
+
+@@ -624,13 +604,6 @@
+ 		pSlot->pInstance = CGraphicImageInstance::New();
+
+ 		pSlot->pInstance->SetDiffuseColor(diffuseColor.r, diffuseColor.g, diffuseColor.b, diffuseColor.a);
+
+ 		pSlot->pInstance->SetImagePointer(pImage);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		pSlot->pInstance->SetScale(m_fScaleX, m_fScaleY);
+
+-#else
+
+-#if defined(ENABLE_SLOT_SCALE)
+
+-		pSlot->pInstance->SetScale(m_v2Scale.x, m_v2Scale.y);
+
+-#endif
+
+-#endif
+
+ 	}
+
+ 
+
+ 	pSlot->byxPlacedItemSize = byWidth;
+
+@@ -655,48 +628,6 @@
+ #endif
+
+ }
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-void CSlotWindow::SetSlotScale(DWORD dwIndex, DWORD dwVirtualNumber, BYTE byWidth, BYTE byHeight, CGraphicImage* pImage, float sx, float sy, D3DXCOLOR& diffuseColor)
+
+-{
+
+-	TSlot* pSlot;
+
+-	if (!GetSlotPointer(dwIndex, &pSlot))
+
+-		return;
+
+-
+
+-	if (pSlot->isItem)
+
+-		if (pSlot->dwItemIndex == dwVirtualNumber)
+
+-		{
+
+-			pSlot->dwState = 0;
+
+-			pSlot->isItem = TRUE;
+
+-			if (pImage && pSlot->pInstance)
+
+-			{
+
+-				pSlot->pInstance->SetImagePointer(pImage);
+
+-			}
+
+-			return;
+
+-		}
+
+-
+
+-	ClearSlot(pSlot);
+
+-	pSlot->dwState = 0;
+
+-	pSlot->isItem = TRUE;
+
+-	pSlot->dwItemIndex = dwVirtualNumber;
+
+-
+
+-	if (pImage)
+
+-	{
+
+-		assert(NULL == pSlot->pInstance);
+
+-		pSlot->pInstance = CGraphicImageInstance::New();
+
+-		pSlot->pInstance->SetDiffuseColor(diffuseColor.r, diffuseColor.g, diffuseColor.b, diffuseColor.a);
+
+-		pSlot->pInstance->SetImagePointer(pImage);
+
+-		pSlot->pInstance->SetScale(sx, sy);
+
+-	}
+
+-
+
+-	pSlot->byxPlacedItemSize = byWidth;
+
+-	pSlot->byyPlacedItemSize = byHeight;
+
+-
+
+-	if (pSlot->pCoverButton)
+
+-	{
+
+-		pSlot->pCoverButton->Show();
+
+-	}
+
+-}
+
+-#endif
+
+ 
+
+ void CSlotWindow::SetSlotCount(DWORD dwIndex, DWORD dwCount)
+
+ {
+
+@@ -796,9 +727,6 @@
+ 
+
+ 	pSlot->fCoolTime = fCoolTime;
+
+ 	pSlot->fStartCoolTime = CTimer::Instance().GetCurrentSecond() - fElapsedTime;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	pSlot->bInverseCooltime = false;
+
+-#endif
+
+ }
+
+ 
+
+ #if defined(WJ_ENABLE_PICKUP_ITEM_EFFECT)
+
+@@ -1110,13 +1038,6 @@
+ 	pSlot->dwState = 0;
+
+ 	pSlot->fCoolTime = 0.0f;
+
+ 	pSlot->fStartCoolTime = 0.0f;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	pSlot->bInverseCooltime = false;
+
+-	pSlot->cooltimeDiffuseColor.r = 0.0f;
+
+-	pSlot->cooltimeDiffuseColor.g = 0.0f;
+
+-	pSlot->cooltimeDiffuseColor.b = 0.0f;
+
+-	pSlot->cooltimeDiffuseColor.a = 0.5f;
+
+-#endif
+
+ 	pSlot->dwCenterSlotNumber = 0xffffffff;
+
+ #if defined(WJ_ENABLE_PICKUP_ITEM_EFFECT)
+
+ 	pSlot->d3Color = D3DXCOLOR(1.0f, 1.0f, 1.0f, 0.5f);
+
+@@ -1671,50 +1592,6 @@
+ 	}
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void UI::CSlotWindow::SetSlotCoolTimeColor(DWORD dwIndex, float fr, float fg, float fb, float fa)
+
+-{
+
+-	TSlot* pSlot;
+
+-	if (!GetSlotPointer(dwIndex, &pSlot))
+
+-		return;
+
+-
+
+-	pSlot->cooltimeDiffuseColor.r = fr;
+
+-	pSlot->cooltimeDiffuseColor.g = fg;
+
+-	pSlot->cooltimeDiffuseColor.b = fb;
+
+-	pSlot->cooltimeDiffuseColor.a = fa;
+
+-}
+
+-
+
+-void CSlotWindow::SetSlotCoolTimeInverse(DWORD dwIndex, float fCoolTime, float fRemainingTime)
+
+-{
+
+-	TSlot* pSlot;
+
+-	if (!GetSlotPointer(dwIndex, &pSlot))
+
+-		return;
+
+-
+
+-	pSlot->fCoolTime = fCoolTime;
+
+-	pSlot->fStartCoolTime = fRemainingTime;
+
+-	pSlot->bInverseCooltime = true;
+
+-}
+
+-#else
+
+-void CSlotWindow::SetSlotCoolTimeInverse(DWORD dwIndex, float fCoolTime, float fElapsedTime)
+
+-{
+
+-	TSlot* pSlot;
+
+-	if (!GetSlotPointer(dwIndex, &pSlot))
+
+-		return;
+
+-
+
+-	pSlot->fCoolTime = fCoolTime;
+
+-	pSlot->fStartCoolTime = CTimer::Instance().GetCurrentSecond() - fElapsedTime;
+
+-	pSlot->bCoolTimeInverse = true;
+
+-}
+
+-
+
+-void CSlotWindow::SetSlotCoolTimeColor(DWORD dwSlotIndex, float fr, float fg, float fb, float fa)
+
+-{
+
+-	TSlot* pSlot;
+
+-	if (!GetSlotPointer(dwSlotIndex, &pSlot))
+
+-		return;
+
+-
+
+-	pSlot->d3CoolTimeColor = D3DXCOLOR(fr, fg, fb, fa);
+
+-}
+
+-#endif
+
+ 
+
+ void CSlotWindow::OnUpdate()
+
+ {
+
+@@ -1908,75 +1785,6 @@
+ 				m_rect.top + rSlot.iyPosition + rSlot.byyPlacedItemSize * rSlot.iyCellSize);
+
+ 		}
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		if (rSlot.fCoolTime != 0.0f)
+
+-		{
+
+-			float fScaleX = 1.0f, fScaleY = 1.0f;
+
+-			if (rSlot.pInstance)
+
+-			{
+
+-				fScaleX = rSlot.pInstance->GetScale().x;
+
+-				fScaleY = rSlot.pInstance->GetScale().y;
+
+-			}
+
+-
+
+-			float fXCenter = (m_rect.left + rSlot.ixPosition) + 16.0f * fScaleX;
+
+-			float fYCenter = (m_rect.top + rSlot.iyPosition) + 16.0f * fScaleY;
+
+-			float fRadius = 16.0f * fScaleX;
+
+-
+
+-			if (!rSlot.bInverseCooltime)
+
+-			{
+
+-				float fcurTime = CTimer::Instance().GetCurrentSecond();
+
+-				float fPercentage = (fcurTime - rSlot.fStartCoolTime) / rSlot.fCoolTime;
+
+-
+
+-
+
+-				CPythonGraphic::Instance().RenderCoolTimeBox(fXCenter, fYCenter, fRadius, fPercentage, rSlot.cooltimeDiffuseColor);
+
+-
+
+-				if (fcurTime - rSlot.fStartCoolTime >= rSlot.fCoolTime)
+
+-				{
+
+-					if ((fcurTime - rSlot.fStartCoolTime) - rSlot.fCoolTime < 1.0f)
+
+-						__CreateFinishCoolTimeEffect(&rSlot);
+
+-
+
+-					rSlot.fCoolTime = 0.0f;
+
+-					rSlot.fStartCoolTime = 0.0f;
+
+-				}
+
+-			}
+
+-			else
+
+-			{
+
+-				float fPercentage = rSlot.fStartCoolTime / rSlot.fCoolTime;
+
+-				CPythonGraphic::Instance().RenderCoolTimeBoxInverse(fXCenter, fYCenter, fRadius, fPercentage);
+
+-			}
+
+-		}
+
+-#else
+
+-		if (rSlot.fCoolTime != 0.0f)
+
+-		{
+
+-			float fcurTime = CTimer::Instance().GetCurrentSecond();
+
+-
+
+-			float v24 = rSlot.iyCellSize;
+
+-			float v48 = rSlot.ixCellSize;
+
+-
+
+-			float fPercentage = (fcurTime - rSlot.fStartCoolTime) / rSlot.fCoolTime;
+
+-			if (v48 < v24)
+
+-				v48 = rSlot.iyCellSize;
+
+-
+
+-			float v49 = v48 * 0.5;
+
+-			float v51 = (m_rect.top + rSlot.iyPosition) + v24 * 0.5;
+
+-			float v52 = 0.5 * rSlot.ixCellSize + (m_rect.left + rSlot.ixPosition);
+
+-
+
+-			if (rSlot.bCoolTimeInverse)
+
+-				CPythonGraphic::Instance().RenderCoolTimeBoxInverse(v52, v51, v49, fPercentage);
+
+-			else
+
+-				CPythonGraphic::Instance().RenderCoolTimeBox(v52, v51, v49, fPercentage, rSlot.d3CoolTimeColor);
+
+-
+
+-			if (fcurTime - rSlot.fStartCoolTime >= rSlot.fCoolTime && !rSlot.bCoolTimeInverse)
+
+-			{
+
+-				// Ÿ  1 ̳..
+
+-				if ((fcurTime - rSlot.fStartCoolTime) - rSlot.fCoolTime < 1.0f)
+
+-					__CreateFinishCoolTimeEffect(&rSlot);
+
+-
+
+-				rSlot.fCoolTime = 0.0f;
+
+-				rSlot.fStartCoolTime = 0.0f;
+
+-			}
+
+-		}
+
+-#endif
+
+ 
+
+ 		if (rSlot.pCoverButton)
+
+ 		{
+
+@@ -2457,27 +2265,8 @@
+ 	m_pBaseImageInstance = CGraphicImageInstance::New();
+
+ 	m_pBaseImageInstance->SetImagePointer(pImage);
+
+ 	m_pBaseImageInstance->SetDiffuseColor(fr, fg, fb, fa);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_pBaseImageInstance->SetScale(m_fScaleX, m_fScaleY);
+
+-#else
+
+-#if defined(ENABLE_SLOT_SCALE)
+
+-	m_pBaseImageInstance->SetScale(m_v2Scale.x, m_v2Scale.y);
+
+-#endif
+
+-#endif
+
+-}
+
+-
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-void CSlotWindow::__CreateBaseImageScale(const char* c_szFileName, float fr, float fg, float fb, float fa, float sx, float sy)
+
+-{
+
+-	__DestroyBaseImage();
+
+-
+
+-	CGraphicImage* pImage = (CGraphicImage*)CResourceManager::Instance().GetResourcePointer(c_szFileName);
+
+-	m_pBaseImageInstance = CGraphicImageInstance::New();
+
+-	m_pBaseImageInstance->SetImagePointer(pImage);
+
+-	m_pBaseImageInstance->SetDiffuseColor(fr, fg, fb, fa);
+
+-	m_pBaseImageInstance->SetScale(sx, sy);
+
+-}
+
+-#endif
+
++}
+
++
+
+ 
+
+ void CSlotWindow::__DestroyToggleSlotImage()
+
+ {
+
+@@ -2539,10 +2328,6 @@
+ 	m_pSlotCoverImage = NULL;
+
+ 	m_pSecondSlotCoverImage = NULL;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_fScaleX = 1.0f;
+
+-	m_fScaleY = 1.0f;
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_SLOT_SCALE)
+
+ 	m_v2Scale.x = m_v2Scale.y = 1.0f;
+
+--- a/src-client/Client/EterPythonLib/PythonSlotWindow.h
++++ b/src-client/Client/EterPythonLib/PythonSlotWindow.h
+@@ -97,10 +97,6 @@
+ 			// CoolTime
+
+ 			float fCoolTime;
+
+ 			float fStartCoolTime;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-			bool	bInverseCooltime;
+
+-			D3DXCOLOR cooltimeDiffuseColor;
+
+-#endif
+
+ 			// Toggle
+
+ 			BOOL bActive;
+
+ 
+
+@@ -158,18 +154,11 @@
+ 		// Manage Slot
+
+ 		void SetSlotType(DWORD dwType);
+
+ 		void SetSlotStyle(DWORD dwStyle);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		void SetSlotScale(float fx, float fy);
+
+-#endif
+
+ 		void HideSlotButton(DWORD dwSlotIndex);
+
+ 
+
+ 		void AppendSlot(DWORD dwIndex, int ixPosition, int iyPosition, int ixCellSize, int iyCellSize);
+
+ 		void SetCoverButton(DWORD dwIndex, const char* c_szUpImageName, const char* c_szOverImageName, const char* c_szDownImageName, const char* c_szDisableImageName, BOOL bLeftButtonEnable, BOOL bRightButtonEnable);
+
+ 		void SetSlotBaseImage(const char* c_szFileName, float fr, float fg, float fb, float fa);
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-		void SetSlotBaseImageScale(const char* c_szFileName, float fr, float fg, float fb, float fa, float sx, float sy);
+
+-		void SetSlotScale(DWORD dwIndex, DWORD dwVirtualNumber, BYTE byWidth, BYTE byHeight, CGraphicImage* pImage, float sx, float sy, D3DXCOLOR& diffuseColor);
+
+-#endif
+
+ 		void SetBaseImageScale(float fx, float fy);
+
+ 		void AppendSlotButton(const char* c_szUpImageName, const char* c_szOverImageName, const char* c_szDownImageName);
+
+ 		void AppendRequirementSignImage(const char* c_szImageName);
+
+@@ -259,13 +248,6 @@
+ 		void __CreateSecondSlotCoverImage(const char* c_szFileName);
+
+ 		void __DestroySecondSlotCoverImage();
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		void SetSlotCoolTimeColor(DWORD dwIndex, float fr, float fg, float fb, float fa);
+
+-		void SetSlotCoolTimeInverse(DWORD dwIndex, float fCoolTime, float fRemainingTime = 0.0f);
+
+-#else
+
+-		void SetSlotCoolTimeInverse(DWORD dwIndex, float fCoolTime, float fElapsedTime = 0.0f);
+
+-		void SetSlotCoolTimeColor(DWORD dwSlotIndex, float fr, float fg, float fb, float fa);
+
+-#endif
+
+ 		// Requirement Sign
+
+ 		void ShowRequirementSign(DWORD dwSlotNumber);
+
+ 		void HideRequirementSign(DWORD dwSlotNumber);
+
+@@ -298,9 +280,6 @@
+ #endif
+
+ 		void __CreateFinishCoolTimeEffect(TSlot* pSlot);
+
+ 		void __CreateBaseImage(const char* c_szFileName, float fr, float fg, float fb, float fa);
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-		void __CreateBaseImageScale(const char* c_szFileName, float fr, float fg, float fb, float fa, float sx, float sy);
+
+-#endif
+
+ 		void __DestroyToggleSlotImage();
+
+ #if defined(WJ_ENABLE_PICKUP_ITEM_EFFECT)
+
+ 		void __DestroySlotEnableEffect(int iIndex);
+
+@@ -368,9 +347,5 @@
+ 		CAniImageBox* m_pSlotActiveEffect;
+
+ #endif
+
+ 		std::deque<DWORD> m_ReserveDestroyEffectDeque;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		float	m_fScaleX;
+
+-		float	m_fScaleY;
+
+-#endif
+
+ 	};
+
+ };
+
+--- a/src-client/Client/EterPythonLib/PythonWindow.cpp
++++ b/src-client/Client/EterPythonLib/PythonWindow.cpp
+@@ -1520,25 +1520,6 @@
+ 		return m_pImageInstance->GetHeight();
+
+ 	}
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	void CImageBox::SetScale(float sx, float sy)
+
+-	{
+
+-		if (!m_pImageInstance)
+
+-			return;
+
+-
+
+-		((CGraphicImageInstance*)m_pImageInstance)->SetScale(sx, sy);
+
+-		CWindow::SetSize(long(float(GetWidth()) * sx), long(float(GetHeight()) * sy));
+
+-	}
+
+-#else
+
+-	void CImageBox::SetScale(float fx, float fy)
+
+-	{
+
+-		if (!m_pImageInstance)
+
+-			return;
+
+-
+
+-		m_pImageInstance->SetScale(fx, fy);
+
+-		CWindow::SetSize(long(float(GetWidth()) * fx), long(float(GetHeight()) * fy));
+
+-	}
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_CLIP_MASK)
+
+ 	void CImageBox::OnUpdate()
+
+@@ -1794,23 +1775,6 @@
+ 		((CGraphicExpandedImageInstance*)m_pImageInstance)->SetRenderingRect(fLeft, fTop, fRight, fBottom);
+
+ 	}
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	void CExpandedImageBox::SetRenderingRectWithScale(float fLeft, float fTop, float fRight, float fBottom)
+
+-	{
+
+-		if (!m_pImageInstance)
+
+-			return;
+
+-
+
+-		((CGraphicExpandedImageInstance*)m_pImageInstance)->SetRenderingRectWithScale(fLeft, fTop, fRight, fBottom);
+
+-	}
+
+-#else
+
+-	void CExpandedImageBox::SetRenderingRectWithScale(float fLeft, float fTop, float fRight, float fBottom)
+
+-	{
+
+-		if (!m_pImageInstance)
+
+-			return;
+
+-
+
+-		((CGraphicExpandedImageInstance*)m_pImageInstance)->SetRenderingRectWithScale(fLeft, fTop, fRight, fBottom);
+
+-	}
+
+-#endif
+
+ 
+
+ 	void CExpandedImageBox::SetImageClipRect(float fLeft, float fTop, float fRight, float fBottom, bool bIsVertical)
+
+ 	{
+
+@@ -1906,11 +1870,6 @@
+ 		: CWindow(ppyObject),
+
+ 		m_bycurDelay(0),
+
+ 		m_byDelay(4),
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		m_bycurIndex(0),
+
+-		m_fScaleX(1.0f),
+
+-		m_fScaleY(1.0f)
+
+-#endif
+
+ 	{
+
+ 		m_ImageVector.clear();
+
+ 	}
+
+@@ -1954,30 +1913,6 @@
+ #endif
+
+ 	}
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	void CAniImageBox::AppendImageScale(const char* c_szFileName, float scale_x, float scale_y)
+
+-	{
+
+-		CResource* pResource = CResourceManager::Instance().GetResourcePointer(c_szFileName);
+
+-		if (!pResource->IsType(CGraphicImage::Type()))
+
+-			return;
+
+-
+
+-		CGraphicExpandedImageInstance* pImageInstance = CGraphicExpandedImageInstance::New();
+
+-
+
+-		pImageInstance->SetImagePointer(static_cast<CGraphicImage*>(pResource));
+
+-		pImageInstance->SetScale(scale_x, scale_y);
+
+-		if (pImageInstance->IsEmpty())
+
+-		{
+
+-			CGraphicExpandedImageInstance::Delete(pImageInstance);
+
+-			return;
+
+-		}
+
+-
+
+-		m_ImageVector.push_back(pImageInstance);
+
+-
+
+-		m_bycurIndex = rand() % static_cast<BYTE>(m_ImageVector.size());
+
+-		// SetSize(pImageInstance->GetWidth(), pImageInstance->GetHeight());
+
+-		// UpdateRect();
+
+-	}
+
+-#endif
+
+ 
+
+ #if defined(__ANI_IMAGE_PERFORMANCE__)
+
+ 	void CAniImageBox::SetRenderingRect(float fLeft, float fTop, float fRight, float fBottom)
+
+@@ -2005,47 +1940,6 @@
+ 	}
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	struct FSetAniImgScale
+
+-	{
+
+-		float fScaleX, fScaleY;
+
+-		void operator () (CGraphicExpandedImageInstance* pInstance)
+
+-		{
+
+-			pInstance->SetScale(fScaleX, fScaleY);
+
+-		}
+
+-	};
+
+-
+
+-	void CAniImageBox::SetAniImgScale(float fScaleX, float fScaleY)
+
+-	{
+
+-		m_fScaleX = fScaleX;
+
+-		m_fScaleY = fScaleY;
+
+-
+
+-		FSetAniImgScale setAniImgScale;
+
+-		setAniImgScale.fScaleX = m_fScaleX;
+
+-		setAniImgScale.fScaleY = m_fScaleY;
+
+-
+
+-		for_each(m_ImageVector.begin(), m_ImageVector.end(), setAniImgScale);
+
+-	}
+
+-
+
+-	struct FSetRenderingRectWithScale
+
+-	{
+
+-		float fLeft, fTop, fRight, fBottom;
+
+-		void operator () (CGraphicExpandedImageInstance* pInstance)
+
+-		{
+
+-			pInstance->SetRenderingRectWithScale(fLeft, fTop, fRight, fBottom);
+
+-		}
+
+-	};
+
+-
+
+-	void CAniImageBox::SetRenderingRectWithScale(float fLeft, float fTop, float fRight, float fBottom)
+
+-	{
+
+-		FSetRenderingRectWithScale setRenderingRectWithScale;
+
+-		setRenderingRectWithScale.fLeft = fLeft;
+
+-		setRenderingRectWithScale.fTop = fTop;
+
+-		setRenderingRectWithScale.fRight = fRight;
+
+-		setRenderingRectWithScale.fBottom = fBottom;
+
+-		for_each(m_ImageVector.begin(), m_ImageVector.end(), setRenderingRectWithScale);
+
+-	}
+
+-#endif
+
+ 
+
+ #if defined(__ANI_IMAGE_PERFORMANCE__)
+
+ 	void CAniImageBox::SetRenderingMode(int iMode)
+
+@@ -2210,10 +2104,6 @@
+ 		m_bEnable(TRUE),
+
+ 		m_isPressed(FALSE),
+
+ 		m_isFlash(FALSE),
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		m_fScaleX(1.0f),
+
+-		m_fScaleY(1.0f),
+
+-#endif
+
+ 		m_isFlashing(FALSE),
+
+ 		m_pFlashVisual(NULL),
+
+ 		m_bAlwaysTooltip(false)
+
+@@ -2416,55 +2306,6 @@
+ 		if (!IsShow())
+
+ 			return;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		if (m_pcurVisual)
+
+-		{
+
+-			if (m_isFlash)
+
+-			{
+
+-				if (!IsIn() && !IsPressed())
+
+-				{
+
+-					if (!m_overVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_overVisual);
+
+-
+
+-					if (int(timeGetTime() / 500) % 2)
+
+-						return;
+
+-				}
+
+-			}
+
+-			else
+
+-			{
+
+-				if (!IsIn() && !IsPressed())
+
+-				{
+
+-					if (!m_upVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_upVisual);
+
+-				}
+
+-
+
+-				if (!IsDisable())
+
+-				{
+
+-					if (!m_disableVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_disableVisual);
+
+-				}
+
+-			}
+
+-
+
+-			m_pcurVisual->Render();
+
+-		}
+
+-#else
+
+-		if (m_pcurVisual)
+
+-		{
+
+-			if (m_isFlash)
+
+-			{
+
+-				if (!IsIn())
+
+-				{
+
+-					if (int(timeGetTime() / 500) % 2)
+
+-					{
+
+-						if (m_pFlashVisual)
+
+-							m_pFlashVisual->Render();
+
+-						return;
+
+-					}
+
+-				}
+
+-			}
+
+-			m_pcurVisual->Render(m_bEnableMask ? &m_rMaskRect : nullptr);
+
+-		}
+
+-#endif
+
+ 
+
+ 		PyCallClassMemberFunc(m_poHandler, "OnRender", BuildEmptyTuple());
+
+ 	}
+
+@@ -2477,63 +2318,6 @@
+ 		if (!IsShow())
+
+ 			return;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		if (m_pcurVisual)
+
+-		{
+
+-			if (m_isFlash)
+
+-			{
+
+-				if (!IsIn() && !IsPressed())
+
+-				{
+
+-					if (!m_overVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_overVisual);
+
+-
+
+-					if (int(timeGetTime() / 500) % 2)
+
+-						return;
+
+-				}
+
+-			}
+
+-			else
+
+-			{
+
+-				if (!IsIn() && !IsPressed())
+
+-				{
+
+-					if (!m_upVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_upVisual);
+
+-				}
+
+-
+
+-				if (!IsDisable())
+
+-				{
+
+-					if (!m_disableVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_disableVisual);
+
+-				}
+
+-			}
+
+-
+
+-			m_pcurVisual->Render();
+
+-		}
+
+-#else
+
+-		if (m_pcurVisual)
+
+-		{
+
+-			if ((m_isFlash || m_isFlashing) && !IsIn() && !IsPressed())
+
+-			{
+
+-				if (int(timeGetTime() / 500) % 2)
+
+-				{
+
+-					if (m_isFlashing && !m_overVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_overVisual);
+
+-					else
+
+-					{
+
+-						if (m_pFlashVisual)
+
+-							m_pFlashVisual->Render();
+
+-						return;
+
+-					}
+
+-				}
+
+-				else
+
+-				{
+
+-					if (m_isFlashing && !m_upVisual.IsEmpty())
+
+-						SetCurrentVisual(&m_upVisual);
+
+-				}
+
+-			}
+
+-
+
+-			m_pcurVisual->Render();
+
+-		}
+
+-#endif
+
+ 
+
+ 		PyCallClassMemberFunc(m_poHandler, "OnRender", BuildEmptyTuple());
+
+ 	}
+
+@@ -2634,51 +2418,6 @@
+ 		m_pcurVisual->SetPosition(m_rect.left, m_rect.top);
+
+ 	}
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	void CButton::SetScale(float fx, float fy)
+
+-	{
+
+-		m_fScaleX = fx;
+
+-		m_fScaleY = fy;
+
+-
+
+-		if (m_pcurVisual)
+
+-			m_pcurVisual->SetScale(fx, fy);
+
+-
+
+-		if (!m_upVisual.IsEmpty())
+
+-			m_upVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_overVisual.IsEmpty())
+
+-			m_overVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_downVisual.IsEmpty())
+
+-			m_downVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_disableVisual.IsEmpty())
+
+-			m_disableVisual.SetScale(fx, fy);
+
+-
+
+-		const float width = static_cast<float>(GetWidth()) * fx;
+
+-		const float height = static_cast<float>(GetHeight()) * fy;
+
+-
+
+-		SetSize(static_cast<long>(width), static_cast<long>(height));
+
+-	}
+
+-#else
+
+-	void CButton::SetScale(float fx, float fy)
+
+-	{
+
+-		if (m_pcurVisual)
+
+-			m_pcurVisual->SetScale(fx, fy);
+
+-
+
+-		if (!m_upVisual.IsEmpty())
+
+-			m_upVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_overVisual.IsEmpty())
+
+-			m_overVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_downVisual.IsEmpty())
+
+-			m_downVisual.SetScale(fx, fy);
+
+-
+
+-		if (!m_disableVisual.IsEmpty())
+
+-			m_disableVisual.SetScale(fx, fy);
+
+-	}
+
+-#endif
+
+ 
+
+ 	void CButton::SetDiffuseColor(float fr, float fg, float fb, float fa)
+
+ 	{
+
+--- a/src-client/Client/EterPythonLib/PythonWindow.h
++++ b/src-client/Client/EterPythonLib/PythonWindow.h
+@@ -404,11 +404,6 @@
+ 		int GetWidth();
+
+ 		int GetHeight();
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-		void SetScale(float sx, float sy);
+
+-#else
+
+-		virtual void SetScale(float fx, float fy);
+
+-#endif
+
+ 
+
+ 		void SetCoolTime(float fCoolTime);
+
+ 		void SetCoolTimeStart(float fCoolTimeStart);
+
+@@ -491,17 +486,8 @@
+ #if defined(WJ_ENABLE_PICKUP_ITEM_EFFECT)
+
+ 		void SetDiffuseColor(float r, float g, float b, float a);
+
+ #endif
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-		void AppendImageScale(const char* c_szFileName, float scale_x, float scale_y);
+
+-#endif
+
+ 		void AppendImage(const char* c_szFileName);
+
+ 		void SetRenderingRect(float fLeft, float fTop, float fRight, float fBottom);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		void SetRenderingRectWithScale(float fLeft, float fTop, float fRight, float fBottom);
+
+-		void SetAniImgScale(float x, float y);
+
+-#else
+
+-		void SetRenderingRectWithScale(float fLeft, float fTop, float fRight, float fBottom);
+
+-#endif
+
+ 		void SetRenderingMode(int iMode);
+
+ #if defined(ENABLE_FISHING_GAME)
+
+ 		void SetRotation(float fRotation);
+
+@@ -527,10 +513,6 @@
+ 		BYTE m_bycurIndex;
+
+ 		BYTE m_bKeyFrame;
+
+ 		std::vector<CGraphicExpandedImageInstance*> m_ImageVector;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		float m_fScaleX;
+
+-		float m_fScaleY;
+
+-#endif
+
+ #if defined(ENABLE_FISHING_GAME)
+
+ 		std::function<void(CGraphicExpandedImageInstance*)> m_SetRotation;
+
+ #endif
+
+@@ -602,10 +584,6 @@
+ 		BOOL m_isPressed;
+
+ 		BOOL m_isFlash;
+
+ 		BOOL m_isFlashing;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		float m_fScaleX;
+
+-		float m_fScaleY;
+
+-#endif
+
+ 		CGraphicImageInstance* m_pcurVisual;
+
+ 		CGraphicImageInstance m_upVisual;
+
+ 		CGraphicImageInstance m_overVisual;
+
+--- a/src-client/Client/EterPythonLib/PythonWindowManagerModule.cpp
++++ b/src-client/Client/EterPythonLib/PythonWindowManagerModule.cpp
+@@ -1424,48 +1424,6 @@
+ 	return Py_BuildNone();
+
+ }
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-PyObject* wndMgrSetSlotBaseImageScale(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWin;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWin))
+
+-		return Py_BuildException();
+
+-
+
+-	char* szFileName;
+
+-	if (!PyTuple_GetString(poArgs, 1, &szFileName))
+
+-		return Py_BuildException();
+
+-
+
+-	float fr;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fr))
+
+-		return Py_BuildException();
+
+-	float fg;
+
+-	if (!PyTuple_GetFloat(poArgs, 3, &fg))
+
+-		return Py_BuildException();
+
+-	float fb;
+
+-	if (!PyTuple_GetFloat(poArgs, 4, &fb))
+
+-		return Py_BuildException();
+
+-	float fa;
+
+-	if (!PyTuple_GetFloat(poArgs, 5, &fa))
+
+-		return Py_BuildException();
+
+-	float sx;
+
+-	if (!PyTuple_GetFloat(poArgs, 6, &sx))
+
+-		return Py_BuildException();
+
+-	float sy;
+
+-	if (!PyTuple_GetFloat(poArgs, 7, &sy))
+
+-		return Py_BuildException();
+
+-
+
+-	if (!pWin->IsType(UI::CSlotWindow::Type()))
+
+-	{
+
+-		TraceError("wndMgr.ArrangeSlot : not a slot window");
+
+-		return Py_BuildException();
+
+-	}
+
+-
+
+-	UI::CSlotWindow* pSlotWin = (UI::CSlotWindow*)pWin;
+
+-	pSlotWin->SetSlotBaseImageScale(szFileName, fr, fg, fb, fa, sx, sy);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-#endif
+
+ 
+
+ PyObject* wndImageSetBaseImageScale(PyObject* poSelf, PyObject* poArgs)
+
+ {
+
+@@ -2920,29 +2878,6 @@
+ 	return Py_BuildNone();
+
+ }
+
+ 
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-PyObject* wndImageAppendImageScale(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWindow;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+
+-		return Py_BuildException();
+
+-
+
+-	char* szFileName;
+
+-	if (!PyTuple_GetString(poArgs, 1, &szFileName))
+
+-		return Py_BuildException();
+
+-
+
+-	float scale_x, scale_y;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &scale_x))
+
+-		return Py_BuildException();
+
+-
+
+-	if (!PyTuple_GetFloat(poArgs, 3, &scale_y))
+
+-		return Py_BuildException();
+
+-
+
+-	((UI::CAniImageBox*)pWindow)->AppendImageScale(szFileName, scale_x, scale_y);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-#endif
+
+ 
+
+ PyObject* wndImageResetFrame(PyObject* poSelf, PyObject* poArgs)
+
+ {
+
+@@ -3459,130 +3394,6 @@
+ 	return Py_BuildNone();
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-PyObject* wndSetAniImgScale(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWindow;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+
+-		return Py_BuildException();
+
+-	float fScaleX;
+
+-	if (!PyTuple_GetFloat(poArgs, 1, &fScaleX))
+
+-		return Py_BuildException();
+
+-	float fScaleY;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fScaleY))
+
+-		return Py_BuildException();
+
+-
+
+-	((UI::CAniImageBox*)pWindow)->SetAniImgScale(fScaleX, fScaleY);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* wndMgrSetRenderingRectWithScale(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWindow;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+
+-		return Py_BuildException();
+
+-	float fLeft;
+
+-	if (!PyTuple_GetFloat(poArgs, 1, &fLeft))
+
+-		return Py_BuildException();
+
+-	float fTop;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fTop))
+
+-		return Py_BuildException();
+
+-	float fRight;
+
+-	if (!PyTuple_GetFloat(poArgs, 3, &fRight))
+
+-		return Py_BuildException();
+
+-	float fBottom;
+
+-	if (!PyTuple_GetFloat(poArgs, 4, &fBottom))
+
+-		return Py_BuildException();
+
+-
+
+-	if (pWindow->IsType(UI::CExpandedImageBox::Type()))
+
+-		((UI::CExpandedImageBox*)pWindow)->SetRenderingRectWithScale(fLeft, fTop, fRight, fBottom);
+
+-	else if (pWindow->IsType(UI::CAniImageBox::Type()))
+
+-		((UI::CAniImageBox*)pWindow)->SetRenderingRectWithScale(fLeft, fTop, fRight, fBottom);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* wndMgrSetSlotCoolTimeColor(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWin;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWin))
+
+-		return Py_BuildException();
+
+-
+
+-	int iSlotIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &iSlotIndex))
+
+-		return Py_BuildException();
+
+-
+
+-	float fr;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fr))
+
+-		return Py_BuildException();
+
+-
+
+-	float fg;
+
+-	if (!PyTuple_GetFloat(poArgs, 3, &fg))
+
+-		return Py_BuildException();
+
+-
+
+-	float fb;
+
+-	if (!PyTuple_GetFloat(poArgs, 4, &fb))
+
+-		return Py_BuildException();
+
+-
+
+-	float fa;
+
+-	if (!PyTuple_GetFloat(poArgs, 5, &fa))
+
+-		return Py_BuildException();
+
+-
+
+-	if (!pWin->IsType(UI::CSlotWindow::Type()))
+
+-		return Py_BuildException();
+
+-
+
+-	UI::CSlotWindow* pSlotWin = (UI::CSlotWindow*)pWin;
+
+-	pSlotWin->SetSlotCoolTimeColor(iSlotIndex, fr, fg, fb, fa);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* wndMgrSetSlotCoolTimeInverse(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWin;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWin))
+
+-		return Py_BuildException();
+
+-
+
+-	int iSlotIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &iSlotIndex))
+
+-		return Py_BuildException();
+
+-
+
+-	float fCoolTime;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fCoolTime))
+
+-		return Py_BuildException();
+
+-
+
+-	float fRemainingTime = 0.0f;
+
+-	PyTuple_GetFloat(poArgs, 3, &fRemainingTime);
+
+-
+
+-	if (!pWin->IsType(UI::CSlotWindow::Type()))
+
+-		return Py_BuildException();
+
+-
+
+-	UI::CSlotWindow* pSlotWin = (UI::CSlotWindow*)pWin;
+
+-	pSlotWin->SetSlotCoolTimeInverse(iSlotIndex, fCoolTime, fRemainingTime);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* wndMgrSetSlotScale(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	UI::CWindow* pWin;
+
+-	if (!PyTuple_GetWindow(poArgs, 0, &pWin))
+
+-		return Py_BuildException();
+
+-
+
+-	float fx;
+
+-	if (!PyTuple_GetFloat(poArgs, 1, &fx))
+
+-		return Py_BuildException();
+
+-	float fy;
+
+-	if (!PyTuple_GetFloat(poArgs, 2, &fy))
+
+-		return Py_BuildException();
+
+-
+
+-	UI::CSlotWindow* pSlotWin = (UI::CSlotWindow*)pWin;
+
+-	pSlotWin->SetSlotScale(fx, fy);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-#endif
+
+ 
+
+ void initwndMgr()
+
+ {
+
+@@ -3769,13 +3580,6 @@
+ 		{ "EnableHighLightImage", wndMgrEnableHighLightImage, METH_VARARGS },
+
+ 		{ "DisableHighLightImage", wndMgrDisableHighLightImage, METH_VARARGS },
+
+ #endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		{ "SetAniImgScale",				wndSetAniImgScale,					METH_VARARGS },
+
+-		{ "SetSlotCoolTimeColor",		wndMgrSetSlotCoolTimeColor,			METH_VARARGS },
+
+-		{ "SetSlotCoolTimeInverse",		wndMgrSetSlotCoolTimeInverse,		METH_VARARGS },
+
+-		{ "SetSlotScale",				wndMgrSetSlotScale,					METH_VARARGS },
+
+-		{ "SetRenderingRectWithScale",	wndMgrSetRenderingRectWithScale,	METH_VARARGS },
+
+-#endif
+
+ 
+
+ 		// Bar
+
+ 		{ "SetColor", wndBarSetColor, METH_VARARGS },
+
+@@ -3804,10 +3608,6 @@
+ 		{ "GetLineHeight", wndTextGetLineHeight, METH_VARARGS },
+
+ #if defined(WJ_MULTI_TEXTLINE)
+
+ 		{ "DisableEnterToken", wndTextDisableEnterToken, METH_VARARGS },
+
+-#endif
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-		{ "SetSlotBaseImageScale", wndMgrSetSlotBaseImageScale, METH_VARARGS },
+
+-		{ "AppendImageScale", wndImageAppendImageScale, METH_VARARGS },
+
+ #endif
+
+ 		// NumberLine
+
+ 		{ "SetNumber", wndNumberSetNumber, METH_VARARGS },
+
+--- a/src-client/Client/GameLib/ActorInstance.cpp
++++ b/src-client/Client/GameLib/ActorInstance.cpp
+@@ -339,10 +339,6 @@
+ 	if (IsPet())
+
+ 		return true;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	if (IsGrowthPet())
+
+-		return true;
+
+-#endif
+
+ 
+
+ 	if (IsPetPay())
+
+ 		return true;
+
+@@ -370,15 +366,6 @@
+ 	return false;
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-bool CActorInstance::IsGrowthPet()
+
+-{
+
+-	if (TYPE_PET == m_eActorType)
+
+-		return true;
+
+-
+
+-	return false;
+
+-}
+
+-#endif
+
+ 
+
+ bool CActorInstance::IsPetPay()
+
+ {
+
+--- a/src-client/Client/GameLib/ActorInstance.h
++++ b/src-client/Client/GameLib/ActorInstance.h
+@@ -291,9 +291,6 @@
+ 	bool IsNPC();
+
+ 	bool IsHorse();
+
+ 	bool IsPet();
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	bool IsGrowthPet();
+
+-#endif
+
+ 	bool IsPetPay();
+
+ 	bool IsEnemy();
+
+ 	bool IsStone();
+
+--- a/src-client/Client/GameLib/ActorInstanceBattle.cpp
++++ b/src-client/Client/GameLib/ActorInstanceBattle.cpp
+@@ -589,10 +589,6 @@
+ 	if (rkActorDst.IsNPC())
+
+ 		return false;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	if (rkActorDst.IsGrowthPet())
+
+-		return false;
+
+-#endif
+
+ 
+
+ #if defined(__DISABLE_BOSS_PUSHBACK__)
+
+ 	if (rkActorDst.IsEnemy())
+
+--- a/src-client/Client/GameLib/ItemData.h
++++ b/src-client/Client/GameLib/ItemData.h
+@@ -922,55 +922,6 @@
+ 	};
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	enum EPetSubTypes
+
+-	{
+
+-		PET_EGG,
+
+-		PET_UPBRINGING,
+
+-		PET_BAG,
+
+-		PET_FEEDSTUFF,
+
+-		PET_SKILL,
+
+-		PET_SKILL_DEL_BOOK,
+
+-		PET_NAME_CHANGE,
+
+-		PET_EXPFOOD,
+
+-		PET_SKILL_ALL_DEL_BOOK,
+
+-		PET_EXPFOOD_PER,
+
+-		PET_ATTR_DETERMINE,
+
+-		PET_ATTR_CHANGE,
+
+-		PET_PAY,
+
+-		PET_PRIMIUM_FEEDSTUFF,
+
+-	};
+
+-
+
+-	enum EEggUse
+
+-	{
+
+-		EGG_USE_SUCCESS,
+
+-		EGG_USE_FAILED_BECAUSE_NAME,
+
+-		EGG_USE_FAILED_TIMEOVER,
+
+-	};
+
+-
+
+-	enum EPetEggUse
+
+-	{
+
+-		PET_EGG_USE_TRUE,
+
+-		PET_EGG_USE_FAILED_BECAUSE_TRADING,
+
+-		PET_EGG_USE_FAILED_BECAUSE_SHOP_OPEN,
+
+-		PET_EGG_USE_FAILED_BECAUSE_MALL_OPEN,
+
+-		PET_EGG_USE_FAILED_BECAUSE_SAFEBOX_OPEN,
+
+-	};
+
+-
+
+-	enum EPetNameChange
+
+-	{
+
+-		NAME_CHANGE_USE_SUCCESS,
+
+-		NAME_CHANGE_USE_FAILED_BECAUSE_NAME,
+
+-	};
+
+-
+
+-	enum EPet
+
+-	{
+
+-		PET_ATTR_CHANGE_ITEMVNUM = 55033,
+
+-		PET_HATCHING_MONEY = 100000,
+
+-		PET_NAME_MAX_SIZE = 20,
+
+-		PET_NAME_MIN_SIZE = 4,
+
+-	};
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_APPLY_RANDOM)
+
+ 	enum EItemMinMaxSocket
+
+--- a/src-client/Client/UserInterface/GameType.cpp
++++ b/src-client/Client/UserInterface/GameType.cpp
+@@ -124,9 +124,6 @@
+ 	RESERVED_WINDOW, // SLOT_TYPE_PRIVATE_SHOP,
+
+ 	RESERVED_WINDOW, // SLOT_TYPE_MALL <- SAFEBOX, MALL  ϵ ڵǾִ LEGACY ڵ带 .
+
+ 	DRAGON_SOUL_INVENTORY, // SLOT_TYPE_DRAGON_SOUL_INVENTORY,
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	PET_FEED, // SLOT_TYPE_PET_FEED_WINDOW
+
+-#endif
+
+ 	EQUIPMENT, // SLOT_TYPE_EQUIPMENT,
+
+ 	BELT_INVENTORY, // SLOT_TYPE_BELT_INVENTORY,
+
+ 	RESERVED_WINDOW, // SLOT_TYPE_AUTO,
+
+@@ -164,9 +161,6 @@
+ #endif
+
+ 	SLOT_TYPE_ACCE, // ACCEREFINE,
+
+ 	SLOT_TYPE_NONE, // GROUND,
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	SLOT_TYPE_PET_FEED_WINDOW, // PET_FEED
+
+-#endif
+
+ 	SLOT_TYPE_CHANGE_LOOK, // CHANGELOOK,
+
+ 	SLOT_TYPE_AURA, // AURA_REFINE,
+
+ 	SLOT_TYPE_NONE, // CUBE_WINDOW,
+
+--- a/src-client/Client/UserInterface/GameType.h
++++ b/src-client/Client/UserInterface/GameType.h
+@@ -166,9 +166,6 @@
+ 	ON_TOP_WND_LUCKY_BOX,				// 10
+
+ #endif
+
+ 	ON_TOP_WND_ATTR67,					// 11
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	ON_TOP_WND_PET_PRIMIUM_FEEDSTUFF,	// 12
+
+-#endif
+
+ 	ON_TOP_WND_PASSIVE_ATTR,			// 13
+
+ 	ON_TOP_WND_MAX,
+
+ };
+
+@@ -474,9 +471,6 @@
+ 	SLOT_TYPE_PRIVATE_SHOP,
+
+ 	SLOT_TYPE_MALL,
+
+ 	SLOT_TYPE_DRAGON_SOUL_INVENTORY,
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	SLOT_TYPE_PET_FEED_WINDOW,
+
+-#endif
+
+ 	SLOT_TYPE_EQUIPMENT,
+
+ 	SLOT_TYPE_BELT_INVENTORY,
+
+ 	SLOT_TYPE_AUTO,
+
+@@ -510,9 +504,6 @@
+ #endif
+
+ 	ACCEREFINE,
+
+ 	GROUND,
+
+-#if defined(ENABLE_GROWTH_PET_SYSTEM)
+
+-	PET_FEED,
+
+-#endif
+
+ 	CHANGELOOK,
+
+ 	AURA_REFINE,
+
+ 	CUBE_WINDOW,
+
+@@ -520,55 +511,6 @@
+ 	WINDOW_TYPE_MAX,
+
+ };
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-enum EPet
+
+-{
+
+-	PET_FEED_SLOT_MAX = 9,
+
+-	PET_GROWTH_EVOL_MAX = 4,
+
+-	PET_GROWTH_SKILL_LEVEL_MAX = 20,
+
+-	PET_GROWTH_SKILL_OPEN_EVOL_LEVEL = 4,
+
+-	PET_REVIVE_MATERIAL_SLOT_MAX = 10,
+
+-	PET_SKILL_COUNT_MAX = 3,
+
+-	LIFE_TIME_FLASH_MIN_TIME = 3600,
+
+-	ITEM_SLOT_COUNT = 180,
+
+-	SPECIAL_EVOL_MIN_AGE = 259200,
+
+-	PET_ATTR_DETERMINE_ITEM = 55032,
+
+-	PET_ATTR_CHANGE_ITEM = 55033,
+
+-};
+
+-
+
+-enum EPetButtonEvent
+
+-{
+
+-	FEED_LIFE_TIME_EVENT,
+
+-	FEED_EVOL_EVENT,
+
+-	FEED_EXP_EVENT,
+
+-	FEED_BUTTON_MAX,
+
+-};
+
+-
+
+-enum EPetWindowType
+
+-{
+
+-	PET_WINDOW_INFO,
+
+-	PET_WINDOW_ATTR_CHANGE,
+
+-	PET_WINDOW_PRIMIUM_FEEDSTUFF,
+
+-};
+
+-
+
+-enum EPetAttrChange
+
+-{
+
+-	PET_WND_SLOT_ATTR_CHANGE,
+
+-	PET_WND_SLOT_ATTR_CHANGE_ITEM,
+
+-	PET_WND_SLOT_ATTR_CHANGE_RESULT,
+
+-	PET_WND_SLOT_ATTR_CHANGE_MAX,
+
+-};
+
+-
+
+-enum EQuickSlotError
+
+-{
+
+-	QUICK_SLOT_POS_ERROR,
+
+-	QUICK_SLOT_ITEM_USE_SUCCESS,
+
+-	QUICK_SLOT_IS_NOT_ITEM,
+
+-	QUICK_SLOT_PET_ITEM_USE_SUCCESS,
+
+-	QUICK_SLOT_PET_ITEM_USE_FAILED,
+
+-	QUICK_SLOT_CAN_NOT_USE_PET_ITEM,
+
+-};
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_DRAGON_SOUL_SYSTEM)
+
+ enum EDSInventoryMaxNum
+
+@@ -1195,3 +1137,6 @@
+ #if defined(ENABLE_AURA_COSTUME_SYSTEM)
+
+ const int* GetAuraRefineInfo(BYTE bLevel);
+
+ #endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	PET_FEED,
+
++#endif
+
+--- a/src-client/Client/UserInterface/InstanceBase.cpp
++++ b/src-client/Client/UserInterface/InstanceBase.cpp
+@@ -2289,16 +2289,6 @@
+ 	m_GraphicThingInstance.SetActorType(iInstanceType);
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void CInstanceBase::SetPetLevel(DWORD dwLevel)
+
+-{
+
+-	m_dwLevel = dwLevel;
+
+-	UpdateTextTailLevel(dwLevel);
+
+-
+
+-	float fScale = m_dwLevel * 0.004f + (1.00f + 1.00f * m_bCharacterSize);
+
+-	m_GraphicThingInstance.SetScaleWorld(fScale, fScale, fScale);
+
+-}
+
+-#endif
+
+ 
+
+ void CInstanceBase::SetAlignment(short sAlignment)
+
+ {
+
+@@ -2680,12 +2670,6 @@
+ 	return m_GraphicThingInstance.IsPet();
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-BOOL CInstanceBase::IsGrowthPet()
+
+-{
+
+-	return m_GraphicThingInstance.IsGrowthPet();
+
+-}
+
+-#endif
+
+ 
+
+ BOOL CInstanceBase::IsPetPay()
+
+ {
+
+@@ -3860,9 +3844,6 @@
+ 	m_dwAIFlag = 0;
+
+ #endif
+
+ 	m_dwEmpireID = 0;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_bCharacterSize = 0;
+
+-#endif
+
+ 	m_dwGuildID = 0;
+
+ #if defined(ENABLE_GUILD_LEADER_GRADE_NAME)
+
+ 	m_bGuildLeaderGrade = 0;
+
+--- a/src-client/Client/UserInterface/InstanceBase.h
++++ b/src-client/Client/UserInterface/InstanceBase.h
+@@ -48,9 +48,6 @@
+ #if defined(ENABLE_REFINE_ELEMENT_SYSTEM)
+
+ 		WORD m_wRefineElementAffectType;
+
+ #endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		BYTE m_bCharacterSize;
+
+-#endif
+
+ #if defined(ENABLE_GUILD_LEADER_GRADE_NAME)
+
+ 		BYTE m_bGuildLeaderGrade;
+
+ #endif
+
+@@ -65,6 +62,9 @@
+ 		CAffectFlagContainer m_kAffectFlags;
+
+ 
+
+ 		std::string m_stName;
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++		BYTE	m_bCharacterSize;
+
++#endif
+
+ 
+
+ 		bool m_isMain;
+
+ 	};
+
+@@ -72,41 +72,6 @@
+ public:
+
+ 	typedef DWORD TType;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	enum EPetSkill
+
+-	{
+
+-		PET_SKILL_AFFECT_NONE,
+
+-		PET_SKILL_AFFECT_JIJOONG_WARRIOR,
+
+-		PET_SKILL_AFFECT_JIJOONG_SURA,
+
+-		PET_SKILL_AFFECT_JIJOONG_ASSASSIN,
+
+-		PET_SKILL_AFFECT_JIJOONG_SHAMAN,
+
+-		PET_SKILL_AFFECT_JIJOONG_WOLFMAN,
+
+-		PET_SKILL_AFFECT_PACHEON,
+
+-		PET_SKILL_AFFECT_CHEONRYEONG,
+
+-		PET_SKILL_AFFECT_BANYA,
+
+-		PET_SKILL_AFFECT_CHOEHOENBIMU,
+
+-		PET_SKILL_AFFECT_HEAL,
+
+-		PET_SKILL_AFFECT_STEALHP,
+
+-		PET_SKILL_AFFECT_STEALMP,
+
+-		PET_SKILL_AFFECT_BLOCK,
+
+-		PET_SKILL_AFFECT_REFLECT_MELEE,
+
+-		PET_SKILL_AFFECT_GOLD_DROP,
+
+-		PET_SKILL_AFFECT_BOW_DISTANCE,
+
+-		PET_SKILL_AFFECT_INVINCIBILITY,
+
+-		PET_SKILL_AFFECT_REMOVAL,
+
+-		PET_SKILL_AFFECT_POTION,
+
+-		PET_SKILL_AFFECT_MOB_BONUS,
+
+-		PET_SKILL_HP_RECOVER,
+
+-		PET_SKILL_AFFECT_EXP,
+
+-		PET_SKILL_FEATHER,
+
+-		PET_SKILL_AFFECT_STONE,
+
+-		PET_SKILL_AFFECT_BOSS,
+
+-		PET_SKILL_AFFECT_RESIST_SKILL,
+
+-		PET_SKILL_AFFECT_RESIST_DAMAGE,
+
+-
+
+-		PET_SKILL_AFFECT_MAX,
+
+-	};
+
+-#endif
+
+ 
+
+ #ifdef WJ_SHOW_MOB_INFO
+
+ 	enum EMobAIFlags
+
+@@ -972,9 +937,6 @@
+ 		EFFECT_BP_EVENT_BATTLEPASS_COMPLETED,
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		EFFECT_GYEONGGONG_BOOM,
+
+-#endif
+
+ 
+
+ 		EFFECT_NUM,
+
+ 	};
+
+@@ -1150,9 +1112,6 @@
+ 	void SetVirtualNumber(DWORD dwVirtualNumber);
+
+ 	void SetInstanceType(int iInstanceType);
+
+ 	void SetAlignment(short sAlignment);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	void SetPetLevel(DWORD dwLevel);
+
+-#endif
+
+ 	void SetPKMode(BYTE byPKMode);
+
+ 	void SetKiller(bool bFlag);
+
+ 	void SetPartyMemberFlag(bool bFlag);
+
+@@ -1305,9 +1264,6 @@
+ 	BOOL IsGuildWall();
+
+ 	BOOL IsHorse();
+
+ 	BOOL IsPet();
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	BOOL IsGrowthPet();
+
+-#endif
+
+ 	BOOL IsPetPay();
+
+ 	BOOL IsShop();
+
+ 
+
+@@ -1632,9 +1588,6 @@
+ 	DWORD m_adwPart[CRaceData::PART_MAX_NUM];
+
+ 
+
+ 	DWORD m_dwLevel;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	BYTE m_bCharacterSize;
+
+-#endif
+
+ #if defined(ENABLE_CONQUEROR_LEVEL)
+
+ 	DWORD m_dwConquerorLevel;
+
+ #endif
+
+--- a/src-client/Client/UserInterface/InstanceBaseBattle.cpp
++++ b/src-client/Client/UserInterface/InstanceBaseBattle.cpp
+@@ -312,10 +312,6 @@
+ 	if (rkInstDst.IsResource())
+
+ 		fDistance = 100.0f;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	if (rkInstDst.IsGrowthPet())
+
+-		fDistance = 500.0f;
+
+-#endif
+
+ 
+
+ 	return m_GraphicThingInstance.IsClickableDistanceDestInstance(rkInstDst.m_GraphicThingInstance, fDistance);
+
+ }
+
+--- a/src-client/Client/UserInterface/InstanceBaseEffect.cpp
++++ b/src-client/Client/UserInterface/InstanceBaseEffect.cpp
+@@ -373,10 +373,6 @@
+ 		return;
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	if (IsGrowthPet())
+
+-		return;
+
+-#endif
+
+ 
+
+ 	if (!pkInstMain->IsGameMaster())
+
+ 	{
+
+@@ -665,9 +661,6 @@
+ 
+
+ 	}
+
+ 	else if (IsNPC()
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	|| IsGrowthPet()
+
+-#endif
+
+ 	)
+
+ #ifdef ENABLE_OFFLINE_SHOP
+
+ 	{
+
+@@ -790,9 +783,6 @@
+ 	//static D3DXCOLOR s_kMobLevelColor = D3DXCOLOR(119.0f / 255.0f, 246.0f / 255.0f, 168.0f / 255.0f, 1.0f);
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	static D3DXCOLOR s_kPetColor = D3DXCOLOR(255.0f / 255.0f, 255.0f / 255.0f, 0.0f / 255.0f, 1.0f);
+
+-#endif
+
+ 
+
+ 	m_dwLevel = level;
+
+ 
+
+@@ -806,10 +796,6 @@
+ 			CPythonTextTail::Instance().DetachLevel(GetVirtualID());
+
+ 	else if (IsEnemy() || IsStone())
+
+ 		CPythonTextTail::Instance().AttachLevel(GetVirtualID(), szText, s_kMobLevelColor);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	else if (IsGrowthPet())
+
+-		CPythonTextTail::Instance().AttachLevel(GetVirtualID(), szText, s_kPetColor);
+
+-#endif
+
+ 	else
+
+ 		CPythonTextTail::Instance().DetachLevel(GetVirtualID());
+
+ #else
+
+--- a/src-client/Client/UserInterface/NetworkActorManager.cpp
++++ b/src-client/Client/UserInterface/NetworkActorManager.cpp
+@@ -80,9 +80,6 @@
+ 	m_dwArmor = src.m_dwArmor;
+
+ 	m_dwWeapon = src.m_dwWeapon;
+
+ 	m_dwHair = src.m_dwHair;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_bCharacterSize = src.m_bCharacterSize;
+
+-#endif
+
+ #if defined(ENABLE_ACCE_COSTUME_SYSTEM)
+
+ 	m_dwAcce = src.m_dwAcce;
+
+ #endif
+
+@@ -168,9 +165,6 @@
+ #endif
+
+ 	m_stName = "";
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_bCharacterSize = 0;
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_MULTI_LANGUAGE_SYSTEM)
+
+ 	m_stCountry = "";
+
+@@ -300,9 +294,6 @@
+ 
+
+ 		CActorInstance* rkActorEach = pkInstEach->GetGraphicThingInstancePtr();
+
+ 		if (rkActorEach->IsPC() || rkActorEach->IsNPC() || rkActorEach->IsEnemy()
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-			|| rkActorEach->IsGrowthPet()
+
+-#endif
+
+ 			)
+
+ 		{
+
+ 			rkChrMgr.DeleteInstance(dwCharacterVIDList[i]);
+
+@@ -432,9 +423,6 @@
+ 	kCreateData.m_dwArmor = rkNetActorData.m_dwArmor;
+
+ 	kCreateData.m_dwWeapon = rkNetActorData.m_dwWeapon;
+
+ 	kCreateData.m_dwHair = rkNetActorData.m_dwHair;
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	kCreateData.m_bCharacterSize = rkNetActorData.m_bCharacterSize;
+
+-#endif
+
+ #if defined(ENABLE_ACCE_COSTUME_SYSTEM)
+
+ 	kCreateData.m_dwAcce = rkNetActorData.m_dwAcce;
+
+ #endif
+
+@@ -734,3 +722,6 @@
+ 		pkInstFind->NEW_SetOwner(rkNetActorData.m_dwOwnerVID);
+
+ 	}
+
+ }
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	m_bCharacterSize = src.m_bCharacterSize;
+
++#endif
+
+--- a/src-client/Client/UserInterface/NetworkActorManager.h
++++ b/src-client/Client/UserInterface/NetworkActorManager.h
+@@ -59,9 +59,6 @@
+ 	DWORD m_dwLevel;
+
+ #if defined(ENABLE_CONQUEROR_LEVEL)
+
+ 	DWORD m_dwConquerorLevel;
+
+-#endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	BYTE	m_bCharacterSize;
+
+ #endif
+
+ #ifdef WJ_SHOW_MOB_INFO
+
+ 	DWORD m_dwAIFlag;
+
+@@ -241,3 +238,6 @@
+ 
+
+ 	std::map<DWORD, SNetworkActorData> m_kNetActorDict;
+
+ };
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	BYTE	m_bCharacterSize;
+
++#endif
+
+--- a/src-client/Client/UserInterface/Packet.h
++++ b/src-client/Client/UserInterface/Packet.h
+@@ -54,20 +54,6 @@
+ 
+
+ 	//HEADER_CG_UNUSED = 34,
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	HEADER_CG_PET_HATCH = 35,
+
+-	HEADER_CG_PET_WINDOW_TYPE = 36,
+
+-	HEADER_CG_PET_WINDOW = 37,
+
+-	HEADER_CG_PET_NAME_CHANGE = 38,
+
+-	HEADER_CG_PET_FEED = 39,
+
+-	HEADER_CG_PET_DETERMINE = 40,
+
+-	HEADER_CG_PET_ATTR_CHANGE = 41,
+
+-	HEADER_CG_PET_REVIVE = 42,
+
+-	HEADER_CG_PET_LEARN_SKILL = 43,
+
+-	HEADER_CG_PET_SKILL_UPGRADE = 44,
+
+-	HEADER_CG_PET_DELETE_SKILL = 45,
+
+-	HEADER_CG_PET_DELETE_ALL_SKILL = 46,
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_EXTEND_INVEN_SYSTEM)
+
+ 	HEADER_CG_EXTEND_INVEN = 47,
+
+@@ -623,19 +609,6 @@
+ 	HEADER_GC_FLOWER_EVENT = 187,
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	HEADER_GC_PET = 188,
+
+-	HEADER_GC_PET_SET = 189,
+
+-	HEADER_GC_PET_SET_EXCHANGE = 190,
+
+-	HEADER_GC_PET_DEL = 191,
+
+-	HEADER_GC_PET_SUMMON = 192,
+
+-	HEADER_GC_PET_POINT_CHANGE = 193,
+
+-	HEADER_GC_PET_NAME_CHANGE_RESULT = 194,
+
+-	HEADER_GC_PET_DETERMINE_RESULT = 195,
+
+-	HEADER_GC_PET_ATTR_CHANGE_RESULT = 196,
+
+-	HEADER_GC_PET_SKILL_UPDATE = 197,
+
+-	HEADER_GC_PET_SKILL_COOLTIME = 198,
+
+-#endif
+
+ 
+
+ 	//HEADER_GC_UNUSED = 199,
+
+ 	//HEADER_GC_UNUSED = 200,
+
+@@ -1813,9 +1786,6 @@
+ #endif
+
+ #if defined(ENABLE_GUILD_LEADER_GRADE_NAME)
+
+ 	BYTE bGuildLeaderGrade;
+
+-#endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	BYTE bCharacterSize;
+
+ #endif
+
+ #if defined(ENABLE_MULTI_LANGUAGE_SYSTEM)
+
+ 	char szCountry[COUNTRY_NAME_MAX_LEN + 1];
+
+@@ -3334,9 +3304,6 @@
+ 	SE_EFFECT_BP_PREMIUM_BATTLEPASS_COMPLETED,
+
+ 	SE_EFFECT_BP_EVENT_BATTLEPASS_COMPLETED,
+
+ #endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	SE_GYEONGGONG_BOOM,
+
+-#endif
+
+ };
+
+ 
+
+ enum ESpecialEffectType
+
+@@ -4906,220 +4873,19 @@
+ } TPacketGCExtBattlePassRanking;
+
+ #endif
+
+ 
+
++
+
++#pragma pack(pop)
+
+ #ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-enum EGrowthPetPoints
+
+-{
+
+-	POINT_UPBRINGING_PET_LEVEL,
+
+-	POINT_UPBRINGING_PET_EXP,
+
+-	POINT_UPBRINGING_PET_ITEM_EXP,
+
+-	POINT_UPBRINGING_PET_NEXT_EXP,
+
+-	POINT_UPBRINGING_PET_EVOL_LEVEL,
+
+-	POINT_UPBRINGING_PET_HP,
+
+-	POINT_UPBRINGING_PET_DEF_GRADE,
+
+-	POINT_UPBRINGING_PET_SP,
+
+-	POINT_UPBRINGING_DURATION,
+
+-	POINT_UPBRINGING_MAX_DURATION,
+
+-	POINT_UPBRINGING_BIRTHDAY,
+
+-
+
+-	POINT_UPBRINGING_MAX_NUM
+
+-};
+
+-
+
+-enum EGrowthPetSubheader
+
+-{
+
+-	SUBHEADER_PET_EGG_USE_SUCCESS,
+
+-	SUBHEADER_PET_EGG_USE_FAILED_BECAUSE_NAME,
+
+-	SUBHEADER_PET_EGG_USE_FAILED_TIMEOVER,
+
+-	SUBHEADER_PET_UNSUMMON,
+
+-	SUBHEADER_PET_FEED_FAILED,
+
+-	SUBHEADER_PET_FEED_SUCCESS,
+
+-	SUBHEADER_PET_REVIVE_FAILED,
+
+-	SUBHEADER_PET_REVIVE_SUCCESS,
+
+-	SUBHEADER_PET_NAME_CHANGE_FAILED,
+
+-	SUBHEADER_PET_NAME_CHANGE_SUCCESS,
+
+-	SUBHEADER_PET_WINDOW_TYPE_INFO,
+
+-	SUBHEADER_PET_WINDOW_TYPE_ATTR_CHANGE,
+
+-	SUBHEADER_PET_WINDOW_TYPE_PREMIUM_FEED,
+
+-};
+
+-
+
+-enum EGrowthPetWindow
+
+-{
+
+-	PET_WINDOW_HATCH,
+
+-	PET_WINDOW_NAME_CHANGE,
+
+-};
+
+-
+
+-typedef struct SPacketGCPet
+
+-{
+
+-	BYTE	header;
+
+-	BYTE	subheader;
+
+-} TPacketGCPet;
+
+-
+
+-typedef struct SPetSkillPacket
+
+-{
+
+-	bool    bLocked;
+
+-	BYTE    bSkill;
+
+-	BYTE    bLevel;
+
+-	DWORD    dwCooltime;
+
+-} TPetSkillPacket;
+
+-
+
+-typedef struct SPacketGCPetSet
+
+-{
+
+-	BYTE		header;
+
+-	DWORD		dwID;
+
+-	DWORD		dwSummonItemVnum;
+
+-	char		szName[CItemData::PET_NAME_MAX_SIZE + 1];
+
+-	TPetSkillPacket	aSkill[PET_SKILL_COUNT_MAX];
+
+-	DWORD		dwPoints[POINT_UPBRINGING_MAX_NUM];
+
+-} TPacketGCPetSet;
+
+-
+
+-typedef struct SPacketGCPetDelete
+
+-{
+
+-	BYTE		header;
+
+-	DWORD		dwID;
+
+-} TPacketGCPetDelete;
+
+-
+
+-typedef struct SPacketGCPetPointUpdate
+
+-{
+
+-	BYTE	header;
+
+-	DWORD	dwID;
+
+-	BYTE	bPoint;
+
+-	DWORD	dwValue;
+
+-} TPacketGCPetPointUpdate;
+
+-
+
+-typedef struct SPacketGCPetSummon
+
+-{
+
+-	BYTE		header;
+
+-	DWORD		dwID;
+
+-} TPacketGCPetSummon;
+
+-
+
+-typedef struct SPacketGCPetDetermineResult
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		type;
+
+-} TPacketGCPetDetermineResult;
+
+-
+
+-typedef struct SPacketGCPetAttrChangeResult
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		type;
+
+-	TItemPos	pos;
+
+-} TPacketGCPetAttrChangeResult;
+
+-
+
+-typedef struct SPetSkillUpdatePacket
+
+-{
+
+-	bool	bLocked;
+
+-	BYTE	bSkill;
+
+-	BYTE	bLevel;
+
+-	DWORD	dwCooltime;
+
+-	BYTE	bSkillFormula1[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-	WORD	wSkillFormula2[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-	BYTE	bSkillFormula3[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-} TPetSkillUpdatePacket;
+
+-
+
+-typedef struct SPacketGCPetSkillCooltime
+
+-{
+
+-	BYTE		header;
+
+-	DWORD		dwID;
+
+-	BYTE		bSlot;
+
+-	DWORD		dwCooltime;
+
+-} TPacketGCPetSkillCooltime;
+
+-
+
+-typedef struct SPacketGCPetSkillUpdate
+
+-{
+
+-	BYTE		header;
+
+-	DWORD		dwID;
+
+-	TPetSkillUpdatePacket	aSkill[PET_SKILL_COUNT_MAX];
+
+-} TPacketGCPetSkillUpdate;
+
+-
+
+-typedef struct SPacketGCPetNameChangeResult
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		subheader;
+
+-	DWORD		dwID;
+
+-	char		szName[CItemData::PET_NAME_MAX_SIZE + 1];
+
+-} TPacketGCPetNameChangeResult;
+
+-
+
+-typedef struct SPacketCGPetHatch
+
+-{
+
+-	BYTE		header;
+
+-	char		name[CItemData::PET_NAME_MAX_SIZE + 1];
+
+-	TItemPos	eggPos;
+
+-} TPacketCGPetHatch;
+
+-
+
+-typedef struct SPacketCGPetWindow
+
+-{
+
+-	BYTE	header;
+
+-	BYTE	window;
+
+-	bool	state;
+
+-} TPacketCGPetWindow;
+
+-
+
+-typedef struct SPacketCGPetWindowType
+
+-{
+
+-	BYTE	header;
+
+-	BYTE	type;
+
+-} TPacketCGPetWindowType;
+
+-
+
+-typedef struct SPacketCGPeFeed
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		index;
+
+-	WORD		pos[PET_FEED_SLOT_MAX];
+
+-	WORD		count[PET_FEED_SLOT_MAX];
+
+-} TPacketCGPetFeed;
+
+-
+
+-typedef struct SPacketCGPetDetermine
+
+-{
+
+-	BYTE		header;
+
+-	TItemPos	determinePos;
+
+-} TPacketCGPetDetermine;
+
+-
+
+-typedef struct SPacketCGPetAttrChange
+
+-{
+
+-	BYTE		header;
+
+-	TItemPos	upBringingPos;
+
+-	TItemPos	attrChangePos;
+
+-} TPacketCGPetAttrChange;
+
+-
+
+-typedef struct SPacketCGPetRevive
+
+-{
+
+-	BYTE		header;
+
+-	TItemPos	upBringingPos;
+
+-	WORD		pos[PET_REVIVE_MATERIAL_SLOT_MAX];
+
+-	WORD		count[PET_REVIVE_MATERIAL_SLOT_MAX];
+
+-} TPacketCGPetRevive;
+
+-
+
+-typedef struct SPacketCGPetLearnSkill
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		slotIndex;
+
+-	TItemPos	learnSkillPos;
+
+-} TPacketCGPetLearnSkill;
+
+-
+
+-typedef struct SPacketCGPetUpgradeSkill
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		slotIndex;
+
+-} TPacketCGPetSkillUpgrade;
+
+-
+
+-typedef struct SPacketCGPetDeleteSkill
+
+-{
+
+-	BYTE		header;
+
+-	BYTE		slotIndex;
+
+-	TItemPos	deleteSkillPos;
+
+-} TPacketCGPetDeleteSkill;
+
+-
+
+-typedef struct SPacketCGPetAllDeleteSkill
+
+-{
+
+-	BYTE		header;
+
+-	TItemPos	deleteAllSkillPos;
+
+-} TPacketCGPetDeleteAllSkill;
+
+-
+
+-typedef struct SPacketCGPetNameChange
+
+-{
+
+-	BYTE		header;
+
+-	char		name[CItemData::PET_NAME_MAX_SIZE + 1];
+
+-	TItemPos	changeNamePos;
+
+-	TItemPos	upBringingPos;
+
+-} TPacketCGPetNameChange;
+
+-#endif
+
+-
+
+-#pragma pack(pop)
+
++	HEADER_CG_PET_HATCH = 118,
+
++	HEADER_CG_PET_WINDOW_TYPE = 119,
+
++	HEADER_CG_PET_WINDOW = 120,
+
++	HEADER_CG_PET_NAME_CHANGE = 121,
+
++	HEADER_CG_PET_FEED = 122,
+
++	HEADER_CG_PET_DETERMINE = 123,
+
++	HEADER_CG_PET_ATTR_CHANGE = 124,
+
++	HEADER_CG_PET_REVIVE = 125,
+
++	HEADER_CG_PET_LEARN_SKILL = 126,
+
++	HEADER_CG_PET_SKILL_UPGRADE = 127,
+
++	HEADER_CG_PET_DELETE_SKILL = 128,
+
++	HEADER_CG_PET_DELETE_ALL_SKILL = 129,
+
++#endif
+
+--- a/src-client/Client/UserInterface/PythonApplication.cpp
++++ b/src-client/Client/UserInterface/PythonApplication.cpp
+@@ -164,6 +164,16 @@
+ 		m_pyTextTail.GetInfo(pstInfo);
+
+ 		break;
+
+ 	}
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	char szPetSkillFileName[256];
+
++	snprintf(szPetSkillFileName, sizeof(szPetSkillFileName), "%s/pet_skill.txt", localePath);
+
++
+
++	if (!rkSkillMgr.RegisterPetSkillTable(szPetSkillFileName))
+
++	{
+
++		TraceError("LoadLocaleData - RegisterPetSkillTable(%s) Error", szPetSkillFileName);
+
++		return false;
+
++	}
+
++#endif
+
+ }
+
+ 
+
+ void CPythonApplication::Abort()
+
+@@ -1206,16 +1216,6 @@
+ 		Tracenf("CPythonApplication - CPythonNetworkStream::LoadInsultList(%s)", szInsultList);
+
+ 	}
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	char szPetSkillFileName[256];
+
+-	snprintf(szPetSkillFileName, sizeof(szPetSkillFileName), "%s/pet_skill.txt", localePath);
+
+-
+
+-	if (!rkSkillMgr.RegisterPetSkillTable(szPetSkillFileName))
+
+-	{
+
+-		TraceError("LoadLocaleData - RegisterPetSkillTable(%s) Error", szPetSkillFileName);
+
+-		return false;
+
+-	}
+
+-#endif
+
+ 
+
+ 	if (LocaleService_IsYMIR())
+
+ 	{
+
+--- a/src-client/Client/UserInterface/PythonApplicationModule.cpp
++++ b/src-client/Client/UserInterface/PythonApplicationModule.cpp
+@@ -1140,6 +1140,11 @@
+ 	int nIsDevelopmentStage = 0;
+
+ #if defined(LOCALE_SERVICE_STAGE_DEVELOPMENT)
+
+ 	nIsDevelopmentStage = 1;
+
++#endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	PyModule_AddIntConstant(poModule, "ENABLE_GROWTH_PET_SYSTEM", 1);
+
++#else
+
++	PyModule_AddIntConstant(poModule, "ENABLE_GROWTH_PET_SYSTEM", 0);
+
+ #endif
+
+ 	return Py_BuildValue("i", nIsDevelopmentStage);
+
+ }
+
+@@ -2637,11 +2642,6 @@
+ 	PyModule_AddIntConstant(poModule, "ENABLE_EXTENDED_BATTLE_PASS", 0);
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "ENABLE_GROWTH_PET_SYSTEM", 1);
+
+-#else
+
+-	PyModule_AddIntConstant(poModule, "ENABLE_GROWTH_PET_SYSTEM", 0);
+
+-#endif
+
+ 
+
+ 	PyModule_AddIntConstant(poModule, "PLAYER_PER_ACCOUNT", PLAYER_PER_ACCOUNT4);
+
+ 	PyModule_AddStringConstant(poModule, "VERSION", VER_FILE_VERSION_STR);
+
+--- a/src-client/Client/UserInterface/PythonCharacterManager.cpp
++++ b/src-client/Client/UserInterface/PythonCharacterManager.cpp
+@@ -38,9 +38,6 @@
+ 			continue;
+
+ 
+
+ 		if (rkActorEach->IsPC() || rkActorEach->IsNPC() || rkActorEach->IsEnemy()
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		|| rkActorEach->IsGrowthPet()
+
+-#endif
+
+ 		)
+
+ 			continue;
+
+ 
+
+--- a/src-client/Client/UserInterface/PythonCharacterManagerModule.cpp
++++ b/src-client/Client/UserInterface/PythonCharacterManagerModule.cpp
+@@ -47,6 +47,9 @@
+ 	CInstanceBase::RegisterItemSetName(iIndex, szTitleName);
+
+ 	return Py_BuildNone();
+
+ }
+
++#endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	PyModule_AddIntConstant(poModule, "EFFECT_GYEONGGONG_BOOM", CInstanceBase::EFFECT_GYEONGGONG_BOOM);
+
+ #endif
+
+ 
+
+ #if defined(ENABLE_GUILD_LEADER_GRADE_NAME)
+
+@@ -1040,7 +1043,4 @@
+ 	PyModule_AddIntConstant(poModule, "EFFECT_BP_EVENT_BATTLEPASS_COMPLETED", CInstanceBase::EFFECT_BP_EVENT_BATTLEPASS_COMPLETED);
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "EFFECT_GYEONGGONG_BOOM", CInstanceBase::EFFECT_GYEONGGONG_BOOM);
+
+-#endif
+
+-}
+
++}
+
+--- a/src-client/Client/UserInterface/PythonCharacterModule.cpp
++++ b/src-client/Client/UserInterface/PythonCharacterModule.cpp
+@@ -4,6 +4,33 @@
+ #include "PythonNonPlayer.h"
+
+ #if defined(ENABLE_GUILD_BUILDING_OBJ_PLACEMENT_EFFECT)
+
+ #	include "PythonMiniMap.h"
+
++#endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_NONE", CInstanceBase::PET_SKILL_AFFECT_NONE);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_WARRIOR", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_WARRIOR);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_SURA", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_SURA);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_ASSASSIN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_ASSASSIN);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_SHAMAN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_SHAMAN);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_WOLFMAN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_WOLFMAN);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_PACHEON", CInstanceBase::PET_SKILL_AFFECT_PACHEON);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_CHEONRYEONG", CInstanceBase::PET_SKILL_AFFECT_CHEONRYEONG);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BANYA", CInstanceBase::PET_SKILL_AFFECT_BANYA);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_CHOEHOENBIMU", CInstanceBase::PET_SKILL_AFFECT_CHOEHOENBIMU);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_HEAL", CInstanceBase::PET_SKILL_AFFECT_HEAL);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_STEALHP", CInstanceBase::PET_SKILL_AFFECT_STEALHP);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_STEALMP", CInstanceBase::PET_SKILL_AFFECT_STEALMP);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BLOCK", CInstanceBase::PET_SKILL_AFFECT_BLOCK);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_REFLECT_MELEE", CInstanceBase::PET_SKILL_AFFECT_REFLECT_MELEE);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_GOLD_DROP", CInstanceBase::PET_SKILL_AFFECT_GOLD_DROP);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BOW_DISTANCE", CInstanceBase::PET_SKILL_AFFECT_BOW_DISTANCE);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_INVINCIBILITY", CInstanceBase::PET_SKILL_AFFECT_INVINCIBILITY);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_REMOVAL", CInstanceBase::PET_SKILL_AFFECT_REMOVAL);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_POTION", CInstanceBase::PET_SKILL_AFFECT_POTION);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_MOB_BONUS", CInstanceBase::PET_SKILL_AFFECT_MOB_BONUS);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_HP_RECOVER", CInstanceBase::PET_SKILL_HP_RECOVER);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_EXP", CInstanceBase::PET_SKILL_AFFECT_EXP);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_FEATHER", CInstanceBase::PET_SKILL_FEATHER);
+
++	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_MAX", CInstanceBase::PET_SKILL_AFFECT_MAX);
+
+ #endif
+
+ 
+
+ PyObject* chrRaceToJob(PyObject* poSelf, PyObject* poArgs)
+
+@@ -1788,35 +1815,4 @@
+ 	PyModule_AddIntConstant(poModule, "AFFECT_OFFLINE_SHOP_DECORATION", CInstanceBase::AFFECT_OFFLINE_SHOP_DECORATION);
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_NONE", CInstanceBase::PET_SKILL_AFFECT_NONE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_WARRIOR", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_WARRIOR);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_SURA", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_SURA);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_ASSASSIN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_ASSASSIN);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_SHAMAN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_SHAMAN);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_JIJOONG_WOLFMAN", CInstanceBase::PET_SKILL_AFFECT_JIJOONG_WOLFMAN);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_PACHEON", CInstanceBase::PET_SKILL_AFFECT_PACHEON);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_CHEONRYEONG", CInstanceBase::PET_SKILL_AFFECT_CHEONRYEONG);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BANYA", CInstanceBase::PET_SKILL_AFFECT_BANYA);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_CHOEHOENBIMU", CInstanceBase::PET_SKILL_AFFECT_CHOEHOENBIMU);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_HEAL", CInstanceBase::PET_SKILL_AFFECT_HEAL);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_STEALHP", CInstanceBase::PET_SKILL_AFFECT_STEALHP);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_STEALMP", CInstanceBase::PET_SKILL_AFFECT_STEALMP);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BLOCK", CInstanceBase::PET_SKILL_AFFECT_BLOCK);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_REFLECT_MELEE", CInstanceBase::PET_SKILL_AFFECT_REFLECT_MELEE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_GOLD_DROP", CInstanceBase::PET_SKILL_AFFECT_GOLD_DROP);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BOW_DISTANCE", CInstanceBase::PET_SKILL_AFFECT_BOW_DISTANCE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_INVINCIBILITY", CInstanceBase::PET_SKILL_AFFECT_INVINCIBILITY);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_REMOVAL", CInstanceBase::PET_SKILL_AFFECT_REMOVAL);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_POTION", CInstanceBase::PET_SKILL_AFFECT_POTION);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_MOB_BONUS", CInstanceBase::PET_SKILL_AFFECT_MOB_BONUS);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_HP_RECOVER", CInstanceBase::PET_SKILL_HP_RECOVER);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_EXP", CInstanceBase::PET_SKILL_AFFECT_EXP);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_FEATHER", CInstanceBase::PET_SKILL_FEATHER);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_STONE", CInstanceBase::PET_SKILL_AFFECT_STONE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_BOSS", CInstanceBase::PET_SKILL_AFFECT_BOSS);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_RESIST_SKILL", CInstanceBase::PET_SKILL_AFFECT_RESIST_SKILL);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_RESIST_DAMAGE", CInstanceBase::PET_SKILL_AFFECT_RESIST_DAMAGE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_AFFECT_MAX", CInstanceBase::PET_SKILL_AFFECT_MAX);
+
+-#endif
+
+-}
+
++}
+
+--- a/src-client/Client/UserInterface/PythonChatModule.cpp
++++ b/src-client/Client/UserInterface/PythonChatModule.cpp
+@@ -554,64 +554,6 @@
+ 			return Py_BuildValue("s", buf);
+
+ 		}
+
+ 	}
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	else if (0 == results[0].compare("petitem"))
+
+-	{
+
+-		if (results.size() < 21)
+
+-			return Py_BuildValue("s", "");
+
+-
+
+-		CItemData* pItemData = NULL;
+
+-
+
+-		if (CItemManager::Instance().GetItemDataPointer(htoi(results[1].c_str()), &pItemData))
+
+-		{
+
+-			char buf[1024] = { 0 };
+
+-			char itemlink[256];
+
+-			int len;
+
+-
+
+-			CPythonPlayer::TPetData* pPet = nullptr;
+
+-			CPythonPlayer::Instance().GetPetInfo(htoi(results[4].c_str()), &pPet);
+
+-
+
+-			len = snprintf(itemlink, sizeof(itemlink), "petitem:%x:%x:%x:%x:%x:%x:",
+
+-				htoi(results[1].c_str()),
+
+-				htoi(results[2].c_str()),
+
+-				htoi(results[3].c_str()),
+
+-				htoi(results[4].c_str()),
+
+-				htoi(results[5].c_str()),
+
+-				htoi(results[6].c_str()));
+
+-
+
+-			if (pPet)
+
+-			{
+
+-				len += snprintf(itemlink + len, sizeof(itemlink) - len, "%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%s:%x:%x:%x:%x:%x:%x",
+
+-					htoi(results[6+1].c_str()),
+
+-					atoi(results[7+1].c_str()),
+
+-					htoi(results[8+1].c_str()),
+
+-					htoi(results[9+1].c_str()),
+
+-					htoi(results[10+1].c_str()),
+
+-					htoi(results[11+1].c_str()),
+
+-					atoi(results[12+1].c_str()),
+
+-					htoi(results[13+1].c_str()),
+
+-					htoi(results[14+1].c_str()),
+
+-					htoi(results[15+1].c_str()),
+
+-					results[16+1],
+
+-					htoi(results[15+1].c_str()),
+
+-					htoi(results[16+1].c_str()),
+
+-					htoi(results[17+1].c_str()),
+
+-					htoi(results[18+1].c_str()),
+
+-					htoi(results[19+1].c_str()),
+
+-					htoi(results[20+1].c_str())
+
+-				);
+
+-			}
+
+-
+
+-			if (GetDefaultCodePage() == CP_ARABIC)
+
+-				snprintf(buf, sizeof(buf), " |h|r[%s]|cffffc700|H%s|h", pItemData->GetName(), itemlink);
+
+-			else
+
+-				snprintf(buf, sizeof(buf), "|cffffc700|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
+-
+
+-			return Py_BuildValue("s", buf);
+
+-		}
+
+-
+
+-	}
+
+-#endif
+
+ 	return Py_BuildValue("s", "");
+
+ }
+
+ 
+
+--- a/src-client/Client/UserInterface/PythonItemModule.cpp
++++ b/src-client/Client/UserInterface/PythonItemModule.cpp
+@@ -50,6 +50,12 @@
+ 		//TraceError("Cannot find item by %d", iIndex);
+
+ 		CItemManager::Instance().SelectItemData(60001);
+
+ 	}
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	if (CItemData::ITEM_TYPE_PET == pItemData->GetType() && CItemData::PET_UPBRINGING == pItemData->GetSubType())
+
++	{
+
++		return Py_BuildValue("i", TRUE);
+
++	}
+
++#endif
+
+ 
+
+ 	return Py_BuildNone();
+
+ }
+
+@@ -508,12 +514,6 @@
+ 	if (CItemData::ITEM_TYPE_USE == pItemData->GetType() || CItemData::ITEM_TYPE_QUEST == pItemData->GetType())
+
+ 		return Py_BuildValue("b", true);
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	if (CItemData::ITEM_TYPE_PET == pItemData->GetType() && CItemData::PET_UPBRINGING == pItemData->GetSubType())
+
+-	{
+
+-		return Py_BuildValue("b", true);
+
+-	}
+
+-#endif
+
+ 
+
+ 	return Py_BuildValue("b", false);
+
+ }
+
+@@ -1894,43 +1894,5 @@
+ 	PyModule_AddIntConstant(poModule, "USE_OPEN_OFFLINE_SHOP", CItemData::USE_OPEN_OFFLINE_SHOP);
+
+ 	PyModule_AddIntConstant(poModule, "ITEM_TYPE_MAX_NUM", CItemData::ITEM_TYPE_MAX_NUM);
+
+ #endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "ITEM_ANTIFLAG_PETFEED", CItemData::ITEM_ANTIFLAG_PETFEED);
+
+-	PyModule_AddIntConstant(poModule, "ITEM_TYPE_PET", CItemData::ITEM_TYPE_PET);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG", CItemData::PET_EGG);
+
+-	PyModule_AddIntConstant(poModule, "PET_UPBRINGING", CItemData::PET_UPBRINGING);
+
+-	PyModule_AddIntConstant(poModule, "PET_BAG", CItemData::PET_BAG);
+
+-	PyModule_AddIntConstant(poModule, "PET_FEEDSTUFF", CItemData::PET_FEEDSTUFF);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL", CItemData::PET_SKILL);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_DEL_BOOK", CItemData::PET_SKILL_DEL_BOOK);
+
+-	PyModule_AddIntConstant(poModule, "PET_NAME_CHANGE", CItemData::PET_NAME_CHANGE);
+
+-	PyModule_AddIntConstant(poModule, "PET_EXPFOOD", CItemData::PET_EXPFOOD);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_ALL_DEL_BOOK", CItemData::PET_SKILL_ALL_DEL_BOOK);
+
+-	PyModule_AddIntConstant(poModule, "PET_EXPFOOD_PER", CItemData::PET_EXPFOOD_PER);
+
+-	PyModule_AddIntConstant(poModule, "PET_ATTR_DETERMINE", CItemData::PET_ATTR_DETERMINE);
+
+-	PyModule_AddIntConstant(poModule, "PET_ATTR_CHANGE", CItemData::PET_ATTR_CHANGE);
+
+-	PyModule_AddIntConstant(poModule, "PET_PAY", CItemData::PET_PAY);
+
+-	PyModule_AddIntConstant(poModule, "PET_PRIMIUM_FEEDSTUFF", CItemData::PET_PRIMIUM_FEEDSTUFF);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "EGG_USE_SUCCESS", CItemData::EGG_USE_SUCCESS);
+
+-	PyModule_AddIntConstant(poModule, "EGG_USE_FAILED_BECAUSE_NAME", CItemData::EGG_USE_FAILED_BECAUSE_NAME);
+
+-	PyModule_AddIntConstant(poModule, "EGG_USE_FAILED_TIMEOVER", CItemData::EGG_USE_FAILED_TIMEOVER);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG_USE_TRUE", CItemData::PET_EGG_USE_TRUE);
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG_USE_FAILED_BECAUSE_TRADING", CItemData::PET_EGG_USE_FAILED_BECAUSE_TRADING);
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG_USE_FAILED_BECAUSE_SHOP_OPEN", CItemData::PET_EGG_USE_FAILED_BECAUSE_SHOP_OPEN);
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG_USE_FAILED_BECAUSE_MALL_OPEN", CItemData::PET_EGG_USE_FAILED_BECAUSE_MALL_OPEN);
+
+-	PyModule_AddIntConstant(poModule, "PET_EGG_USE_FAILED_BECAUSE_SAFEBOX_OPEN", CItemData::PET_EGG_USE_FAILED_BECAUSE_SAFEBOX_OPEN);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "NAME_CHANGE_USE_SUCCESS", CItemData::NAME_CHANGE_USE_SUCCESS);
+
+-	PyModule_AddIntConstant(poModule, "NAME_CHANGE_USE_FAILED_BECAUSE_NAME", CItemData::NAME_CHANGE_USE_FAILED_BECAUSE_NAME);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_ATTR_CHANGE_ITEMVNUM", CItemData::PET_ATTR_CHANGE_ITEMVNUM);
+
+-	PyModule_AddIntConstant(poModule, "PET_HATCHING_MONEY", CItemData::PET_HATCHING_MONEY);
+
+-	PyModule_AddIntConstant(poModule, "PET_NAME_MAX_SIZE", CItemData::PET_NAME_MAX_SIZE);
+
+-	PyModule_AddIntConstant(poModule, "PET_NAME_MIN_SIZE", CItemData::PET_NAME_MIN_SIZE);
+
+-	PyModule_AddIntConstant(poModule, "E_SEAL_DATE_DEFAULT_TIMESTAMP", CItemData::E_SEAL_DATE_DEFAULT_TIMESTAMP);
+
+-#endif
+
+ 	PyModule_AddIntConstant(poModule, "ITEM_NAME_MAX_LEN", CItemData::ITEM_NAME_MAX_LEN);
+
+ }
+
+--- a/src-client/Client/UserInterface/PythonNetworkStream.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStream.cpp
+@@ -273,19 +273,6 @@
+ 		Set(HEADER_GC_EXT_BATTLE_PASS_MISSION_INFO, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCExtBattlePassMissionInfo), DYNAMIC_SIZE_PACKET));
+
+ 		Set(HEADER_GC_EXT_BATTLE_PASS_MISSION_UPDATE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCExtBattlePassMissionUpdate), STATIC_SIZE_PACKET));
+
+ 		Set(HEADER_GC_EXT_BATTLE_PASS_SEND_RANKING, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCExtBattlePassRanking), STATIC_SIZE_PACKET));
+
+-#endif
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		Set(HEADER_GC_PET, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPet), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_SET, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSet), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_SET_EXCHANGE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSet), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_DEL, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetDelete), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_SUMMON, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSummon), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_POINT_CHANGE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetPointUpdate), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_NAME_CHANGE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetNameChangeResult), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_SKILL_UPDATE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSkillUpdate), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_SKILL_COOLTIME, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSkillCooltime), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_DETERMINE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetDetermineResult), STATIC_SIZE_PACKET));
+
+-		Set(HEADER_GC_PET_ATTR_CHANGE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetAttrChangeResult), STATIC_SIZE_PACKET));
+
+ #endif
+
+ 	}
+
+ };
+
+@@ -1084,3 +1071,16 @@
+ {
+
+ 	return m_stID;
+
+ }
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++		Set(HEADER_GC_PET, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPet), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_SET, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSet), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_SET_EXCHANGE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSet), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_DEL, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetDelete), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_SUMMON, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSummon), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_POINT_CHANGE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetPointUpdate), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_NAME_CHANGE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetNameChangeResult), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_SKILL_UPDATE, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSkillUpdate), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_SKILL_COOLTIME, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetSkillCooltime), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_DETERMINE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetDetermineResult), STATIC_SIZE_PACKET));
+
++		Set(HEADER_GC_PET_ATTR_CHANGE_RESULT, CNetworkPacketHeaderMap::TPacketType(sizeof(TPacketGCPetAttrChangeResult), STATIC_SIZE_PACKET));
+
++#endif
+
+--- a/src-client/Client/UserInterface/PythonNetworkStream.h
++++ b/src-client/Client/UserInterface/PythonNetworkStream.h
+@@ -926,40 +926,40 @@
+ 	void __FilterInsult(char* szLine, UINT uLineLen);
+
+ 
+
+ 	void __SetGuildID(DWORD id);
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	public:
+
++		bool SendPetHatchingPacket(const char* c_szName, TItemPos eggPos);
+
++		bool SendPetWindowType(BYTE bType);
+
++		bool SendPetHatchingWindowPacket(bool bState);
+
++		bool SendPetNameChangeWindowPacket(bool bState);
+
++		bool SendPetNameChangePacket(const char* c_szName, TItemPos changeNamePos, TItemPos upBringingPos);
+
++		bool SendPetFeedPacket(int iFeedIndex, const std::vector<std::pair<WORD, WORD>>& itemVec);
+
++		bool SendPetAttrDetermine(TItemPos determinePos);
+
++		bool SendPetAttrChange(TItemPos upbringingPos, TItemPos attrChangePos);
+
++		bool SendPetRevive(TItemPos upbringingPos, const std::vector<std::pair<WORD, WORD>>& itemVec);
+
++		bool SendPetLearnSkill(BYTE bSlot, TItemPos learnSkillPos);
+
++		bool SendPetSkillUpgradeRequest(BYTE bSlot);
+
++		bool SendPetDeleteSkill(BYTE bSlot, TItemPos deleteSkillPos);
+
++		bool SendPetDeleteAllSkill(TItemPos deleteAllSkillPos);
+
++
+
++	protected:
+
++		bool RecvPet();
+
++		bool RecvPetSet();
+
++		bool RecvPetSetExchange();
+
++		bool RecvPetDelete();
+
++		bool RecvPetSummon();
+
++		bool RecvPetPointChange();
+
++		bool RecvPetNameChangeResult();
+
++		bool RecvPetSkillUpdate();
+
++		bool RecvPetSkillCooltime();
+
++		bool RecvPetDetermineResult();
+
++		bool RecvPetAttrChangeResult();
+
++#endif
+
+ 
+
+ #if defined(ENABLE_CONQUEROR_LEVEL)
+
+ 	void __SungMaAttrInfoProcess() const;
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-public:
+
+-	bool SendPetHatchingPacket(const char* c_szName, TItemPos eggPos);
+
+-	bool SendPetWindowType(BYTE bType);
+
+-	bool SendPetHatchingWindowPacket(bool bState);
+
+-	bool SendPetNameChangeWindowPacket(bool bState);
+
+-	bool SendPetNameChangePacket(const char* c_szName, TItemPos changeNamePos, TItemPos upBringingPos);
+
+-	bool SendPetFeedPacket(int iFeedIndex, const std::vector<std::pair<WORD, WORD>>& itemVec);
+
+-	bool SendPetAttrDetermine(TItemPos determinePos);
+
+-	bool SendPetAttrChange(TItemPos upbringingPos, TItemPos attrChangePos);
+
+-	bool SendPetRevive(TItemPos upbringingPos, const std::vector<std::pair<WORD, WORD>>& itemVec);
+
+-	bool SendPetLearnSkill(BYTE bSlot, TItemPos learnSkillPos);
+
+-	bool SendPetSkillUpgradeRequest(BYTE bSlot);
+
+-	bool SendPetDeleteSkill(BYTE bSlot, TItemPos deleteSkillPos);
+
+-	bool SendPetDeleteAllSkill(TItemPos deleteAllSkillPos);
+
+-
+
+-protected:
+
+-	bool RecvPet();
+
+-	bool RecvPetSet();
+
+-	bool RecvPetSetExchange();
+
+-	bool RecvPetDelete();
+
+-	bool RecvPetSummon();
+
+-	bool RecvPetPointChange();
+
+-	bool RecvPetNameChangeResult();
+
+-	bool RecvPetSkillUpdate();
+
+-	bool RecvPetSkillCooltime();
+
+-	bool RecvPetDetermineResult();
+
+-	bool RecvPetAttrChangeResult();
+
+-#endif
+
+ 
+
+ protected:
+
+ 	TPacketGCHandshake m_HandshakeData;
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamModule.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamModule.cpp
+@@ -9,6 +9,219 @@
+ 
+
+ #ifdef ENABLE_OFFLINE_SHOP
+
+ #include "PythonOfflineShop.h"
+
++#endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++PyObject* netCheckUsePetItem(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int petEggUse = CItemData::PET_EGG_USE_TRUE;
+
++
+
++	return Py_BuildValue("i", petEggUse);
+
++}
+
++PyObject* netSendPetHatchingPacket(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	char* szName;
+
++	if (!PyTuple_GetString(poArgs, 0, &szName))
+
++		return Py_BuildException();
+
++
+
++	int iWindow;
+
++	if (!PyTuple_GetInteger(poArgs, 1, &iWindow))
+
++		return Py_BuildException();
+
++
+
++	int iPos;
+
++	if (!PyTuple_GetInteger(poArgs, 2, &iPos))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetHatchingPacket(szName, TItemPos(iWindow, iPos));
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetHatchingWindowPacket(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	bool bState;
+
++	if (!PyTuple_GetBoolean(poArgs, 0, &bState))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetHatchingWindowPacket(bState);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetFeedPacket(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int iFeedIndex;
+
++	PyObject* pyPosList;
+
++	PyObject* pyCountList;
+
++	std::vector<std::pair<WORD, WORD>> itemVec;
+
++
+
++	if (!PyArg_ParseTuple(poArgs, "iOO", &iFeedIndex, &pyPosList, &pyCountList))
+
++		return Py_BuildException();
+
++
+
++	for (int i = 0; i < PyList_Size(pyPosList); ++i)
+
++	{
+
++		PyObject* pyItemPos = PyList_GetItem(pyPosList, i);
+
++		WORD itemPos = static_cast<WORD>(_PyInt_AsInt(pyItemPos));
+
++
+
++		PyObject* pyItemCount = PyList_GetItem(pyCountList, i);
+
++		WORD itemCount = static_cast<WORD>(_PyInt_AsInt(pyItemCount));
+
++
+
++		itemVec.push_back(std::make_pair(itemPos, itemCount));
+
++	}
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetFeedPacket(iFeedIndex, itemVec);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetLearnSkill(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int iSlot;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
++		return Py_BuildException();
+
++
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetLearnSkill(iSlot, Cell);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetSkillUpgradeRequest(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int iSlot;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetSkillUpgradeRequest(iSlot);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetDeleteSkill(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int iSlot;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
++		return Py_BuildException();
+
++
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetDeleteSkill(iSlot, Cell);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetDeleteAllSkill(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetDeleteAllSkill(Cell);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetNameChangePacket(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	char* szName;
+
++	if (!PyTuple_GetString(poArgs, 0, &szName))
+
++		return Py_BuildException();
+
++
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	TItemPos Cell2;
+
++	if (!PyTuple_GetInteger(poArgs, 2, &Cell2.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetNameChangePacket(szName, Cell, Cell2);
+
++
+
++	return Py_BuildNone();
+
++}
+
++PyObject* netSendPetNameChangeWindowPacket(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	bool bState;
+
++	if (!PyTuple_GetBoolean(poArgs, 0, &bState))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetHatchingWindowPacket(bState);
+
++
+
++	return Py_BuildNone();
+
++}
+
++
+
++PyObject* netSendPetWindowType(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int bPetWindowType;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &bPetWindowType))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetWindowType(bPetWindowType);
+
++
+
++	return Py_BuildNone();
+
++}
+
++
+
++PyObject* netSendPetAttrDetermine(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetAttrDetermine(Cell);
+
++
+
++	return Py_BuildNone();
+
++}
+
++
+
++PyObject* netSendPetAttrChange(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	TItemPos Cell;
+
++	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
++		return Py_BuildException();
+
++
+
++	TItemPos Cell2;
+
++	if (!PyTuple_GetInteger(poArgs, 1, &Cell2.cell))
+
++		return Py_BuildException();
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetAttrChange(Cell, Cell2);
+
++
+
++	return Py_BuildNone();
+
++}
+
++
+
++PyObject* netSendPetRevive(PyObject* poSelf, PyObject* poArgs)
+
++{
+
++	int iUpBringingPos;
+
++	PyObject* pyPosList;
+
++	PyObject* pyCountList;
+
++	std::vector<std::pair<WORD, WORD>> itemVec;
+
++
+
++	if (!PyArg_ParseTuple(poArgs, "iOO", &iUpBringingPos, &pyPosList, &pyCountList))
+
++		return Py_BuildException();
+
++
+
++	for (int i = 0; i < PyList_Size(pyPosList); ++i)
+
++	{
+
++		PyObject* pyItemPos = PyList_GetItem(pyPosList, i);
+
++		WORD itemPos = static_cast<WORD>(_PyInt_AsInt(pyItemPos));
+
++
+
++		PyObject* pyItemCount = PyList_GetItem(pyCountList, i);
+
++		WORD itemCount = static_cast<WORD>(_PyInt_AsInt(pyItemCount));
+
++
+
++		itemVec.push_back(std::make_pair(itemPos, itemCount));
+
++	}
+
++
+
++	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
++	rns.SendPetRevive(TItemPos(INVENTORY, iUpBringingPos), itemVec);
+
++
+
++	return Py_BuildNone();
+
++}
+
+ #endif
+
+ #ifdef ENABLE_SHOP_SEARCH
+
+ #include "PythonShopSearch.h"
+
+@@ -3760,219 +3973,6 @@
+ }
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-PyObject* netCheckUsePetItem(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int petEggUse = CItemData::PET_EGG_USE_TRUE;
+
+-
+
+-	return Py_BuildValue("i", petEggUse);
+
+-}
+
+-PyObject* netSendPetHatchingPacket(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	char* szName;
+
+-	if (!PyTuple_GetString(poArgs, 0, &szName))
+
+-		return Py_BuildException();
+
+-
+
+-	int iWindow;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &iWindow))
+
+-		return Py_BuildException();
+
+-
+
+-	int iPos;
+
+-	if (!PyTuple_GetInteger(poArgs, 2, &iPos))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetHatchingPacket(szName, TItemPos(iWindow, iPos));
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetHatchingWindowPacket(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	bool bState;
+
+-	if (!PyTuple_GetBoolean(poArgs, 0, &bState))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetHatchingWindowPacket(bState);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetFeedPacket(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iFeedIndex;
+
+-	PyObject* pyPosList;
+
+-	PyObject* pyCountList;
+
+-	std::vector<std::pair<WORD, WORD>> itemVec;
+
+-
+
+-	if (!PyArg_ParseTuple(poArgs, "iOO", &iFeedIndex, &pyPosList, &pyCountList))
+
+-		return Py_BuildException();
+
+-
+
+-	for (int i = 0; i < PyList_Size(pyPosList); ++i)
+
+-	{
+
+-		PyObject* pyItemPos = PyList_GetItem(pyPosList, i);
+
+-		WORD itemPos = static_cast<WORD>(_PyInt_AsInt(pyItemPos));
+
+-
+
+-		PyObject* pyItemCount = PyList_GetItem(pyCountList, i);
+
+-		WORD itemCount = static_cast<WORD>(_PyInt_AsInt(pyItemCount));
+
+-
+
+-		itemVec.push_back(std::make_pair(itemPos, itemCount));
+
+-	}
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetFeedPacket(iFeedIndex, itemVec);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetLearnSkill(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSlot;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
+-		return Py_BuildException();
+
+-
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetLearnSkill(iSlot, Cell);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetSkillUpgradeRequest(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSlot;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetSkillUpgradeRequest(iSlot);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetDeleteSkill(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSlot;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSlot))
+
+-		return Py_BuildException();
+
+-
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetDeleteSkill(iSlot, Cell);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetDeleteAllSkill(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetDeleteAllSkill(Cell);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetNameChangePacket(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	char* szName;
+
+-	if (!PyTuple_GetString(poArgs, 0, &szName))
+
+-		return Py_BuildException();
+
+-
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	TItemPos Cell2;
+
+-	if (!PyTuple_GetInteger(poArgs, 2, &Cell2.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetNameChangePacket(szName, Cell, Cell2);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-PyObject* netSendPetNameChangeWindowPacket(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	bool bState;
+
+-	if (!PyTuple_GetBoolean(poArgs, 0, &bState))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetHatchingWindowPacket(bState);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* netSendPetWindowType(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int bPetWindowType;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &bPetWindowType))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetWindowType(bPetWindowType);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* netSendPetAttrDetermine(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetAttrDetermine(Cell);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* netSendPetAttrChange(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	TItemPos Cell;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &Cell.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	TItemPos Cell2;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &Cell2.cell))
+
+-		return Py_BuildException();
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetAttrChange(Cell, Cell2);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* netSendPetRevive(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iUpBringingPos;
+
+-	PyObject* pyPosList;
+
+-	PyObject* pyCountList;
+
+-	std::vector<std::pair<WORD, WORD>> itemVec;
+
+-
+
+-	if (!PyArg_ParseTuple(poArgs, "iOO", &iUpBringingPos, &pyPosList, &pyCountList))
+
+-		return Py_BuildException();
+
+-
+
+-	for (int i = 0; i < PyList_Size(pyPosList); ++i)
+
+-	{
+
+-		PyObject* pyItemPos = PyList_GetItem(pyPosList, i);
+
+-		WORD itemPos = static_cast<WORD>(_PyInt_AsInt(pyItemPos));
+
+-
+
+-		PyObject* pyItemCount = PyList_GetItem(pyCountList, i);
+
+-		WORD itemCount = static_cast<WORD>(_PyInt_AsInt(pyItemCount));
+
+-
+
+-		itemVec.push_back(std::make_pair(itemPos, itemCount));
+
+-	}
+
+-
+
+-	CPythonNetworkStream& rns = CPythonNetworkStream::Instance();
+
+-	rns.SendPetRevive(TItemPos(INVENTORY, iUpBringingPos), itemVec);
+
+-
+
+-	return Py_BuildNone();
+
+-}
+
+-#endif
+
+ 
+
+ void initnet()
+
+ {
+
+@@ -4221,24 +4221,6 @@
+ 		{ "SendShopSearchRequestSoldInfo",			netSendShopSearchRequestSoldInfo,			METH_VARARGS },
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		{ "CheckUsePetItem",						netCheckUsePetItem,							METH_VARARGS },
+
+-		{ "SendPetFeedPacket",						netSendPetFeedPacket,						METH_VARARGS },
+
+-		{ "SendPetHatchingPacket",					netSendPetHatchingPacket,					METH_VARARGS },
+
+-		{ "SendPetHatchingWindowPacket",			netSendPetHatchingWindowPacket,				METH_VARARGS },
+
+-		{ "SendPetNameChangePacket",				netSendPetNameChangePacket,					METH_VARARGS },
+
+-		{ "SendPetNameChangeWindowPacket",			netSendPetNameChangeWindowPacket,			METH_VARARGS },
+
+-		{ "SendPetWindowType",						netSendPetWindowType,						METH_VARARGS },
+
+-
+
+-		{ "SendPetLearnSkill",						netSendPetLearnSkill,						METH_VARARGS },
+
+-		{ "SendPetSkillUpgradeRequest",				netSendPetSkillUpgradeRequest,				METH_VARARGS },
+
+-		{ "SendPetDeleteSkill",						netSendPetDeleteSkill,						METH_VARARGS },
+
+-		{ "SendPetDeleteAllSkill",					netSendPetDeleteAllSkill,					METH_VARARGS },
+
+-
+
+-		{ "SendPetAttrDetermine",					netSendPetAttrDetermine,					METH_VARARGS },
+
+-		{ "SendPetAttrChange",						netSendPetAttrChange,						METH_VARARGS },
+
+-		{ "SendPetRevive",							netSendPetRevive,							METH_VARARGS },
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_ACCE_COSTUME_SYSTEM)
+
+ 		// Acce Refine
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -322,6 +322,52 @@
+ 		if (dwRecvCount++ >= MAX_RECV_COUNT - 1 && GetRecvBufferSize() < SAFE_RECV_BUFSIZE
+
+ 			&& m_strPhase == "Game") // phase_game  ƴϾ   찡 ִ.
+
+ 			break;
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++		case HEADER_GC_PET:
+
++			ret = RecvPet();
+
++			break;
+
++
+
++		case HEADER_GC_PET_SET:
+
++			ret = RecvPetSet();
+
++			break;
+
++
+
++		case HEADER_GC_PET_SET_EXCHANGE:
+
++			ret = RecvPetSetExchange();
+
++			break;
+
++
+
++		case HEADER_GC_PET_DEL:
+
++			ret = RecvPetDelete();
+
++			break;
+
++
+
++		case HEADER_GC_PET_SUMMON:
+
++			ret = RecvPetSummon();
+
++			break;
+
++
+
++		case HEADER_GC_PET_POINT_CHANGE:
+
++			ret = RecvPetPointChange();
+
++			break;
+
++
+
++		case HEADER_GC_PET_NAME_CHANGE_RESULT:
+
++			ret = RecvPetNameChangeResult();
+
++			break;
+
++
+
++		case HEADER_GC_PET_SKILL_UPDATE:
+
++			ret = RecvPetSkillUpdate();
+
++			break;
+
++
+
++		case HEADER_GC_PET_SKILL_COOLTIME:
+
++			ret = RecvPetSkillCooltime();
+
++			break;
+
++
+
++		case HEADER_GC_PET_DETERMINE_RESULT:
+
++			ret = RecvPetDetermineResult();
+
++			break;
+
++
+
++		case HEADER_GC_PET_ATTR_CHANGE_RESULT:
+
++			ret = RecvPetAttrChangeResult();
+
++			break;
+
++
+
++#endif
+
+ 
+
+ 		if (!CheckPacket(&header))
+
+ 			break;
+
+@@ -795,51 +841,6 @@
+ 				break;
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-			case HEADER_GC_PET:
+
+-				ret = RecvPet();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_SET:
+
+-				ret = RecvPetSet();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_SET_EXCHANGE:
+
+-				ret = RecvPetSetExchange();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_DEL:
+
+-				ret = RecvPetDelete();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_SUMMON:
+
+-				ret = RecvPetSummon();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_POINT_CHANGE:
+
+-				ret = RecvPetPointChange();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_NAME_CHANGE_RESULT:
+
+-				ret = RecvPetNameChangeResult();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_SKILL_UPDATE:
+
+-				ret = RecvPetSkillUpdate();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_SKILL_COOLTIME:
+
+-				ret = RecvPetSkillCooltime();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_DETERMINE_RESULT:
+
+-				ret = RecvPetDetermineResult();
+
+-				break;
+
+-
+
+-			case HEADER_GC_PET_ATTR_CHANGE_RESULT:
+
+-				ret = RecvPetAttrChangeResult();
+
+-				break;
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_RANKING_SYSTEM)
+
+ 			case HEADER_GC_RANKING:
+
+@@ -2060,10 +2061,6 @@
+ 			CInstanceBase* pOtherInstance = CPythonCharacterManager::Instance().GetInstancePtr(PointChange.dwVID);
+
+ 			if (pOtherInstance)
+
+ 				pOtherInstance->UpdateTextTailLevel(PointChange.lValue);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-				if (pInstance->IsGrowthPet())
+
+-					pInstance->SetPetLevel(PointChange.lValue);
+
+-#endif
+
+ 		}
+
+ #if defined(ENABLE_CONQUEROR_LEVEL)
+
+ 		else if (POINT_CONQUEROR_LEVEL == PointChange.wType)
+
+@@ -2548,9 +2545,6 @@
+ 			PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "EndExchange", Py_BuildValue("()"));
+
+ 			__RefreshInventoryWindow();
+
+ 			CPythonExchange::Instance().End();
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-			CPythonPlayer::Instance().ClearPetExchangeData();
+
+-#endif
+
+ 		}
+
+ 		break;
+
+ 
+
+@@ -6657,431 +6651,6 @@
+ }
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-bool CPythonNetworkStream::SendPetHatchingPacket(const char* c_szName, TItemPos eggPos)
+
+-{
+
+-	TPacketCGPetHatch packet;
+
+-	packet.header = HEADER_CG_PET_HATCH;
+
+-	strncpy(packet.name, c_szName, sizeof(packet.name));
+
+-	packet.eggPos = eggPos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetWindowType(BYTE bType)
+
+-{
+
+-	TPacketCGPetWindowType packet;
+
+-	packet.header = HEADER_CG_PET_WINDOW_TYPE;
+
+-	packet.type = bType;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetHatchingWindowPacket(bool bState)
+
+-{
+
+-	TPacketCGPetWindow packet;
+
+-	packet.header = HEADER_CG_PET_WINDOW;
+
+-	packet.window = PET_WINDOW_HATCH;
+
+-	packet.state = bState;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetNameChangeWindowPacket(bool bState)
+
+-{
+
+-	TPacketCGPetWindow packet;
+
+-	packet.header = HEADER_CG_PET_WINDOW;
+
+-	packet.window = PET_WINDOW_NAME_CHANGE;
+
+-	packet.state = bState;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetNameChangePacket(const char* c_szName, TItemPos changeNamePos, TItemPos upBringingPos)
+
+-{
+
+-	TPacketCGPetNameChange packet;
+
+-	packet.header = HEADER_CG_PET_NAME_CHANGE;
+
+-	strncpy(packet.name, c_szName, sizeof(packet.name));
+
+-	packet.changeNamePos = changeNamePos;
+
+-	packet.upBringingPos = upBringingPos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetFeedPacket(int iFeedIndex, const std::vector<std::pair<WORD, WORD>>& itemVec)
+
+-{
+
+-	TPacketCGPetFeed packet;
+
+-	packet.header = HEADER_CG_PET_FEED;
+
+-	packet.index = iFeedIndex;
+
+-	memset(packet.pos, 0, sizeof(packet.pos));
+
+-	memset(packet.count, 0, sizeof(packet.count));
+
+-
+
+-	for (int i = 0; i < itemVec.size(); i++)
+
+-	{
+
+-		packet.pos[i] = itemVec.at(i).first;
+
+-		packet.count[i] = itemVec.at(i).second;
+
+-	}
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetAttrDetermine(TItemPos determinePos)
+
+-{
+
+-	TPacketCGPetDetermine packet;
+
+-	packet.header = HEADER_CG_PET_DETERMINE;
+
+-	packet.determinePos = determinePos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetAttrChange(TItemPos upBringingPos, TItemPos attrChangePos)
+
+-{
+
+-	TPacketCGPetAttrChange packet;
+
+-	packet.header = HEADER_CG_PET_ATTR_CHANGE;
+
+-	packet.upBringingPos = upBringingPos;
+
+-	packet.attrChangePos = attrChangePos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetRevive(TItemPos upBringingPos, const std::vector<std::pair<WORD, WORD>>& itemVec)
+
+-{
+
+-	TPacketCGPetRevive packet;
+
+-	packet.header = HEADER_CG_PET_REVIVE;
+
+-	packet.upBringingPos = upBringingPos;
+
+-	memset(packet.pos, 0, sizeof(packet.pos));
+
+-	memset(packet.count, 0, sizeof(packet.count));
+
+-
+
+-	for (int i = 0; i < itemVec.size(); i++)
+
+-	{
+
+-		packet.pos[i] = itemVec.at(i).first;
+
+-		packet.count[i] = itemVec.at(i).second;
+
+-	}
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetLearnSkill(BYTE bSlot, TItemPos learnSkillPos)
+
+-{
+
+-	TPacketCGPetLearnSkill packet;
+
+-	packet.header = HEADER_CG_PET_LEARN_SKILL;
+
+-	packet.slotIndex = bSlot;
+
+-	packet.learnSkillPos = learnSkillPos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetSkillUpgradeRequest(BYTE bSlot)
+
+-{
+
+-	TPacketCGPetSkillUpgrade packet;
+
+-	packet.header = HEADER_CG_PET_SKILL_UPGRADE;
+
+-	packet.slotIndex = bSlot;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetDeleteSkill(BYTE bSlot, TItemPos deleteSkillPos)
+
+-{
+
+-	TPacketCGPetDeleteSkill packet;
+
+-	packet.header = HEADER_CG_PET_DELETE_SKILL;
+
+-	packet.slotIndex = bSlot;
+
+-	packet.deleteSkillPos = deleteSkillPos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::SendPetDeleteAllSkill(TItemPos deleteAllSkillPos)
+
+-{
+
+-	TPacketCGPetDeleteAllSkill packet;
+
+-	packet.header = HEADER_CG_PET_DELETE_ALL_SKILL;
+
+-	packet.deleteAllSkillPos = deleteAllSkillPos;
+
+-
+
+-	if (!Send(sizeof(packet), &packet))
+
+-		return false;
+
+-
+
+-	return SendSequence();
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPet()
+
+-{
+
+-	TPacketGCPet packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPet Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	switch (packet.subheader)
+
+-	{
+
+-	case SUBHEADER_PET_EGG_USE_SUCCESS:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetHatchingWindowCommand", Py_BuildValue("(i)", CItemData::EGG_USE_SUCCESS));
+
+-		break;
+
+-	case SUBHEADER_PET_EGG_USE_FAILED_BECAUSE_NAME:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetHatchingWindowCommand", Py_BuildValue("(i)", CItemData::EGG_USE_FAILED_BECAUSE_NAME));
+
+-		break;
+
+-	case SUBHEADER_PET_EGG_USE_FAILED_TIMEOVER:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetHatchingWindowCommand", Py_BuildValue("(i)", CItemData::EGG_USE_FAILED_TIMEOVER));
+
+-		break;
+
+-	case SUBHEADER_PET_UNSUMMON:
+
+-		CPythonPlayer::Instance().SetActivePet(NULL);
+
+-		break;
+
+-	case SUBHEADER_PET_FEED_FAILED:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetFeedReuslt", Py_BuildValue("(i)", FALSE));
+
+-		break;
+
+-	case SUBHEADER_PET_FEED_SUCCESS:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetFeedReuslt", Py_BuildValue("(i)", TRUE));
+
+-		break;
+
+-	case SUBHEADER_PET_REVIVE_FAILED:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetReviveResult", Py_BuildValue("(i)", FALSE));
+
+-		break;
+
+-	case SUBHEADER_PET_REVIVE_SUCCESS:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetReviveResult", Py_BuildValue("(i)", TRUE));
+
+-		break;
+
+-	case SUBHEADER_PET_WINDOW_TYPE_INFO:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetWindowTypeResult", Py_BuildValue("(i)", PET_WINDOW_INFO));
+
+-		break;
+
+-	case SUBHEADER_PET_WINDOW_TYPE_ATTR_CHANGE:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetWindowTypeResult", Py_BuildValue("(i)", PET_WINDOW_ATTR_CHANGE));
+
+-		break;
+
+-	case SUBHEADER_PET_WINDOW_TYPE_PREMIUM_FEED:
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetWindowTypeResult", Py_BuildValue("(i)", PET_WINDOW_PRIMIUM_FEEDSTUFF));
+
+-		break;
+
+-	}
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetSet()
+
+-{
+
+-	TPacketGCPetSet packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetSet Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::TPetData pet;
+
+-	pet.dwID = packet.dwID;
+
+-	pet.strName = packet.szName;
+
+-	pet.dwSummonItemVnum = packet.dwSummonItemVnum;
+
+-
+
+-	for (DWORD i = 0; i < POINT_UPBRINGING_MAX_NUM; ++i)
+
+-		pet.dwPoints[i] = packet.dwPoints[i];
+
+-
+
+-	for (int i = 0; i < PET_SKILL_COUNT_MAX; ++i)
+
+-	{
+
+-		pet.skillData.aSkillInfo[i].bSkill = packet.aSkill[i].bSkill;
+
+-		pet.skillData.aSkillInfo[i].bLevel = packet.aSkill[i].bLevel;
+
+-		pet.skillData.aSkillInfo[i].dwCooltime = packet.aSkill[i].dwCooltime;
+
+-
+
+-		if (!packet.aSkill[i].bLocked)
+
+-			++pet.skillData.bSkillCount;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().SetPetData(&pet);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetSetExchange()
+
+-{
+
+-	TPacketGCPetSet packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetSet-Exchange Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::TPetData pet;
+
+-	pet.dwID = packet.dwID;
+
+-	pet.strName = packet.szName;
+
+-	pet.dwSummonItemVnum = packet.dwSummonItemVnum;
+
+-
+
+-	for (DWORD i = 0; i < POINT_UPBRINGING_MAX_NUM; ++i)
+
+-		pet.dwPoints[i] = packet.dwPoints[i];
+
+-
+
+-	for (int i = 0; i < PET_SKILL_COUNT_MAX; ++i)
+
+-	{
+
+-		pet.skillData.aSkillInfo[i].bSkill = packet.aSkill[i].bSkill;
+
+-		pet.skillData.aSkillInfo[i].bLevel = packet.aSkill[i].bLevel;
+
+-		pet.skillData.aSkillInfo[i].dwCooltime = packet.aSkill[i].dwCooltime;
+
+-
+
+-		if (!packet.aSkill[i].bLocked)
+
+-			++pet.skillData.bSkillCount;
+
+-	}
+
+-
+
+-	pet.bIsExchange = true;
+
+-
+
+-	CPythonPlayer::Instance().SetPetData(&pet);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetDelete()
+
+-{
+
+-	TPacketGCPetDelete packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetDelete Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().DeletePetData(packet.dwID);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetSummon()
+
+-{
+
+-	TPacketGCPetSummon packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetSummon Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().SetActivePet(packet.dwID);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetPointChange()
+
+-{
+
+-	TPacketGCPetPointUpdate packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetPointUpdate Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().SetPetStatus(packet.dwID, packet.bPoint, packet.dwValue);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetNameChangeResult()
+
+-{
+
+-	TPacketGCPetNameChangeResult packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetNameChangeResult Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	switch (packet.subheader)
+
+-	{
+
+-	case SUBHEADER_PET_NAME_CHANGE_FAILED:
+
+-	{
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetNameChangeWindowCommand", Py_BuildValue("(i)", CItemData::NAME_CHANGE_USE_FAILED_BECAUSE_NAME));
+
+-	}	break;
+
+-
+
+-	case SUBHEADER_PET_NAME_CHANGE_SUCCESS:
+
+-	{
+
+-		CPythonPlayer::TPetData* pPet = nullptr;
+
+-		CPythonPlayer::Instance().GetPetInfo(packet.dwID, &pPet);
+
+-
+
+-		if (pPet)
+
+-			pPet->strName = packet.szName;
+
+-
+
+-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetNameChangeWindowCommand", Py_BuildValue("(i)", CItemData::NAME_CHANGE_USE_SUCCESS));
+
+-	}	break;
+
+-	}
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetSkillUpdate()
+
+-{
+
+-	TPacketGCPetSkillUpdate packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetSkillUpdate Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().SetPetSkillData(packet.dwID, packet.aSkill);
+
+-	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetAffectShowerRefresh", Py_BuildValue("()"));
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetSkillCooltime()
+
+-{
+
+-	TPacketGCPetSkillCooltime packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetSkillCooltime Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	CPythonPlayer::Instance().SetPetSkillCooltime(packet.dwID, packet.bSlot, packet.dwCooltime);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetDetermineResult()
+
+-{
+
+-	TPacketGCPetDetermineResult packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetDetermineResult Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetAttrDetermineResult", Py_BuildValue("(i)", packet.type));
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonNetworkStream::RecvPetAttrChangeResult()
+
+-{
+
+-	TPacketGCPetAttrChangeResult packet;
+
+-	if (!Recv(sizeof(packet), &packet))
+
+-	{
+
+-		TraceError("TPacketGCPetAttrChangeResult Error");
+
+-		return false;
+
+-	}
+
+-
+
+-	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "PetAttrChangeResult", Py_BuildValue("(ii)", packet.pos.cell, packet.type));
+
+-
+
+-	return true;
+
+-}
+
+-#endif
+
+ 
+
+ #ifdef ENABLE_SHOP_SEARCH
+
+ bool CPythonNetworkStream::RecvShopSearchResult()
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGameActor.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGameActor.cpp
+@@ -685,3 +685,6 @@
+ 	return true;
+
+ }
+
+ */
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++		kNetActorData.m_bCharacterSize = chrInfoPacket.bCharacterSize;
+
++#endif
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseGameItem.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseGameItem.cpp
+@@ -1227,6 +1227,12 @@
+ 			}
+
+ 		}
+
+ 		break;
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	case SE_GYEONGGONG_BOOM:
+
++		effect = CInstanceBase::EFFECT_GYEONGGONG_BOOM;
+
++		bAttachEffect = false;
+
++		break;
+
++#endif
+
+ 
+
+ 		case SE_TYPE_POSITION:
+
+ 		{
+
+--- a/src-client/Client/UserInterface/PythonNetworkStreamPhaseLoading.cpp
++++ b/src-client/Client/UserInterface/PythonNetworkStreamPhaseLoading.cpp
+@@ -152,12 +152,6 @@
+ 			RecvHybridCryptSDBPacket();
+
+ 			return;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		case HEADER_GC_PET_SET:
+
+-			if (RecvPetSet())
+
+-				return;
+
+-			break;
+
+-#endif
+
+ 
+
+ 		default:
+
+ 			GamePhase();
+
+@@ -190,6 +184,12 @@
+ 	CPythonApplication::Instance().SetDefaultCamera();
+
+ #if defined(ENABLE_EVENT_BANNER)
+
+ 	CPythonInGameEventSystemManager::Instance().Clear();
+
++#endif
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	case HEADER_GC_PET_SET:
+
++		if (RecvPetSet())
+
++			return;
+
++		break;
+
+ #endif
+
+ 
+
+ 	__DirectEnterMode_Initialize();
+
+--- a/src-client/Client/UserInterface/PythonPlayer.cpp
++++ b/src-client/Client/UserInterface/PythonPlayer.cpp
+@@ -582,6 +582,17 @@
+ {
+
+ 	__ClearReservedAction();
+
+ 	__ClearAutoAttackTargetActorID();
+
++#ifdef ENABLE_GROWTH_PET_SYSTEM
+
++	m_isOpenPetHatchingWindow = false;
+
++	m_isOpenPetNameChangeWindow = false;
+
++	m_isOpenPetFeedWindow = false;
+
++	m_isOpenSafebox = false;
+
++	m_isOpenMall = false;
+
++
+
++	m_dwActivePetID = 0;
+
++
+
++	m_PetDataMap.clear();
+
++#endif
+
+ }
+
+ 
+
+ void CPythonPlayer::NotifyChangePKMode()
+
+@@ -684,19 +695,6 @@
+ 
+
+ #include "GameType.h"
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-int CPythonPlayer::GetItemSlotIndex(DWORD dwVnum)
+
+-{
+
+-	for (int i = 0; i < c_Inventory_Slot_Count; ++i)
+
+-	{
+
+-		const TItemData& c_rItemData = m_playerStatus.aInventoryItem[i];
+
+-		if (c_rItemData.dwVnum == dwVnum)
+
+-			return i;
+
+-	}
+
+-
+
+-	return -1;
+
+-}
+
+-#endif
+
+ 
+
+ DWORD CPythonPlayer::GetItemFlags(TItemPos Cell)
+
+ {
+
+@@ -2108,15 +2106,6 @@
+ 
+
+ 	m_inGuildAreaID = 0xffffffff;
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	m_isOpenPetHatchingWindow = false;
+
+-	m_isOpenPetNameChangeWindow = false;
+
+-	m_isOpenPetFeedWindow = false;
+
+-
+
+-	m_dwActivePetID = 0;
+
+-
+
+-	m_PetDataMap.clear();
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_KEYCHANGE_SYSTEM)
+
+ 	m_isOpenKeySettingWindow = FALSE;
+
+@@ -2865,178 +2854,6 @@
+ }
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-void CPythonPlayer::SetPetData(TPetData* pPetData)
+
+-{
+
+-	auto it = m_PetDataMap.find(pPetData->dwID);
+
+-	if (it != m_PetDataMap.end())
+
+-		m_PetDataMap.erase(it);
+
+-
+
+-	m_PetDataMap.insert(TPetDataMap::value_type(pPetData->dwID, *pPetData));
+
+-}
+
+-
+
+-bool CPythonPlayer::GetPetInfo(DWORD dwID, TPetData** ppTPetData)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return false;
+
+-
+
+-	*ppTPetData = &(it->second);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-void CPythonPlayer::DeletePetData(DWORD dwID)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return;
+
+-
+
+-	if (m_dwActivePetID == dwID)
+
+-		m_dwActivePetID = 0;
+
+-
+
+-	m_PetDataMap.erase(it);
+
+-}
+
+-
+
+-void CPythonPlayer::ClearPetExchangeData()
+
+-{
+
+-	auto it = m_PetDataMap.begin();
+
+-
+
+-	while (it != m_PetDataMap.end())
+
+-	{
+
+-		TPetData pet = it->second;
+
+-		if (pet.bIsExchange)
+
+-			m_PetDataMap.erase(it++);
+
+-		else
+
+-			++it;
+
+-	}
+
+-}
+
+-
+
+-void CPythonPlayer::SetPetSkillData(DWORD dwID, TPetSkillUpdatePacket* pPetSkill)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return;
+
+-
+
+-	BYTE bSkillCount = 0;
+
+-
+
+-	for (int i = 0; i < PET_SKILL_COUNT_MAX; ++i, ++pPetSkill)
+
+-	{
+
+-		it->second.skillData.aSkillInfo[i].bSkill = pPetSkill->bSkill;
+
+-		it->second.skillData.aSkillInfo[i].bLevel = pPetSkill->bLevel;
+
+-		it->second.skillData.aSkillInfo[i].dwCooltime = pPetSkill->dwCooltime;
+
+-
+
+-		for (int j = 0; j < PET_GROWTH_SKILL_LEVEL_MAX; j++)
+
+-		{
+
+-			it->second.skillData.aSkillInfo[i].dwFormula1[j] = pPetSkill->bSkillFormula1[j];
+
+-			it->second.skillData.aSkillInfo[i].dwFormula2[j] = pPetSkill->wSkillFormula2[j];
+
+-			it->second.skillData.aSkillInfo[i].dwFormula3[j] = pPetSkill->bSkillFormula3[j];
+
+-		}
+
+-
+
+-		if (!pPetSkill->bLocked)
+
+-			bSkillCount++;
+
+-	}
+
+-
+
+-	it->second.skillData.bSkillCount = bSkillCount;
+
+-}
+
+-
+
+-bool CPythonPlayer::GetPetSkill(DWORD dwID, TPetSkillData** ppPetSkillData)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return false;
+
+-
+
+-	*ppPetSkillData = &(it->second.skillData);
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-void CPythonPlayer::SetPetSkillCooltime(DWORD dwID, BYTE bSlot, DWORD dwCooltime)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return;
+
+-
+
+-	it->second.skillData.aSkillInfo[bSlot].dwCooltime = dwCooltime;
+
+-}
+
+-
+
+-void CPythonPlayer::SetPetStatus(DWORD dwID, BYTE byPoint, DWORD dwValue)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return;
+
+-
+
+-	it->second.dwPoints[byPoint] = dwValue;
+
+-}
+
+-long CPythonPlayer::GetPetStatus(DWORD dwID, BYTE byPoint)
+
+-{
+
+-	auto it = m_PetDataMap.find(dwID);
+
+-	if (it == m_PetDataMap.end())
+
+-		return 0;
+
+-
+
+-	return it->second.dwPoints[byPoint];
+
+-}
+
+-
+
+-void CPythonPlayer::SetActivePet(DWORD dwID)
+
+-{
+
+-	m_dwActivePetID = dwID;
+
+-	PyCallClassMemberFunc(m_ppyGameWindow, "RefreshInventory", Py_BuildValue("()"));
+
+-}
+
+-
+
+-DWORD CPythonPlayer::GetActivePet()
+
+-{
+
+-	return m_dwActivePetID;
+
+-}
+
+-
+
+-DWORD CPythonPlayer::CanUseGrowthPetQuickSlot(DWORD dwLocalSlotIndex)
+
+-{
+
+-	if (dwLocalSlotIndex >= QUICKSLOT_MAX_COUNT_PER_LINE)
+
+-		return QUICK_SLOT_POS_ERROR;
+
+-
+
+-	BYTE dwRegisteredType;
+
+-	WORD dwRegisteredItemPos;
+
+-	GetLocalQuickSlotData(dwLocalSlotIndex, &dwRegisteredType, &dwRegisteredItemPos);
+
+-
+
+-	switch (dwRegisteredType)
+
+-	{
+
+-	case SLOT_TYPE_INVENTORY:
+
+-	{
+
+-		DWORD dwItemIndex = CPythonPlayer::Instance().GetItemIndex(TItemPos(INVENTORY, dwRegisteredItemPos));
+
+-		CItemManager::Instance().SelectItemData(dwItemIndex);
+
+-		CItemData* pItemData = CItemManager::Instance().GetSelectedItemDataPointer();
+
+-		if (!pItemData)
+
+-			return QUICK_SLOT_IS_NOT_ITEM;
+
+-
+
+-		if (CItemData::ITEM_TYPE_USE == pItemData->GetType() || CItemData::ITEM_TYPE_QUEST == pItemData->GetType())
+
+-			return QUICK_SLOT_ITEM_USE_SUCCESS;
+
+-
+
+-		if (CItemData::ITEM_TYPE_PET == pItemData->GetType() && CItemData::PET_UPBRINGING == pItemData->GetSubType())
+
+-		{
+
+-			DWORD dwPetID = GetItemMetinSocket(TItemPos(INVENTORY, dwRegisteredItemPos), 2);
+
+-
+
+-			CPythonPlayer::TPetData* pPet = nullptr;
+
+-			CPythonPlayer::Instance().GetPetInfo(dwPetID, &pPet);
+
+-
+
+-			if (!pPet)
+
+-				return QUICK_SLOT_CAN_NOT_USE_PET_ITEM;
+
+-
+
+-			if (pPet->GetDuration() < CPythonApplication::Instance().GetServerTimeStamp())
+
+-				return QUICK_SLOT_PET_ITEM_USE_FAILED;
+
+-
+
+-			return QUICK_SLOT_PET_ITEM_USE_SUCCESS;
+
+-		}
+
+-	}
+
+-
+
+-	case SLOT_TYPE_SKILL:
+
+-	case SLOT_TYPE_EMOTION:
+
+-	{
+
+-		return QUICK_SLOT_IS_NOT_ITEM;
+
+-	}
+
+-	}
+
+-
+
+-	return QUICK_SLOT_POS_ERROR;
+
+-}
+
+-#endif
+
+ 
+
+ CPythonPlayer::CPythonPlayer(void)
+
+ {
+
+--- a/src-client/Client/UserInterface/PythonPlayer.h
++++ b/src-client/Client/UserInterface/PythonPlayer.h
+@@ -348,9 +348,6 @@
+ 
+
+ 	void SetItemAttribute(TItemPos Cell, BYTE bIndex, POINT_TYPE wType, POINT_VALUE lValue);
+
+ 	DWORD GetItemIndex(TItemPos Cell);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	int GetItemSlotIndex(DWORD dwVnum);
+
+-#endif
+
+ 	DWORD GetItemFlags(TItemPos Cell);
+
+ 	DWORD GetItemAntiFlags(TItemPos Cell);
+
+ 	BYTE GetItemTypeBySlot(TItemPos Cell);
+
+@@ -851,113 +848,6 @@
+ 	// Emotion
+
+ 	BOOL __IsProcessingEmotion();
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-public:
+
+-	typedef struct SPetSkill
+
+-	{
+
+-		BYTE	bSkill;
+
+-		BYTE	bLevel;
+
+-		DWORD	dwCooltime;
+
+-		BYTE	dwFormula1[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-		WORD	dwFormula2[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-		BYTE	dwFormula3[PET_GROWTH_SKILL_LEVEL_MAX];
+
+-
+
+-		SPetSkill()
+
+-		{
+
+-			bSkill = 0;
+
+-			bLevel = 0;
+
+-			memset(dwFormula1, 0, sizeof(dwFormula1));
+
+-			memset(dwFormula2, 0, sizeof(dwFormula2));
+
+-			memset(dwFormula3, 0, sizeof(dwFormula3));
+
+-		}
+
+-	} TPetSkill;
+
+-
+
+-	typedef struct SPetSkillData
+
+-	{
+
+-		BYTE		bSkillCount;
+
+-		TPetSkill	aSkillInfo[PET_SKILL_COUNT_MAX];
+
+-
+
+-		SPetSkillData()
+
+-		{
+
+-			bSkillCount = 0;
+
+-		}
+
+-	} TPetSkillData;
+
+-
+
+-	typedef struct SPetData
+
+-	{
+
+-		DWORD dwID;
+
+-		DWORD dwSummonItemVnum;
+
+-		std::string	strName;
+
+-
+
+-		DWORD	dwPoints[POINT_UPBRINGING_MAX_NUM];
+
+-		TPetSkillData	skillData;
+
+-
+
+-		bool bIsExchange;
+
+-		bool bIsShop;
+
+-
+
+-		SPetData()
+
+-		{
+
+-			dwSummonItemVnum = 0;
+
+-			strName = "";
+
+-
+
+-			memset(&dwPoints, 0, sizeof(dwPoints));
+
+-
+
+-			bIsExchange = false;
+
+-		}
+
+-
+
+-		void		SetSummonItemVnum(DWORD dwVnum) { dwSummonItemVnum = dwVnum; }
+
+-
+
+-		DWORD		GetSummonItemVnum() { return dwSummonItemVnum; }
+
+-		std::string	GetName() { return strName; }
+
+-		time_t		GetBirthday() { return dwPoints[POINT_UPBRINGING_BIRTHDAY]; }
+
+-		DWORD		GetLevel() { return dwPoints[POINT_UPBRINGING_PET_LEVEL]; }
+
+-		DWORD		GetEXP() { return dwPoints[POINT_UPBRINGING_PET_EXP]; }
+
+-		DWORD		GetItemEXP() { return dwPoints[POINT_UPBRINGING_PET_ITEM_EXP]; }
+
+-		DWORD		GetNextEXP() { return dwPoints[POINT_UPBRINGING_PET_NEXT_EXP]; }
+
+-		DWORD		GetEvolution() { return dwPoints[POINT_UPBRINGING_PET_EVOL_LEVEL]; }
+
+-		DWORD		GetHP() { return dwPoints[POINT_UPBRINGING_PET_HP]; }
+
+-		DWORD		GetSP() { return dwPoints[POINT_UPBRINGING_PET_SP]; }
+
+-		DWORD		GetDef() { return dwPoints[POINT_UPBRINGING_PET_DEF_GRADE]; }
+
+-		DWORD		GetSkillCount() { return skillData.bSkillCount; }
+
+-		DWORD		GetDuration() { return dwPoints[POINT_UPBRINGING_DURATION]; }
+
+-		DWORD		GetMaxDuration() { return dwPoints[POINT_UPBRINGING_MAX_DURATION]; }
+
+-	} TPetData;
+
+-
+
+-	typedef std::unordered_map<DWORD, TPetData> TPetDataMap;
+
+-
+
+-	void				SetOpenPetHatchingWindow(bool isOpen) { m_isOpenPetHatchingWindow = isOpen; };
+
+-	void				SetOpenPetNameChangeWindow(bool isOpen) { m_isOpenPetNameChangeWindow = isOpen; };
+
+-	void				SetOpenPetFeedWindow(bool isOpen) { m_isOpenPetFeedWindow = isOpen; };
+
+-
+
+-	bool				IsOpenPetHatchingWindow() { return m_isOpenPetHatchingWindow; };
+
+-	bool				IsOpenPetNameChangeWindow() { return m_isOpenPetNameChangeWindow; };
+
+-	bool				IsOpenPetFeedWindow() { return m_isOpenPetFeedWindow; };
+
+-
+
+-	void				SetPetData(TPetData* pPetData);
+
+-	bool				GetPetInfo(DWORD dwID, TPetData** ppTPetData);
+
+-	void				DeletePetData(DWORD dwID);
+
+-	void				ClearPetExchangeData();
+
+-
+
+-	void				SetPetSkillData(DWORD dwID, TPetSkillUpdatePacket* pPetSkillData);
+
+-	bool				GetPetSkill(DWORD dwID, TPetSkillData** ppPetSkillData);
+
+-	void				SetPetSkillCooltime(DWORD dwID, BYTE bSlot, DWORD dwCooltime);
+
+-
+
+-	void				SetPetStatus(DWORD dwID, BYTE byPoint, DWORD dwValue);
+
+-	long				GetPetStatus(DWORD dwID, BYTE byPoint);
+
+-
+
+-	void				SetActivePet(DWORD dwID);
+
+-	DWORD				GetActivePet();
+
+-
+
+-	DWORD				CanUseGrowthPetQuickSlot(DWORD dwLocalSlotIndex);
+
+-
+
+-protected:
+
+-	bool					m_isOpenPetHatchingWindow;
+
+-	bool					m_isOpenPetNameChangeWindow;
+
+-	bool					m_isOpenPetFeedWindow;
+
+-
+
+-	TPetDataMap				m_PetDataMap;
+
+-	DWORD					m_dwActivePetID;
+
+-#endif
+
+ 
+
+ protected:
+
+ 	PyObject* m_ppyGameWindow;
+
+--- a/src-client/Client/UserInterface/PythonPlayerModule.cpp
++++ b/src-client/Client/UserInterface/PythonPlayerModule.cpp
+@@ -1176,19 +1176,17 @@
+ 	{
+
+ 		char itemlink[256];
+
+ 		bool isAttr = false;
+
+-
+
+ #ifdef ENABLE_GROWTH_PET_SYSTEM
+
+ 		if (pItemData->GetType() == CItemData::ITEM_TYPE_PET &&
+
+-			(pItemData->GetSubType() == CItemData::PET_UPBRINGING || pItemData->GetSubType() == CItemData::PET_BAG))
+
++			(pItemData->GetSubType() == CItemData::PET_UPBRINGING
+
++				|| pItemData->GetSubType() == CItemData::PET_BAG))
+
+ 		{
+
+ 			CPythonPlayer::TPetData* pPet = nullptr;
+
+ 			CPythonPlayer::Instance().GetPetInfo(pPlayerItem->alSockets[2], &pPet);
+
+ 
+
+-			char itemlink[512];
+
+-			int len = snprintf(itemlink, sizeof(itemlink), "petitem:%x:%x:%x:%x:%x:%x:",
+
+-				pPlayerItem->dwVnum, pPlayerItem->dwFlags,
+
+-				pPlayerItem->alSockets[0], pPlayerItem->alSockets[1],
+
+-				pPlayerItem->alSockets[2], pPlayerItem->alSockets[3]);
+
++			len = snprintf(itemlink, sizeof(itemlink), "petitem:%x:%x:%x:%x:%x:",
+
++				pPlayerItem->vnum, pPlayerItem->flags,
+
++				pPlayerItem->alSockets[0], pPlayerItem->alSockets[1], pPlayerItem->alSockets[2]);
+
+ 
+
+ 			if (pPet)
+
+ 			{
+
+@@ -1213,16 +1211,85 @@
+ 				);
+
+ 			}
+
+ 
+
+-			const char* szItemName = pItemData->GetName();
+
+-
+
+ 			if (GetDefaultCodePage() == CP_ARABIC)
+
+-				snprintf(buf, sizeof(buf), " |h|r[%s]|cffffc700|H%s|h", szItemName, itemlink);
+
++				snprintf(buf, sizeof(buf), " |h|r[%s]|cffffc700|H%s|h", pItemData->GetName(), itemlink);
+
+ 			else
+
+-				snprintf(buf, sizeof(buf), "|cffffc700|H%s|h[%s]|h|r", itemlink, szItemName);
+
+-
+
+-			return Py_BuildValue("s", buf);
+
++				snprintf(buf, sizeof(buf), "|cffffc700|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
+ 		}
+
+-#endif
+
++		else
+
++		{
+
++			len = snprintf(itemlink, sizeof(itemlink), "item:%x:%x:%x:%x:%x:%x:%x:%x",
+
++				pPlayerItem->vnum, pPlayerItem->flags,
+
++				pPlayerItem->alSockets[0], pPlayerItem->alSockets[1], pPlayerItem->alSockets[2],
+
++				pPlayerItem->alSockets[3], pPlayerItem->alSockets[4], pPlayerItem->alSockets[5]
+
++			);
+
++#ifdef ENABLE_CHANGE_LOOK_SYSTEM
+
++			len += snprintf(itemlink + len, sizeof(itemlink) - len, ":%x", pPlayerItem->transmutation);
+
++#endif
+
++
+
++			for (int i = 0; i < ITEM_ATTRIBUTE_SLOT_MAX_NUM; ++i)
+
++			{
+
++				if (pPlayerItem->aAttr[i].bType != 0)
+
++				{
+
++					len += snprintf(itemlink + len, sizeof(itemlink) - len, ":%x:%d",
+
++						pPlayerItem->aAttr[i].bType, pPlayerItem->aAttr[i].sValue);
+
++					isAttr = true;
+
++				}
+
++			}
+
++
+
++			if (GetDefaultCodePage() == CP_ARABIC)
+
++			{
+
++				if (isAttr)
+
++					snprintf(buf, sizeof(buf), " |h|r[%s]|cffffc700|H%s|h", pItemData->GetName(), itemlink);
+
++				else
+
++					snprintf(buf, sizeof(buf), " |h|r[%s]|cfff1e6c0|H%s|h", pItemData->GetName(), itemlink);
+
++			}
+
++			else
+
++			{
+
++				if (isAttr)
+
++					snprintf(buf, sizeof(buf), "|cffffc700|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
++				else
+
++					snprintf(buf, sizeof(buf), "|cfff1e6c0|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
++			}
+
++		}
+
++#else
+
++		len = snprintf(itemlink, sizeof(itemlink), "item:%x:%x:%x:%x:%x:%x:%x:%x",
+
++			pPlayerItem->vnum, pPlayerItem->flags,
+
++			pPlayerItem->alSockets[0], pPlayerItem->alSockets[1], pPlayerItem->alSockets[2],
+
++			pPlayerItem->alSockets[3], pPlayerItem->alSockets[4], pPlayerItem->alSockets[5]
+
++		);
+
++#ifdef ENABLE_CHANGE_LOOK_SYSTEM
+
++		len += snprintf(itemlink + len, sizeof(itemlink) - len, ":%x", pPlayerItem->transmutation);
+
++#endif
+
++
+
++		for (int i = 0; i < ITEM_ATTRIBUTE_SLOT_MAX_NUM; ++i)
+
++		{
+
++			if (pPlayerItem->aAttr[i].bType != 0)
+
++			{
+
++				len += snprintf(itemlink + len, sizeof(itemlink) - len, ":%x:%d",
+
++					pPlayerItem->aAttr[i].bType, pPlayerItem->aAttr[i].sValue);
+
++				isAttr = true;
+
++			}
+
++		}
+
++
+
++		if (GetDefaultCodePage() == CP_ARABIC)
+
++		{
+
++			if (isAttr)
+
++				// "item:ȣ:÷:0:1:2"
+
++				snprintf(buf, sizeof(buf), " |h|r[%s]|cffffc700|H%s|h", pItemData->GetName(), itemlink);
+
++			else
+
++				snprintf(buf, sizeof(buf), " |h|r[%s]|cfff1e6c0|H%s|h", pItemData->GetName(), itemlink);
+
++		}
+
++		else
+
++		{
+
++			if (isAttr)
+
++				// "item:ȣ:÷:0:1:2"
+
++				snprintf(buf, sizeof(buf), "|cffffc700|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
++			else
+
++				snprintf(buf, sizeof(buf), "|cfff1e6c0|H%s|h[%s]|h|r", itemlink, pItemData->GetName());
+
++		}
+
++#endif
+
++
+
+ 
+
+ 
+
+ 		int len = snprintf(itemlink, sizeof(itemlink), "item"
+
+@@ -4278,215 +4345,6 @@
+ PyObject* playerGetPremiumBattlePassID(PyObject* poSelf, PyObject* poArgs) { return Py_BuildValue("b", CPythonPlayer::Instance().GetStatus(POINT_BATTLE_PASS_PREMIUM_ID)); }
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-PyObject* playerGetItemSlotIndex(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iVnum;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iVnum))
+
+-		return Py_BuildException();
+
+-
+
+-	int slotIndex = CPythonPlayer::Instance().GetItemSlotIndex(iVnum);
+
+-	return Py_BuildValue("i", slotIndex);
+
+-}
+
+-
+
+-PyObject* playerSetOpenPetHatchingWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	bool isOpen;
+
+-	if (!PyTuple_GetBoolean(poArgs, 0, &isOpen))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::Instance().SetOpenPetHatchingWindow(isOpen);
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* playerSetOpenPetNameChangeWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	bool isOpen;
+
+-	if (!PyTuple_GetBoolean(poArgs, 0, &isOpen))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::Instance().SetOpenPetNameChangeWindow(isOpen);
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* playerSetOpenPetFeedWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	bool isOpen;
+
+-	if (!PyTuple_GetBoolean(poArgs, 0, &isOpen))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::Instance().SetOpenPetFeedWindow(isOpen);
+
+-	return Py_BuildNone();
+
+-}
+
+-
+
+-PyObject* playerIsOpenPetHatchingWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	return Py_BuildValue("b", CPythonPlayer::Instance().IsOpenPetHatchingWindow());
+
+-}
+
+-
+
+-PyObject* playerIsOpenPetNameChangeWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	return Py_BuildValue("b", CPythonPlayer::Instance().IsOpenPetNameChangeWindow());
+
+-}
+
+-
+
+-PyObject* playerIsOpenPetFeedWindow(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	return Py_BuildValue("b", CPythonPlayer::Instance().IsOpenPetFeedWindow());
+
+-}
+
+-
+
+-PyObject* playerGetActivePetItemId(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	return Py_BuildValue("i", CPythonPlayer::Instance().GetActivePet());
+
+-}
+
+-
+
+-PyObject* playerGetPetItemVNumInBag(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("i", 0);
+
+-
+
+-	return Py_BuildValue("i", pPet->GetSummonItemVnum());
+
+-}
+
+-
+
+-PyObject* playerGetPetSkill(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("iiiiiiiiii", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-
+
+-	return Py_BuildValue("iiiiiiiiii",
+
+-		pPet->skillData.bSkillCount,
+
+-		pPet->skillData.aSkillInfo[0].bSkill,
+
+-		pPet->skillData.aSkillInfo[0].bLevel,
+
+-		pPet->skillData.aSkillInfo[0].dwCooltime,
+
+-		pPet->skillData.aSkillInfo[1].bSkill,
+
+-		pPet->skillData.aSkillInfo[1].bLevel,
+
+-		pPet->skillData.aSkillInfo[1].dwCooltime,
+
+-		pPet->skillData.aSkillInfo[2].bSkill,
+
+-		pPet->skillData.aSkillInfo[2].bLevel,
+
+-		pPet->skillData.aSkillInfo[2].dwCooltime);
+
+-}
+
+-
+
+-PyObject* playerGetPetSkillByIndex(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BuildException();
+
+-
+
+-	int iSkillIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 1, &iSkillIndex))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("iiiiiiiii", 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-
+
+-	BYTE dwSkillLevel = pPet->skillData.aSkillInfo[iSkillIndex].bLevel - 1;
+
+-	BYTE dwNextSkillLevel = dwSkillLevel + 1;
+
+-
+
+-	if (dwNextSkillLevel > PET_GROWTH_SKILL_LEVEL_MAX)
+
+-		dwNextSkillLevel = PET_GROWTH_SKILL_LEVEL_MAX;
+
+-
+
+-	BYTE bBonusValue = (pPet->skillData.aSkillInfo[iSkillIndex].bLevel == PET_GROWTH_SKILL_LEVEL_MAX) ? 0 : 1;
+
+-
+
+-	return Py_BuildValue("iiiiiiiii",
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].bSkill,
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].bLevel,
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula1[dwSkillLevel],
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula2[dwSkillLevel],
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula3[dwSkillLevel],
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula1[dwNextSkillLevel],
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula2[dwNextSkillLevel],
+
+-		pPet->skillData.aSkillInfo[iSkillIndex].dwFormula3[dwNextSkillLevel],
+
+-		bBonusValue);
+
+-}
+
+-
+
+-PyObject* playerGetActivePetItemVNum(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(CPythonPlayer::Instance().GetActivePet(), &pPet);
+
+-	return Py_BuildValue("i", pPet->GetSummonItemVnum());
+
+-}
+
+-
+
+-PyObject* playerGetPetExpPoints(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID = 0;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("iiii", 0, 0, 0, 0);
+
+-
+
+-	DWORD itemMaxEXP = pPet->GetNextEXP() / 10;
+
+-	DWORD nextEXP = pPet->GetNextEXP() - itemMaxEXP;
+
+-
+
+-	return Py_BuildValue("iiii", pPet->GetEXP(), nextEXP, pPet->GetItemEXP(), itemMaxEXP);
+
+-}
+
+-
+
+-PyObject* playerGetPetItem(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID = 0;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("iiisfff", 0, 0, 0, 0, 0, 0, 0);
+
+-
+
+-	return Py_BuildValue("iiisfff",
+
+-		pPet->GetLevel(),
+
+-		pPet->GetEvolution(),
+
+-		pPet->GetBirthday(),
+
+-		pPet->GetName().c_str(),
+
+-		float(pPet->GetHP()) / 10.0f,
+
+-		float(pPet->GetDef()) / 10.0f,
+
+-		float(pPet->GetSP()) / 10.0f
+
+-	);
+
+-}
+
+-
+
+-PyObject* playerGetPetLifeTime(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iPetID = 0;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iPetID))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonPlayer::TPetData* pPet = nullptr;
+
+-	CPythonPlayer::Instance().GetPetInfo(iPetID, &pPet);
+
+-
+
+-	if (!pPet)
+
+-		return Py_BuildValue("ii", 0, 0);
+
+-
+
+-	return Py_BuildValue("ii", pPet->GetDuration(), pPet->GetMaxDuration());
+
+-}
+
+-
+
+-PyObject* playerCanUseGrowthPetQuickSlot(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iLocalSlotIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iLocalSlotIndex))
+
+-		return Py_BadArgument();
+
+-
+
+-	return Py_BuildValue("i", CPythonPlayer::Instance().CanUseGrowthPetQuickSlot(iLocalSlotIndex));
+
+-}
+
+-#endif
+
+ 
+
+ void initPlayer()
+
+ {
+
+@@ -4916,30 +4774,6 @@
+ 		{ "GetPremiumBattlePassID", playerGetPremiumBattlePassID, METH_VARARGS },
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		{ "GetItemSlotIndex",					playerGetItemSlotIndex,						METH_VARARGS },
+
+-		{ "SetOpenPetHatchingWindow",		playerSetOpenPetHatchingWindow,		METH_VARARGS },
+
+-		{ "SetOpenPetNameChangeWindow",		playerSetOpenPetNameChangeWindow,	METH_VARARGS },
+
+-		{ "SetOpenPetFeedWindow",			playerSetOpenPetFeedWindow,			METH_VARARGS },
+
+-		{ "IsOpenPetHatchingWindow",		playerIsOpenPetHatchingWindow,		METH_VARARGS },
+
+-		{ "IsOpenPetFeedWindow",			playerIsOpenPetFeedWindow,			METH_VARARGS },
+
+-		{ "IsOpenPetNameChangeWindow",		playerIsOpenPetNameChangeWindow,	METH_VARARGS },
+
+-
+
+-		{ "SetOpenMall",					playerSetOpenMall,					METH_VARARGS },
+
+-		{ "SetOpenSafeBox",					playerSetOpenSafeBox,				METH_VARARGS },
+
+-		{ "IsOpenMall",						playerIsOpenMall,					METH_VARARGS },
+
+-
+
+-		{ "GetActivePetItemId",				playerGetActivePetItemId,			METH_VARARGS },
+
+-		{ "GetPetItemVNumInBag",			playerGetPetItemVNumInBag,			METH_VARARGS },
+
+-		{ "GetPetSkill",					playerGetPetSkill,					METH_VARARGS },
+
+-		{ "GetPetSkillByIndex",				playerGetPetSkillByIndex,			METH_VARARGS },
+
+-		{ "GetActivePetItemVNum",			playerGetActivePetItemVNum,			METH_VARARGS },
+
+-		{ "GetPetExpPoints",				playerGetPetExpPoints,				METH_VARARGS },
+
+-		{ "GetPetItem",						playerGetPetItem,					METH_VARARGS },
+
+-		{ "GetPetLifeTime",					playerGetPetLifeTime,				METH_VARARGS },
+
+-
+
+-		{ "CanUseGrowthPetQuickSlot",		playerCanUseGrowthPetQuickSlot,		METH_VARARGS },
+
+-#endif
+
+ 
+
+ 		{ NULL, NULL, NULL },
+
+ 	};
+
+@@ -5333,47 +5167,6 @@
+ 	PyModule_AddIntConstant(poModule, "ON_TOP_WND_PASSIVE_ATTR", ON_TOP_WND_PASSIVE_ATTR);
+
+ #endif
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "ON_TOP_WND_PET_FEED", ON_TOP_WND_PET_FEED);
+
+-	PyModule_AddIntConstant(poModule, "ON_TOP_WND_PET_ATTR_CHANGE", ON_TOP_WND_PET_ATTR_CHANGE);
+
+-	PyModule_AddIntConstant(poModule, "ON_TOP_WND_PET_PRIMIUM_FEEDSTUFF", ON_TOP_WND_PET_PRIMIUM_FEEDSTUFF);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_FEED", PET_FEED);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_FEED_SLOT_MAX", PET_FEED_SLOT_MAX);
+
+-	PyModule_AddIntConstant(poModule, "PET_GROWTH_EVOL_MAX", PET_GROWTH_EVOL_MAX);
+
+-	PyModule_AddIntConstant(poModule, "PET_GROWTH_SKILL_LEVEL_MAX", PET_GROWTH_SKILL_LEVEL_MAX);
+
+-	PyModule_AddIntConstant(poModule, "PET_GROWTH_SKILL_OPEN_EVOL_LEVEL", PET_GROWTH_SKILL_OPEN_EVOL_LEVEL);
+
+-	PyModule_AddIntConstant(poModule, "PET_REVIVE_MATERIAL_SLOT_MAX", PET_REVIVE_MATERIAL_SLOT_MAX);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_COUNT_MAX", PET_SKILL_COUNT_MAX);
+
+-	PyModule_AddIntConstant(poModule, "LIFE_TIME_FLASH_MIN_TIME", LIFE_TIME_FLASH_MIN_TIME);
+
+-	PyModule_AddIntConstant(poModule, "ITEM_SLOT_COUNT", ITEM_SLOT_COUNT);
+
+-	PyModule_AddIntConstant(poModule, "SPECIAL_EVOL_MIN_AGE", SPECIAL_EVOL_MIN_AGE);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "FEED_LIFE_TIME_EVENT", FEED_LIFE_TIME_EVENT);
+
+-	PyModule_AddIntConstant(poModule, "FEED_EXP_EVENT", FEED_EXP_EVENT);
+
+-	PyModule_AddIntConstant(poModule, "FEED_EVOL_EVENT", FEED_EVOL_EVENT);
+
+-	PyModule_AddIntConstant(poModule, "FEED_BUTTON_MAX", FEED_BUTTON_MAX);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_WINDOW_INFO", PET_WINDOW_INFO);
+
+-	PyModule_AddIntConstant(poModule, "PET_WINDOW_ATTR_CHANGE", PET_WINDOW_ATTR_CHANGE);
+
+-	PyModule_AddIntConstant(poModule, "PET_WINDOW_PRIMIUM_FEEDSTUFF", PET_WINDOW_PRIMIUM_FEEDSTUFF);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_WND_SLOT_ATTR_CHANGE", PET_WND_SLOT_ATTR_CHANGE);
+
+-	PyModule_AddIntConstant(poModule, "PET_WND_SLOT_ATTR_CHANGE_ITEM", PET_WND_SLOT_ATTR_CHANGE_ITEM);
+
+-	PyModule_AddIntConstant(poModule, "PET_WND_SLOT_ATTR_CHANGE_RESULT", PET_WND_SLOT_ATTR_CHANGE_RESULT);
+
+-	PyModule_AddIntConstant(poModule, "PET_WND_SLOT_ATTR_CHANGE_MAX", PET_WND_SLOT_ATTR_CHANGE_MAX);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "PET_ATTR_DETERMINE_ITEM", PET_ATTR_DETERMINE_ITEM);
+
+-	PyModule_AddIntConstant(poModule, "PET_ATTR_CHANGE_ITEM", PET_ATTR_CHANGE_ITEM);
+
+-
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_POS_ERROR", QUICK_SLOT_POS_ERROR);
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_ITEM_USE_SUCCESS", QUICK_SLOT_ITEM_USE_SUCCESS);
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_IS_NOT_ITEM", QUICK_SLOT_IS_NOT_ITEM);
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_PET_ITEM_USE_SUCCESS", QUICK_SLOT_PET_ITEM_USE_SUCCESS);
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_PET_ITEM_USE_FAILED", QUICK_SLOT_PET_ITEM_USE_FAILED);
+
+-	PyModule_AddIntConstant(poModule, "QUICK_SLOT_CAN_NOT_USE_PET_ITEM", QUICK_SLOT_CAN_NOT_USE_PET_ITEM);
+
+-#endif
+
+ 
+
+ #if defined(ENABLE_KEYCHANGE_SYSTEM)
+
+ 	PyModule_AddIntConstant(poModule, "KEY_MOVE_UP_1", KEY_MOVE_UP_1);
+
+--- a/src-client/Client/UserInterface/PythonSkill.cpp
++++ b/src-client/Client/UserInterface/PythonSkill.cpp
+@@ -548,124 +548,6 @@
+ #endif
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-CPythonSkill::SPetSkillData::SPetSkillData()
+
+-{
+
+-	dwIndex = 0;
+
+-	strName = "";
+
+-	strIconFileName = "";
+
+-	dwType = PET_SKILL_USE_TYPE_NONE;
+
+-	strDescription = "";
+
+-	dwCooldown = 0;
+
+-	pImage = nullptr;
+
+-}
+
+-
+
+-bool CPythonSkill::RegisterPetSkillTable(const char* c_szFileName)
+
+-{
+
+-	const VOID* pvData;
+
+-	CMappedFile kFile;
+
+-	if (!CEterPackManager::Instance().Get(kFile, c_szFileName, &pvData))
+
+-		return false;
+
+-
+
+-	CMemoryTextFileLoader textFileLoader;
+
+-	textFileLoader.Bind(kFile.Size(), pvData);
+
+-
+
+-	CTokenVector TokenVector;
+
+-	for (DWORD i = 0; i < textFileLoader.GetLineCount(); ++i)
+
+-	{
+
+-		if (!textFileLoader.SplitLineByTab(i, &TokenVector))
+
+-			continue;
+
+-
+
+-		if (PET_SKILL_TOKEN_MAX_NUM != TokenVector.size())
+
+-		{
+
+-			TraceError("CPythonSkill::RegisterPetSkillTable strange token size line: %d", i + 1);
+
+-			continue;
+
+-		}
+
+-
+
+-		int iSkillIndex = atoi(TokenVector[PET_SKILL_TOKEN_INDEX].c_str());
+
+-		if (!iSkillIndex)
+
+-		{
+
+-			TraceError("CPythonSkill::RegisterPetSkillTable strange skill index value line: %d", i + 1);
+
+-			continue;
+
+-		}
+
+-
+
+-		m_PetSkillDataMap.emplace(iSkillIndex, TPetSkillData());
+
+-		TPetSkillData& rPetSkillData = m_PetSkillDataMap[iSkillIndex];
+
+-
+
+-		// Name
+
+-		{
+
+-			std::string strName = TokenVector[PET_SKILL_TOKEN_NAME];
+
+-			if (strName.empty())
+
+-			{
+
+-				TraceError("CPythonSkill::RegisterPetSkillTable strange skill name value line: %d", i + 1);
+
+-				continue;
+
+-			}
+
+-
+
+-			rPetSkillData.strName = strName;
+
+-		}
+
+-
+
+-		// Icon
+
+-		{
+
+-			std::string strIconName = TokenVector[PET_SKILL_TOKEN_ICON_NAME];
+
+-			if (strIconName.empty())
+
+-			{
+
+-				TraceError("CPythonSkill::RegisterPetSkillTable strange skill icon name value line: %d", i + 1);
+
+-				continue;
+
+-			}
+
+-
+
+-			rPetSkillData.strIconFileName = "d:/ymir work/ui/skill/pet/" + strIconName + ".sub";
+
+-			rPetSkillData.pImage = (CGraphicImage*)CResourceManager::Instance().GetResourcePointer(rPetSkillData.strIconFileName.c_str());
+
+-		}
+
+-
+
+-		// Type
+
+-		{
+
+-			std::string strType = TokenVector[PET_SKILL_TOKEN_TYPE];
+
+-
+
+-			if (strType == "PASSIVE")
+
+-				rPetSkillData.dwType = PET_SKILL_USE_TYPE_PASSIVE;
+
+-			else if (strType == "AUTO")
+
+-				rPetSkillData.dwType = PET_SKILL_USE_TYPE_AUTO;
+
+-			else
+
+-			{
+
+-				TraceError("CPythonSkill::RegisterPetSkillTable strange skill type value line: %d", i + 1);
+
+-				continue;
+
+-			}
+
+-		}
+
+-
+
+-		// Description
+
+-		{
+
+-			std::string strDescription = TokenVector[PET_SKILL_TOKEN_DESCRIPTION];
+
+-			if (strDescription.empty())
+
+-			{
+
+-				TraceError("CPythonSkill::RegisterPetSkillTable strange skill description value line: %d", i + 1);
+
+-				continue;
+
+-			}
+
+-
+
+-			rPetSkillData.strDescription = strDescription;
+
+-		}
+
+-
+
+-		// Cooldown
+
+-		{
+
+-			DWORD dwCooldown = atoi(TokenVector[PET_SKILL_TOKEN_COOLDOWN].c_str());
+
+-
+
+-			rPetSkillData.dwCooldown = dwCooldown;
+
+-		}
+
+-	}
+
+-
+
+-	return true;
+
+-}
+
+-
+
+-bool CPythonSkill::GetPetSkillData(DWORD dwSkillIndex, TPetSkillData** ppPetSkillData)
+
+-{
+
+-	auto it = m_PetSkillDataMap.find(dwSkillIndex);
+
+-
+
+-	if (m_PetSkillDataMap.end() == it)
+
+-		return false;
+
+-
+
+-	*ppPetSkillData = &(it->second);
+
+-	return true;
+
+-}
+
+-#endif
+
+ 
+
+ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char* c_szFileName)
+
+ {
+
+@@ -2327,48 +2209,6 @@
+ 	return Py_BuildNone();
+
+ }
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-PyObject* skillGetPetSkillIconImage(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSkillIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSkillIndex))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonSkill::TPetSkillData* c_pPetSkillData;
+
+-	if (!CPythonSkill::Instance().GetPetSkillData(iSkillIndex, &c_pPetSkillData))
+
+-		return Py_BuildValue("i", 0);
+
+-
+
+-	return Py_BuildValue("i", c_pPetSkillData->pImage);
+
+-}
+
+-
+
+-PyObject* skillGetPetSkillIconPath(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSkillIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSkillIndex))
+
+-		return Py_BadArgument();
+
+-
+
+-	CPythonSkill::TPetSkillData* c_pPetSkillData;
+
+-	if (!CPythonSkill::Instance().GetPetSkillData(iSkillIndex, &c_pPetSkillData))
+
+-		return Py_BuildValue("s", "");
+
+-
+
+-	return Py_BuildValue("s", c_pPetSkillData->strIconFileName.c_str());
+
+-}
+
+-
+
+-PyObject* skillGetPetSkillInfo(PyObject* poSelf, PyObject* poArgs)
+
+-{
+
+-	int iSkillIndex;
+
+-	if (!PyTuple_GetInteger(poArgs, 0, &iSkillIndex))
+
+-		return Py_BadArgument();
+
+-
+
+-	// ( pet_skill_name, pet_skill_desc, pet_skill_use_type , pet_skill_cool_time )
+
+-
+
+-	CPythonSkill::TPetSkillData* c_pPetSkillData;
+
+-	if (!CPythonSkill::Instance().GetPetSkillData(iSkillIndex, &c_pPetSkillData))
+
+-		return Py_BuildValue("ssii", "", "", 0, 0);
+
+-
+
+-	return Py_BuildValue("ssii", c_pPetSkillData->strName.c_str(), c_pPetSkillData->strDescription.c_str(), c_pPetSkillData->dwType, c_pPetSkillData->dwCooldown);
+
+-}
+
+-#endif
+
+ 
+
+ PyObject* skillGetSkillPowerByLevel(PyObject* poSelf, PyObject* poArgs)
+
+ {
+
+@@ -2440,11 +2280,6 @@
+ 		{ "DeleteIconInstance", skillDeleteIconInstance, METH_VARARGS },
+
+ 		{ "GetGradeData", skillGetGradeData, METH_VARARGS },
+
+ 
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-		{ "GetPetSkillIconImage",					skillGetPetSkillIconImage,					METH_VARARGS },
+
+-		{ "GetPetSkillIconPath",					skillGetPetSkillIconPath,					METH_VARARGS },
+
+-		{ "GetPetSkillInfo",						skillGetPetSkillInfo,						METH_VARARGS },
+
+-#endif
+
+ 
+
+ 		{ "GetNewAffectDataCount", skillGetNewAffectDataCount, METH_VARARGS },
+
+ 		{ "GetNewAffectData", skillGetNewAffectData, METH_VARARGS },
+
+@@ -2503,12 +2338,6 @@
+ 	PyModule_AddIntConstant(poModule, "SKILL_HIT_GRADE_MASTER", CPythonSkill::SKILL_HIT_GRADE_MASTER);
+
+ 	PyModule_AddIntConstant(poModule, "SKILL_HIT_GRADE_GRAND_MASTER", CPythonSkill::SKILL_HIT_GRADE_GRAND_MASTER);
+
+ 	PyModule_AddIntConstant(poModule, "SKILL_HIT_GRADE_PERFECT_MASTER", CPythonSkill::SKILL_HIT_GRADE_PERFECT_MASTER);
+
+-#ifdef ENABLE_GROWTH_PET_SYSTEM
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_USE_TYPE_NONE", CPythonSkill::PET_SKILL_USE_TYPE_NONE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_USE_TYPE_PASSIVE", CPythonSkill::PET_SKILL_USE_TYPE_PASSIVE);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_USE_TYPE_AUTO", CPythonSkill::PET_SKILL_USE_TYPE_AUTO);
+
+-	PyModule_AddIntConstant(poModule, "PET_SKILL_USE_TYPE_MAX", CPythonSkill::PET_SKILL_USE_TYPE_MAX);
+
+-#endif
+
+ 	PyModule_AddIntConstant(poModule, "SKILL_GRADE_COUNT", CPythonSkill::SKILL_GRADE_COUNT);
+
+ 	PyModule_AddIntConstant(poModule, "SKILL_GRADE_STEP_COUNT", CPythonSkill::SKILL_GRADE_STEP_COUNT);
+
+ 	PyModule_AddIntConstant(poModule, "SKILL_GRADEGAP", CPythonSkill::SKILL_GRADEGAP);
+
