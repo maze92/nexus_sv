@@ -1,0 +1,19 @@
+diff --git a/game/src/char.cpp b/game/src/char.cpp
+--- a/game/src/char.cpp
++++ b/game/src/char.cpp
+@@ -10846,6 +10885,17 @@
+ 	if (m_dwEventRaceNum == dwRaceNum)
+ 		return;
+
++	// Hardening: never propagate an invalid race to clients (can crash models on load).
++	// 0 disables the event race; otherwise it must be a valid main-race or an existing mob vnum.
++	if (dwRaceNum != 0)
++	{
++		if (dwRaceNum >= MAIN_RACE_MAX_NUM && !CMobManager::instance().Get(dwRaceNum))
++		{
++			sys_err("EVENT_RACE: %s invalid race %u (rejected)", GetName(), dwRaceNum);
++			return;
++		}
++	}
++
+ 	m_dwEventRaceNum = dwRaceNum;

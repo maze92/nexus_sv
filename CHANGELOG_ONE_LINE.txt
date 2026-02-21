@@ -77,3 +77,7 @@ CHANGELOGS
 [FIX] 074 - diff_080 - Ajustes de robustez: diff_080_client_graphics_audio_stability no client (src-client/Client/GameLib/ActorInstanceRender.cpp, src-client/Client/UserInterface/UserInterface.cpp (+1));
 [FIX] 075 - diff_081 - Ajustes de robustez: diff_081_game_object_slicing_guards no game (server/metin2/Source/Server/game/src/item.h, server/metin2/Source/Server/game/src/char.h);
 [FIX] 076 - diff_082 - Ajustes de robustez: diff_082_misc_infra_auth_timewait no socket (server/metin2/Source/Server/libthecore/src/socket.c);
+[FIX] 077 - diff_067 - Hardening Fly&Validate: valida timing/packets para bloquear wait-hack no game (ver patch);
+[FIX] 078 - diff_069 - Hardening RaceSwap: validações extra para impedir swaps inválidos no game (ver patch);
+[FIX] 079 - diff_071 - Cleanup zombie events: remove/guarda callbacks para evitar eventos presos no game (ver patch);
+[FIX] 080 - diff_072 - Sanitize codepage/freeze: valida strings para evitar freeze/crash no client/game (ver patch);

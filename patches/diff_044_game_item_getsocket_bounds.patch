@@ -1,0 +1,146 @@
+diff --git a/server/metin2/Source/Server/game/src/item.h b/server/metin2/Source/Server/game/src/item.h
+index 8543cb7..bc5b340 100644
+--- a/server/metin2/Source/Server/game/src/item.h
++++ b/server/metin2/Source/Server/game/src/item.h
+@@ -63,10 +63,10 @@ public:
+ 	bool SetCount(DWORD count);
+ 	DWORD GetCount();
+ 
+-	// GetVnum�� GetOriginalVnum�� ���� comment
+-	// GetVnum�� Masking �� Vnum�̴�. �̸� ��������ν�, �������� ���� Vnum�� 10������, Vnum�� 20�� ��ó�� ������ �� �ִ� ���̴�.
+-	// Masking ���� ori_to_new.txt���� ���ǵ� ���̴�.
+-	// GetOriginalVnum�� ������ ������ Vnum����, �α� ���� ��, Ŭ���̾�Ʈ�� ������ ���� ���� ��, ������ ���� �� Vnum�� ����Ͽ��� �Ѵ�.
++	// GetVnum GetOriginalVnum  comment
++	// GetVnum Masking  Vnum̴. ̸ ν,   Vnum 10, Vnum 20 ó   ִ ̴.
++	// Masking  ori_to_new.txt ǵ ̴.
++	// GetOriginalVnum   Vnum, α  , Ŭ̾Ʈ    ,    Vnum Ͽ Ѵ.
+ 	DWORD GetVnum() const { return m_dwMaskVnum ? m_dwMaskVnum : m_dwVnum; }
+ 	DWORD GetOriginalVnum() const { return m_dwVnum; }
+ 	BYTE GetType() const { return m_pProto ? m_pProto->bType : 0; }
+@@ -199,11 +199,11 @@ public:
+ 
+ 	bool IsPolymorphItem();
+ 
+-	void ModifyPoints(bool bAdd); // �������� ȿ���� ĳ���Ϳ� �ο� �Ѵ�. bAdd�� false�̸� ������
++	void ModifyPoints(bool bAdd); //  ȿ ĳͿ ο Ѵ. bAdd false̸ 
+ 
+ 	bool CreateSocket(BYTE bSlot, BYTE bGold);
+ 	const long* GetSockets() { return &m_alSockets[0]; }
+-	long GetSocket(int i) { return m_alSockets[i]; }
++	long GetSocket(int i) { return (i >= 0 && i < ITEM_SOCKET_MAX_NUM) ? m_alSockets[i] : 0; }
+ 
+ 	void SetSockets(const long* al);
+ 	void SetSocket(int i, long v, bool bLog = true);
+@@ -258,7 +258,7 @@ public:
+ 
+ 	DWORD GetLastOwnerPID() { return m_dwLastOwnerPID; }
+ 
+-	int GetAttributeSetIndex(); // �Ӽ� �ٴ°��� ������ �迭�� ��� �ε����� ����ϴ��� �����ش�.
++	int GetAttributeSetIndex(); // Ӽ ٴ°  迭  ε ϴ ش.
+ 	void AlterToMagicItem(int iSecondPct = 0, int iThirdPct = 0);
+ 	void AlterToSocketItem(int iSocketCount);
+ 
+@@ -282,7 +282,7 @@ public:
+ 	void StopTimerBasedOnWearExpireEvent();
+ 	void StopAccessorySocketExpireEvent();
+ 
+-	// �ϴ� REAL_TIME�� TIMER_BASED_ON_WEAR �����ۿ� ���ؼ��� ����� ������.
++	// ϴ REAL_TIME TIMER_BASED_ON_WEAR ۿ ؼ  .
+ 	int GetDuration();
+ 
+ 	BYTE GetAttributeCount();
+@@ -301,7 +301,7 @@ public:
+ 	bool IsSameSpecialGroup(const LPITEM item) const;
+ 
+ 	// ACCESSORY_REFINE
+-	// �׼������� ������ ���� ������ �߰�
++	// ׼    ߰
+ 	bool IsAccessoryForSocket();
+ 	bool IsRemovableSocket();
+ 
+@@ -315,7 +315,7 @@ public:
+ 
+ 	void AccessorySocketDegrade();
+ 
+-	// �Ǽ��縮 �� �����ۿ� �۾����� Ÿ�̸� ���ư��°�( ����, �� )
++	// Ǽ縮  ۿ ۾ Ÿ̸ ư°( ,  )
+ 	void StartAccessorySocketExpireEvent();
+ 	void SetAccessorySocketExpireEvent(LPEVENT pkEvent);
+ 
+@@ -390,7 +390,7 @@ protected:
+ 
+ public:
+ 	friend class CInputDB;
+-	bool OnAfterCreatedItem(); // ������ �������� ��� ������ �Բ� ������ ����(�ε�)�� �� �Ҹ���� �Լ�.
++	bool OnAfterCreatedItem(); //     Բ  (ε)  Ҹ Լ.
+ 
+ public:
+ 	bool IsRideItem();
+@@ -400,21 +400,21 @@ public:
+ 	DWORD GetMountVnum();
+ #endif
+ 
+-	// ���Ͽ��� ���� ĳ�� �����۰� ������, ��ȯ ������ ĳ�� �������� ����ٰ� �Ͽ�,
+-	// �������� �����ۿ�, ��ȯ ���� �÷��׸� ������ ���ο� �����۵��� ���ο� ������ �뿪�� �Ҵ��Ͽ���.
+-	// ������ ���ο� �����۵� �������� �����۰� ���� ȿ���� �����ϴµ�,
+-	// ������, Ŭ���, vnum ������� �Ǿ��־�
+-	// ���ο� vnum�� �˴� ������ ���� �� �ھƾ��ϴ� ��Ÿ��� ��Ȳ�� �´�Ҵ�.
+-	// �׷��� �� vnum�� �������̸�, �������� ���ư� ���� �������� ������ vnum���� �ٲ㼭 ���� �ϰ�,
+-	// ������ ���� ���� vnum���� �ٲ��ֵ��� �Ѵ�.
++	// Ͽ  ĳ ۰ , ȯ  ĳ  ٰ Ͽ,
++	//  ۿ, ȯ  ÷׸  ο ۵ ο  뿪 ҴϿ.
++	//  ο ۵  ۰  ȿ ϴµ,
++	// , Ŭ, vnum  Ǿ־
++	// ο vnum ˴    ھƾϴ Ÿ Ȳ ´Ҵ.
++	// ׷  vnum ̸,  ư    vnum ٲ㼭  ϰ,
++	//    vnum ٲֵ Ѵ.
+ 
+-	// Mask vnum�� � ����(ex. ���� ��Ȳ)�� ���� vnum�� �ٲ�� ���ư��� �������� ���� �ִ�.
++	// Mask vnum  (ex.  Ȳ)  vnum ٲ ư   ִ.
+ 	void SetMaskVnum(DWORD vnum) { m_dwMaskVnum = vnum; }
+ 	DWORD GetMaskVnum() { return m_dwMaskVnum; }
+ 	bool IsMaskedItem() { return m_dwMaskVnum != 0; }
+ 
+ #if defined(__DRAGON_SOUL_SYSTEM__)
+-	// ��ȥ��
++	// ȥ
+ 	bool IsDragonSoul();
+ 
+ 	int GiveMoreTime_Per(float fPercent);
+@@ -422,7 +422,7 @@ public:
+ #endif
+ 
+ private:
+-	TItemTable const* m_pProto; // ������ Ÿ��
++	TItemTable const* m_pProto; //  Ÿ
+ 
+ 	DWORD m_dwVnum;
+ #if defined(__CHANGE_LOOK_SYSTEM__)
+@@ -433,18 +433,18 @@ private:
+ #endif
+ 	LPCHARACTER m_pOwner;
+ 
+-	BYTE m_bWindow; // ���� �������� ��ġ�� ������ 
+-	DWORD m_dwID; // ������ȣ
+-	bool m_bEquipped; // ���� �Ǿ��°�?
++	BYTE m_bWindow; //   ġ  
++	DWORD m_dwID; // ȣ
++	bool m_bEquipped; //  Ǿ°?
+ 	DWORD m_dwVID; // VID
+-	WORD m_wCell; // ��ġ
+-	DWORD m_dwCount; // ����
+-	long m_lFlag; // �߰� flag
+-	DWORD m_dwLastOwnerPID; // ������ ������ �־��� ����� PID
++	WORD m_wCell; // ġ
++	DWORD m_dwCount; // 
++	long m_lFlag; // ߰ flag
++	DWORD m_dwLastOwnerPID; //   ־  PID
+ 
+-	bool m_bExchanging; ///< ���� ��ȯ�� ����
++	bool m_bExchanging; ///<  ȯ 
+ 
+-	long m_alSockets[ITEM_SOCKET_MAX_NUM]; // ������ ��Ĺ
++	long m_alSockets[ITEM_SOCKET_MAX_NUM]; //  Ĺ
+ #if defined(__ITEM_APPLY_RANDOM__)
+ 	TPlayerItemAttribute m_aApplyRandom[ITEM_APPLY_MAX_NUM];
+ #endif

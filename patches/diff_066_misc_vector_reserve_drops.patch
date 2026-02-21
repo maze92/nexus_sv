@@ -1,0 +1,24 @@
+--- a/game/src/item_manager.cpp
++++ b/game/src/item_manager.cpp
+@@ -1302,6 +1302,10 @@
+ 
+ bool ITEM_MANAGER::CreateDropItemVector(LPCHARACTER pkChr, LPCHARACTER pkKiller, std::vector<LPITEM>& vec_item)
+ {
++	// Pre-reserve to reduce reallocations and long-term fragmentation under heavy drop bursts.
++	if (vec_item.capacity() < vec_item.size() + 32)
++		vec_item.reserve(vec_item.size() + 32);
++
+ 	if (pkChr->IsPolymorphed() || pkChr->IsPC())
+ 	{
+ 		return false;
+@@ -1459,6 +1463,10 @@
+ 
+ bool ITEM_MANAGER::CreateDropItem(LPCHARACTER pkChr, LPCHARACTER pkKiller, std::vector<LPITEM>& vec_item)
+ {
++	// Pre-reserve to reduce reallocations and long-term fragmentation under heavy drop bursts.
++	if (vec_item.capacity() < vec_item.size() + 32)
++		vec_item.reserve(vec_item.size() + 32);
++
+ 	const int iLevel = pkKiller->GetLevel();
+ 
+ 	int iDeltaPercent, iRandRange;

@@ -1,0 +1,17 @@
+--- server/metin2/Source/Server/game/src/guild.cpp
++++ server/metin2/Source/Server/game/src/guild.cpp
+@@ -228,6 +228,14 @@
+ 
+ 	if (ch)
+ 	{
++		// Hardening: if the member is removed while any safebox-like window is open,
++		// force-close it to prevent "window persistence" item theft after guild kick.
++		if (ch->IsOpenSafebox())
++			ch->CloseSafebox();
++
++		if (ch->GetMall())
++			ch->CloseMall();
++
+ 		//GuildRemoveAffect(ch);
+ 		m_memberOnline.erase(ch);
+ 		ch->SetGuild(NULL);

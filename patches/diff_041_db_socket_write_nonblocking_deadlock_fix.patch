@@ -1,0 +1,294 @@
+diff --git a/server/metin2/Source/Server/db/src/PeerBase.cpp b/server/metin2/Source/Server/db/src/PeerBase.cpp
+index c0617e4..63fab45 100644
+--- a/server/metin2/Source/Server/db/src/PeerBase.cpp
++++ b/server/metin2/Source/Server/db/src/PeerBase.cpp
+@@ -209,15 +209,17 @@ int CPeerBase::Send()
+ 	if (iBytesToWrite == 0)
+ 		return 0;
+ 
+-	int result = socket_write(m_fd, (const char*)buffer_read_peek(m_outBuffer), iBytesToWrite);
++int result = socket_write(m_fd, (const char*)buffer_read_peek(m_outBuffer), iBytesToWrite);
+ 
+-	if (result == 0)
+-	{
+-		buffer_read_proceed(m_outBuffer, iBytesToWrite);
++// socket_write now returns: -1 fatal, 0 would-block, >0 bytes written.
++if (result < 0)
++	return -1;
+ 
+-		if (buffer_size(m_outBuffer) != 0)
+-			fdwatch_add_fd(m_fdWatcher, m_fd, this, FDW_WRITE, true);
+-	}
++if (result > 0)
++	buffer_read_proceed(m_outBuffer, result);
++
++if (buffer_size(m_outBuffer) != 0)
++	fdwatch_add_fd(m_fdWatcher, m_fd, this, FDW_WRITE, true);
+ 
+-	return (result);
++return 0;
+ }
+diff --git a/server/metin2/Source/Server/game/src/desc.cpp b/server/metin2/Source/Server/game/src/desc.cpp
+index 26b137a..032ab96 100644
+--- a/server/metin2/Source/Server/game/src/desc.cpp
++++ b/server/metin2/Source/Server/game/src/desc.cpp
+@@ -225,7 +225,7 @@ bool DESC::Setup(LPFDWATCH _fdw, socket_t _fd, const struct sockaddr_in& c_rSock
+ 	//if (LC_IsEurope() == true || LC_IsNewCIBN())
+ 	//	m_lpOutputBuffer = buffer_new(DEFAULT_PACKET_BUFFER_SIZE * 2);
+ 	//else
+-	// NOTE: �̰� ���󺰷� �ٸ��� ��ƾ��� ������ �ֳ�?
++	// NOTE: ̰ 󺰷 ٸ ƾ  ֳ?
+ 	m_lpOutputBuffer = buffer_new(DEFAULT_PACKET_BUFFER_SIZE * 2);
+ 
+ 	m_iMinInputBufferLen = MAX_INPUT_LEN >> 1;
+@@ -316,7 +316,7 @@ int DESC::ProcessInput()
+ 
+ 		int iBytesProceed = 0;
+ 
+-		// false�� ���� �Ǹ� �ٸ� phase�� �ٲ� ���̹Ƿ� �ٽ� ���μ����� �����Ѵ�!
++		// false  Ǹ ٸ phase ٲ ̹Ƿ ٽ μ Ѵ!
+ 		while (processingRemainSize > 0 && !m_pInputProcessor->Process(this, (const void*)processingPoint, processingRemainSize, iBytesProceed))
+ 		{
+ 			processingPoint += iBytesProceed;
+@@ -344,7 +344,7 @@ int DESC::ProcessInput()
+ 	{
+ 		int iBytesProceed = 0;
+ 
+-		// false�� ���� �Ǹ� �ٸ� phase�� �ٲ� ���̹Ƿ� �ٽ� ���μ����� �����Ѵ�!
++		// false  Ǹ ٸ phase ٲ ̹Ƿ ٽ μ Ѵ!
+ 		while (!m_pInputProcessor->Process(this, buffer_read_peek(m_lpInputBuffer), buffer_size(m_lpInputBuffer), iBytesProceed))
+ 		{
+ 			buffer_read_proceed(m_lpInputBuffer, iBytesProceed);
+@@ -357,9 +357,9 @@ int DESC::ProcessInput()
+ 	{
+ 		int iSizeBuffer = buffer_size(m_lpInputBuffer);
+ 
+-		// 8����Ʈ �����θ� ó���Ѵ�. 8����Ʈ ������ �����ϸ� �߸��� ��ȣȭ ���۸� ��ȣȭ
+-		// �� ���ɼ��� �����Ƿ� ©�� ó���ϱ�� �Ѵ�.
+-		if (iSizeBuffer & 7) // & 7�� % 8�� ����. 2�� �¼������� ����
++		// 8Ʈ θ óѴ. 8Ʈ  ϸ ߸ ȣȭ ۸ ȣȭ
++		//  ɼ Ƿ © óϱ Ѵ.
++		if (iSizeBuffer & 7) // & 7 % 8 . 2 ¼ 
+ 			iSizeBuffer -= iSizeBuffer & 7;
+ 
+ 		if (iSizeBuffer > 0)
+@@ -377,7 +377,7 @@ int DESC::ProcessInput()
+ 
+ 			int iBytesProceed = 0;
+ 
+-			// false�� ���� �Ǹ� �ٸ� phase�� �ٲ� ���̹Ƿ� �ٽ� ���μ����� �����Ѵ�!
++			// false  Ǹ ٸ phase ٲ ̹Ƿ ٽ μ Ѵ!
+ 			while (!m_pInputProcessor->Process(this, buffer_read_peek(lpBufferDecrypt), buffer_size(lpBufferDecrypt), iBytesProceed))
+ 			{
+ 				if (iBytesProceed > iSizeBuffer)
+@@ -418,24 +418,27 @@ int DESC::ProcessOutput()
+ 	if (bytes_to_write == 0)
+ 		return 0;
+ 
+-	int result = socket_write(m_sock, (const char*)buffer_read_peek(m_lpOutputBuffer), bytes_to_write);
++int result = socket_write(m_sock, (const char*)buffer_read_peek(m_lpOutputBuffer), bytes_to_write);
+ 
+-	if (result == 0)
+-	{
+-		//sys_log(0, "%d bytes written to %s first %u", bytes_to_write, GetHostName(), *(BYTE *) buffer_read_peek(m_lpOutputBuffer));
+-		//Log("%d bytes written", bytes_to_write);
+-		max_bytes_written = MAX(bytes_to_write, max_bytes_written);
++// socket_write now returns: -1 fatal, 0 would-block, >0 bytes written.
++if (result < 0)
++	return -1;
+ 
+-		total_bytes_written += bytes_to_write;
+-		current_bytes_written += bytes_to_write;
++if (result > 0)
++{
++	//sys_log(0, "%d bytes written to %s first %u", result, GetHostName(), *(BYTE *) buffer_read_peek(m_lpOutputBuffer));
++	max_bytes_written = MAX(result, max_bytes_written);
+ 
+-		buffer_read_proceed(m_lpOutputBuffer, bytes_to_write);
++	total_bytes_written += result;
++	current_bytes_written += result;
+ 
+-		if (buffer_size(m_lpOutputBuffer) != 0)
+-			fdwatch_add_fd(m_lpFdw, m_sock, this, FDW_WRITE, true);
+-	}
++	buffer_read_proceed(m_lpOutputBuffer, result);
++}
++
++if (buffer_size(m_lpOutputBuffer) != 0)
++	fdwatch_add_fd(m_lpFdw, m_sock, this, FDW_WRITE, true);
+ 
+-	return (result);
++return 0;
+ }
+ 
+ void DESC::BufferedPacket(const void* c_pvData, int iSize)
+@@ -453,12 +456,12 @@ void DESC::Packet(const void* c_pvData, int iSize)
+ {
+ 	assert(iSize > 0);
+ 
+-	if (m_iPhase == PHASE_CLOSE) // ���� ���¸� ������ �ʴ´�.
++	if (m_iPhase == PHASE_CLOSE) //  ¸  ʴ´.
+ 		return;
+ 
+ 	if (m_stRelayName.length() != 0)
+ 	{
+-		// Relay ��Ŷ�� ��ȣȭ���� �ʴ´�.
++		// Relay Ŷ ȣȭ ʴ´.
+ 		TPacketGGRelay p;
+ 
+ 		p.bHeader = HEADER_GG_RELAY;
+@@ -527,7 +530,7 @@ void DESC::Packet(const void* c_pvData, int iSize)
+ 			}
+ 			else
+ 			{
+-				// ��ȣȭ�� �ʿ��� ����� ���� ũ�⸦ Ȯ���Ѵ�.
++				// ȣȭ ʿ   ũ⸦ ȮѴ.
+ 				/* buffer_adjust_size(m_lpOutputBuffer, iSize + 8); */
+ 				DWORD* pdwWritePoint = (DWORD*)buffer_write_peek(m_lpOutputBuffer);
+ 
+@@ -570,7 +573,7 @@ void DESC::SetPhase(int _phase)
+ 	switch (m_iPhase)
+ 	{
+ 	case PHASE_CLOSE:
+-		// �޽����� ĳ���ʹ����� �Ǹ鼭 ����
++		// ޽ ĳʹ Ǹ鼭 
+ 		// CMessengerManager::instance().Logout(GetAccountTable().login);
+ 		m_pInputProcessor = &m_inputClose;
+ 		break;
+@@ -580,8 +583,8 @@ void DESC::SetPhase(int _phase)
+ 		break;
+ 
+ 	case PHASE_SELECT:
+-		// �޽����� ĳ���ʹ����� �Ǹ鼭 ����
+-		// CMessengerManager::instance().Logout(GetAccountTable().login); // �ǵ������� break �Ȱ�
++		// ޽ ĳʹ Ǹ鼭 
++		// CMessengerManager::instance().Logout(GetAccountTable().login); // ǵ break Ȱ
+ 	case PHASE_LOGIN:
+ 	case PHASE_LOADING:
+ #if !defined(__IMPROVED_PACKET_ENCRYPTION__)
+@@ -912,7 +915,7 @@ void DESC::DisconnectOfSameLogin()
+ 		if (m_pkDisconnectEvent)
+ 			return;
+ 
+-		GetCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("�ٸ� ��ǻ�Ϳ��� �α��� �Ͽ� ������ ���� �մϴ�."));
++		GetCharacter()->ChatPacket(CHAT_TYPE_INFO, LC_STRING("ٸ ǻͿ α Ͽ   մϴ."));
+ 		DelayedDisconnect(5);
+ 	}
+ 	else
+diff --git a/server/metin2/Source/Server/libthecore/src/socket.c b/server/metin2/Source/Server/libthecore/src/socket.c
+index 2543e19..c440d31 100644
+--- a/server/metin2/Source/Server/libthecore/src/socket.c
++++ b/server/metin2/Source/Server/libthecore/src/socket.c
+@@ -1,7 +1,7 @@
+ /**
+ * Filename: socket.c
+-* Author: �� aka. Cronan
+-* Description: ���� ���� �ҽ�.
++* Author:  aka. Cronan
++* Description:   ҽ.
+ **/
+ 
+ #define __LIBTHECORE__
+@@ -31,7 +31,7 @@ int socket_read(socket_t desc, char* read_point, size_t space_left)
+ 	if (ret > 0)
+ 		return ret;
+ 
+-	if (ret == 0) // ���������� ���� ����
++	if (ret == 0) //   
+ 		return -1;
+ 
+ #ifdef EINTR /* Interrupted system call - various platforms */
+@@ -70,7 +70,7 @@ int socket_write_tcp(socket_t desc, const char* txt, int length)
+ {
+ 	int bytes_written = send(desc, txt, length, 0);
+ 
+-	// ����
++	// 
+ 	if (bytes_written > 0)
+ 		return (bytes_written);
+ 
+@@ -106,34 +106,33 @@ int socket_write_tcp(socket_t desc, const char* txt, int length)
+ 
+ int socket_write(socket_t desc, const char* data, size_t length)
+ {
+-	size_t total;
+-	int bytes_written;
++	size_t total = length;
++	size_t sent = 0;
+ 
+-	total = length;
+-
+-	do
++	while (total > 0)
+ 	{
+-		if ((bytes_written = socket_write_tcp(desc, data, total)) < 0)
+-		{
+-#ifdef EWOULDBLOCK
+-			if (errno == EWOULDBLOCK)
+-				errno = EAGAIN;
+-#endif
+-			if (errno == EAGAIN)
+-				sys_err("socket write would block, about to close!");
+-			else
+-				sys_err("write to desc error"); // '����' ��������� ���� ������ ���� ���̴�.
++		int bytes_written = socket_write_tcp(desc, data + sent, (int)total);
+ 
+-			return -1;
+-		}
+-		else
++		if (bytes_written > 0)
+ 		{
+-			data += bytes_written;
+-			total -= bytes_written;
++			sent += (size_t)bytes_written;
++			total -= (size_t)bytes_written;
++			continue;
+ 		}
+-	} while (total > 0);
+ 
+-	return 0;
++		// Non-blocking socket: would block / no progress
++		if (bytes_written == 0)
++			return (int)sent;
++
++		// Fatal
++#ifdef EWOULDBLOCK
++		if (errno == EWOULDBLOCK)
++			errno = EAGAIN;
++#endif
++		return -1;
++	}
++
++	return (int)sent;
+ }
+ 
+ int socket_bind(const char* ip, int port, int protocol)
+@@ -165,8 +164,8 @@ int socket_bind(const char* ip, int port, int protocol)
+ 
+ 	memset(&sa, 0, sizeof(sa));
+ 	sa.sin_family = AF_INET;
+-	// ������ ������ ���߿����θ� ���� ������ BIND ip�� INADDR_ANY�� ����
+-	// (�׽�Ʈ�� ���Ǽ��� ����)
++	//   ߿θ   BIND ip INADDR_ANY 
++	// (׽Ʈ Ǽ )
+ #ifndef __WIN32__
+ 	sa.sin_addr.s_addr = inet_addr(ip);
+ #else
+@@ -243,7 +242,7 @@ socket_t socket_connect(const char* host, WORD port)
+ 	struct sockaddr_in server_addr;
+ 	int rslt;
+ 
+-	/* �����ּ� ����ü �ʱ�ȭ */
++	/* ּ ü ʱȭ */
+ 	memset(&server_addr, 0, sizeof(server_addr));
+ 
+ 	if (isdigit(*host))
+@@ -276,7 +275,7 @@ socket_t socket_connect(const char* host, WORD port)
+ 	socket_timeout(s, 10, 0);
+ 	socket_lingeron(s);
+ 
+-	/* �����û */
++	/* û */
+ 	if ((rslt = connect(s, (struct sockaddr*)&server_addr, sizeof(server_addr))) < 0)
+ 	{
+ 		socket_close(s);
