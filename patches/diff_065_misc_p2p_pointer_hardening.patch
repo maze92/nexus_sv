@@ -1,0 +1,29 @@
+--- a/game/src/input_p2p.cpp
++++ b/game/src/input_p2p.cpp
+@@ -362,7 +362,7 @@
+ {
+ 	TPacketGGFindPosition* p = (TPacketGGFindPosition*)c_pData;
+ 	LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(p->dwTargetPID);
+-	if (ch && ch->GetMapIndex() < 10000)
++	if (ch && ch->GetDesc() && ch->GetMapIndex() < 10000)
+ 	{
+ 		TPacketGGWarpCharacter pw;
+ 		pw.header = HEADER_GG_WARP_CHARACTER;
+@@ -382,7 +382,7 @@
+ 	thecore_memcpy(&newItem, &p->sellItem, sizeof(newItem));
+ 	
+ 	LPCHARACTER chUpdate = CHARACTER_MANAGER::instance().FindByPID(newItem.pid);
+-	if (chUpdate)
++	if (chUpdate && chUpdate->GetDesc())
+ 	{
+ 		chUpdate->AddToSellHistory(newItem);
+ 	}
+@@ -393,7 +393,7 @@
+ {
+ 	TPacketGGWarpCharacter* p = (TPacketGGWarpCharacter*)c_pData;
+ 	LPCHARACTER ch = CHARACTER_MANAGER::instance().FindByPID(p->pid);
+-	if (ch)
++	if (ch && ch->GetDesc())
+ 	{
+ 		ch->WarpSet(p->x, p->y);
+ 	}

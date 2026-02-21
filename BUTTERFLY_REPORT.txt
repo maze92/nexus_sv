@@ -1,0 +1,11 @@
+BUTTERFLY_REPORT
+
+Duplicados (conteúdo idêntico):
+- (nenhum)
+
+Overlaps (mesmo ficheiro + ranges de hunk sobrepostos):
+- diff_005_game_security_windows_and_guildladder.patch <-> diff_007_game_party_invite_packet_sanity.patch : server/metin2/Source/Server/game/src/input_main.cpp
+
+Excluídos (untested):
+- 1x malformado/inconsistente: metin2_audit_new_findings.patch
+- 4x overlap interno entre untested patches (movidos para excluded/): diff_067_misc_fly_validate_wait_hack.patch, diff_069_misc_raceswap_hardening.patch, diff_071_misc_zombie_events_cleanup.patch, diff_072_misc_codepage_freeze_sanitize_final.patch

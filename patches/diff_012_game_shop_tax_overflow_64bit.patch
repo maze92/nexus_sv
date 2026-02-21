@@ -1,0 +1,78 @@
+diff --git a/server/metin2/Source/Server/game/src/shop.cpp b/server/metin2/Source/Server/game/src/shop.cpp
+index eacbd74..c21c672 100644
+--- a/server/metin2/Source/Server/game/src/shop.cpp
++++ b/server/metin2/Source/Server/game/src/shop.cpp
+@@ -1,4 +1,6 @@
+ #include "stdafx.h"
++
++#include <limits>
+ #include "../../libgame/include/grid.h"
+ #include "constants.h"
+ #include "utils.h"
+@@ -311,14 +313,21 @@ int CShop::Buy(LPCHARACTER ch, BYTE pos
+ #endif
+ 
+ 	if (it->second) // if other empire, price is triple
+-		dwPrice *= 3;
++	{
++		const uint64_t ullPrice = static_cast<uint64_t>(dwPrice) * 3ULL;
++		if (ullPrice > static_cast<uint64_t>(std::numeric_limits<DWORD>::max()))
++		{
++			LogManager::instance().HackLog("SHOP_BUY_PRICE_OVERFLOW", ch);
++			return SHOP_SUBHEADER_GC_NOT_ENOUGH_MONEY;
++		}
++		dwPrice = static_cast<DWORD>(ullPrice);
++	}
+ 
+ 	if (ch->GetGold() < dwPrice)
+ 	{
+ 		sys_log(1, "Shop::Buy : Not enough money : %s has %lld, price %u", ch->GetName(), ch->GetGold(), dwPrice);
+ 		return SHOP_SUBHEADER_GC_NOT_ENOUGH_MONEY;
+ 	}
+-
+ #if defined(__CHEQUE_SYSTEM__)
+ 	if (ch->GetCheque() < dwCheque)
+ 	{
+@@ -377,7 +386,7 @@ int CShop::Buy(LPCHARACTER ch, BYTE pos
+ 	}
+ 
+ 	if (dwPrice)
+-		ch->PointChange(POINT_GOLD, -dwPrice, false);
++		ch->PointChange(POINT_GOLD, -static_cast<long long>(dwPrice), false);
+ 
+ #if defined(__CHEQUE_SYSTEM__)
+ 	if (dwCheque)
+@@ -395,13 +404,19 @@ int CShop::Buy(LPCHARACTER ch, BYTE pos
+ 			if (iVal > 100)
+ 				iVal = 100;
+ 
+-			dwTax = dwPrice * iVal / 100;
++			{
++				const uint64_t ullTax = (static_cast<uint64_t>(dwPrice) * static_cast<uint64_t>(iVal)) / 100ULL;
++				dwTax = static_cast<DWORD>(MIN(ullTax, static_cast<uint64_t>(dwPrice)));
++			}
+ 			dwPrice = dwPrice - dwTax;
+ 		}
+ 		else
+ 		{
+ 			iVal = 3;
+-			dwTax = dwPrice * iVal / 100;
++			{
++				const uint64_t ullTax = (static_cast<uint64_t>(dwPrice) * static_cast<uint64_t>(iVal)) / 100ULL;
++				dwTax = static_cast<DWORD>(MIN(ullTax, static_cast<uint64_t>(dwPrice)));
++			}
+ 			dwPrice = dwPrice - dwTax;
+ 		}
+ 	}
+@@ -414,7 +429,10 @@ int CShop::Buy(LPCHARACTER ch, BYTE pos
+ 			if (iVal > 100)
+ 				iVal = 100;
+ 
+-			dwTax = dwPrice * iVal / 100;
++			{
++				const uint64_t ullTax = (static_cast<uint64_t>(dwPrice) * static_cast<uint64_t>(iVal)) / 100ULL;
++				dwTax = static_cast<DWORD>(MIN(ullTax, static_cast<uint64_t>(dwPrice)));
++			}
+ 			dwPrice = dwPrice - dwTax;
+ 		}
+ 		else

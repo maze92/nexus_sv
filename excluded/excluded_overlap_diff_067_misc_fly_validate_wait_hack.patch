@@ -1,0 +1,314 @@
+diff --git a/game/src/packet.h b/game/src/packet.h
+--- a/game/src/packet.h
++++ b/game/src/packet.h
+@@ -334,8 +334,8 @@
+ 	//HEADER_CG_UNUSED = 239,
+ 	//HEADER_CG_UNUSED = 240,
+ 	HEADER_CG_CLIENT_VERSION2 = 0xf1, // 241
+-	//HEADER_CG_UNUSED = 242,
+-	//HEADER_CG_UNUSED = 243,
++	HEADER_CG_MAGIC_SKILL_HIT = 242,
++	HEADER_CG_MAGIC_SKILL_CAST = 243,
+ 	//HEADER_CG_UNUSED = 244,
+ 	//HEADER_CG_UNUSED = 245,
+ 	//HEADER_CG_UNUSED = 246,
+@@ -688,7 +688,7 @@
+ 	HEADER_GC_RANKING = 240,
+ #endif
+ 	//HEADER_GC_UNUSED = 241,
+-	//HEADER_GC_UNUSED = 242,
++	HEADER_GC_MAGIC_SKILL_HIT_CONFIRM = 242,
+ 	//HEADER_GC_UNUSED = 243,
+ 	//HEADER_GC_UNUSED = 244,
+ #if defined(__LOOT_FILTER_SYSTEM__)
+@@ -4476,5 +4476,34 @@
+ } TPacketCGPetNameChange;
+ #endif
+
++typedef struct SPacketCGMagicSkillCast
++{
++	BYTE		bHeader;
++	DWORD	dwSkillVnum;
++	DWORD	dwVictimVID;
++	DWORD	dwCastSeq;
++	DWORD	dwClientCastTime;
++} TPacketCGMagicSkillCast;
++
++typedef struct SPacketCGMagicSkillHit
++{
++	BYTE		bHeader;
++	DWORD	dwVidAttacker;
++	DWORD	dwVidVictim;
++	DWORD	dwSkillVnum;
++	DWORD	dwCastSeq;
++	DWORD	dwClientHitTime;
++} TPacketCGMagicSkillHit;
++
++typedef struct SPacketGCMagicSkillHitConfirm
++{
++	BYTE		bHeader;
++	DWORD	dwVidAttacker;
++	DWORD	dwVidVictim;
++	DWORD	dwSkillVnum;
++	DWORD	dwCastSeq;
++	DWORD	dwDamageFlags;
++} TPacketGCMagicSkillHitConfirm;
++
+ #pragma pack()
+ #endif // __INC_PACKET_H__
+
+diff --git a/game/src/input.h b/game/src/input.h
+--- a/game/src/input.h
++++ b/game/src/input.h
+@@ -128,6 +128,8 @@
+ 	int SyncPosition(LPCHARACTER ch, const char* data, size_t uiBytes);
+ 	void FlyTarget(LPCHARACTER ch, const char* pcData, BYTE bHeader);
+ 	void UseSkill(LPCHARACTER ch, const char* pcData);
++	void MagicSkillCast(LPCHARACTER ch, const char* data);
++	void MagicSkillHit(LPCHARACTER ch, const char* data);
+
+ 	void ScriptAnswer(LPCHARACTER ch, const void* pvData);
+ 	void ScriptButton(LPCHARACTER ch, const void* pvData);
+
+diff --git a/game/src/input_main.cpp b/game/src/input_main.cpp
+--- a/game/src/input_main.cpp
++++ b/game/src/input_main.cpp
+@@ -2315,6 +2315,39 @@
+ 	ch->FlyTarget(p->dwTargetVID, p->x, p->y, bHeader);
+ }
+
++void CInputMain::MagicSkillCast(LPCHARACTER ch, const char* data)
++{
++	if (!ch || !ch->GetDesc() || ch->IsDead())
++		return;
++
++	const TPacketCGMagicSkillCast* p = reinterpret_cast<const TPacketCGMagicSkillCast*>(data);
++
++	LPCHARACTER victim = CHARACTER_MANAGER::instance().Find(p->dwVictimVID);
++	if (!victim || victim == ch)
++		return;
++
++	// Bind cast-seq to the next UseSkill call (consumed inside UseSkill).
++	ch->MagicFlyValidate_SetPendingCastSeq(p->dwCastSeq);
++
++	// Proceed with normal skill handling (SP/cooltime checks etc). Damage application is delayed.
++	ch->UseSkill(p->dwSkillVnum, victim);
++}
++
++void CInputMain::MagicSkillHit(LPCHARACTER ch, const char* data)
++{
++	if (!ch || !ch->GetDesc() || ch->IsDead())
++		return;
++
++	const TPacketCGMagicSkillHit* p = reinterpret_cast<const TPacketCGMagicSkillHit*>(data);
++
++	// Basic sanity: attacker must match sender.
++	if (p->dwVidAttacker != ch->GetVID())
++		return;
++
++	ch->MagicFlyValidate_OnHit(p->dwSkillVnum, p->dwVidVictim, p->dwCastSeq);
++}
++
+ void CInputMain::UseSkill(LPCHARACTER ch, const char* pcData)
+ {
+ 	TPacketCGUseSkill* p = (TPacketCGUseSkill*)pcData;
+@@ -4742,6 +4775,16 @@
+ 			}
+ 			break;
+
++		case HEADER_CG_MAGIC_SKILL_CAST:
++			if (!ch->IsObserverMode())
++				MagicSkillCast(ch, c_pData);
++			break;
++
++		case HEADER_CG_MAGIC_SKILL_HIT:
++			if (!ch->IsObserverMode())
++				MagicSkillHit(ch, c_pData);
++			break;
++
+ 		case HEADER_CG_USE_SKILL:
+ 			if (!ch->IsObserverMode())
+ 				UseSkill(ch, c_pData);
+
+diff --git a/game/src/char.h b/game/src/char.h
+--- a/game/src/char.h
++++ b/game/src/char.h
+@@ -2032,6 +2032,12 @@
+ 	int ComputeSnakeSkill(DWORD dwVnum, LPCHARACTER pkVictim, BYTE bSkillLevel);
+ #endif
+ 	int ComputeSkill(DWORD dwVnum, LPCHARACTER pkVictim, BYTE bSkillLevel = 0);
++
++	// Magic Fly Validate (client reports visual impact timing; server remains authoritative).
++	// Used to prevent "instant hit" desync / wait-hack on projectile skills.
++	void MagicFlyValidate_SetPendingCastSeq(DWORD dwCastSeq) { m_dwMagicFlyValidatePendingCastSeq = dwCastSeq; }
++	DWORD MagicFlyValidate_ConsumePendingCastSeq() { DWORD s = m_dwMagicFlyValidatePendingCastSeq; m_dwMagicFlyValidatePendingCastSeq = 0; return s; }
++	bool MagicFlyValidate_OnHit(DWORD dwSkillVnum, DWORD dwVictimVID, DWORD dwCastSeq);
+ 	int ComputeSkillParty(DWORD dwVnum, LPCHARACTER pkVictim, BYTE bSkillLevel = 0);
+ 	int ComputeSkillAtPosition(DWORD dwVnum, const PIXEL_POSITION& posTarget, BYTE bSkillLevel = 0);
+@@ -3308,6 +3314,17 @@
+ 	DWORD	m_dwLastExtBattlePassOpenRankingTime;
+
+ private:
++	struct TMagicFlyValidateCast
++	{
++		DWORD dwSkillVnum;
++		DWORD dwVictimVID;
++		DWORD dwServerCastTime;
++		LPEVENT pkTimeoutEvent;
++	};
++
++	DWORD m_dwMagicFlyValidatePendingCastSeq;
++	std::map<DWORD, TMagicFlyValidateCast> m_mapMagicFlyValidateCasts; // castSeq -> cast info
++
+ 	bool m_bIsLoadedExtBattlePass;
+ 	ListExtBattlePassMap m_listExtBattlePass;
+
+diff --git a/game/src/char.cpp b/game/src/char.cpp
+--- a/game/src/char.cpp
++++ b/game/src/char.cpp
+@@ -188,6 +188,10 @@
+ {
+ 	m_stName = "";
+
++	m_dwMagicFlyValidatePendingCastSeq = 0;
++	m_mapMagicFlyValidateCasts.clear();
++
+ 	CEntity::Initialize(ENTITY_CHARACTER);
+@@ -602,6 +606,32 @@
+ 	m_dwEscapeCooltime = 0;
+ #endif
+
++bool CHARACTER::MagicFlyValidate_OnHit(DWORD dwSkillVnum, DWORD dwVictimVID, DWORD dwCastSeq)
++{
++	std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.find(dwCastSeq);
++	if (it == m_mapMagicFlyValidateCasts.end())
++		return false;
++
++	if (it->second.dwSkillVnum != dwSkillVnum || it->second.dwVictimVID != dwVictimVID)
++		return false;
++
++	if (it->second.pkTimeoutEvent)
++		event_cancel(&it->second.pkTimeoutEvent);
++
++	LPCHARACTER pkVictim = CHARACTER_MANAGER::instance().Find(dwVictimVID);
++	if (!pkVictim)
++	{
++		m_mapMagicFlyValidateCasts.erase(it);
++		return false;
++	}
++
++	// Server-authoritative: apply damage now.
++	ComputeSkill(dwSkillVnum, pkVictim);
++	
++	m_mapMagicFlyValidateCasts.erase(it);
++	return true;
++}
++
+ void CHARACTER::Destroy()
+ {
+ 	CloseMyShop();
++
++	// Magic Fly Validate: cancel any pending timeout events to avoid UAF/crash on disconnect.
++	for (std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
++	{
++		if (it->second.pkTimeoutEvent)
++			event_cancel(&it->second.pkTimeoutEvent);
++	}
++	m_mapMagicFlyValidateCasts.clear();
++	m_dwMagicFlyValidatePendingCastSeq = 0;
+
+diff --git a/game/src/char_skill.cpp b/game/src/char_skill.cpp
+--- a/game/src/char_skill.cpp
++++ b/game/src/char_skill.cpp
+@@ -1086,6 +1086,60 @@
+
+ CHARACTER_SET FFindNearVictim::empty_set_;
+
++// Magic Fly Validate: client can report the visual impact timing; server applies damage authoritatively.
++static bool IsMagicFlyValidateSkill(DWORD v)
++{
++	switch (v)
++	{
++		case 19: case 35: case 41: case 42: case 43: case 44: case 65: case 76: case 80: case 81: case 91: case 92: case 111: case 112: case 113: case 171:
++			return true;
++		default:
++			return false;
++	}
++}
++
++static int MagicFlyValidate_ComputeDelayMS(LPCHARACTER pkAttacker, LPCHARACTER pkVictim)
++{
++	if (!pkAttacker || !pkVictim)
++		return 250;
++	const long dx = pkAttacker->GetX() - pkVictim->GetX();
++	const long dy = pkAttacker->GetY() - pkVictim->GetY();
++	const long dist = DISTANCE_APPROX(dx, dy);
++	// Empirical: keep the server delay in a tight window so combat remains responsive.
++	// This is not "client authoritative"; it only prevents instant-hit desync / wait-hack.
++	int ms = (int)((double)dist / 5000.0 * 250.0); // ~250ms per 5000 units
++	if (ms < 200) ms = 200;
++	if (ms > 1200) ms = 1200;
++	return ms;
++}
++
++EVENTINFO(magic_fly_validate_event_info)
++{
++	DWORD dwAttackerVID;
++	DWORD dwVictimVID;
++	DWORD dwSkillVnum;
++	DWORD dwCastSeq;
++
++	magic_fly_validate_event_info()
++		: dwAttackerVID(0), dwVictimVID(0), dwSkillVnum(0), dwCastSeq(0)
++	{}
++};
++
++EVENTFUNC(magic_fly_validate_timeout_event)
++{
++	magic_fly_validate_event_info* info = dynamic_cast<magic_fly_validate_event_info*>(event->info);
++	if (!info)
++		return 0;
++
++	LPCHARACTER pkAttacker = CHARACTER_MANAGER::instance().Find(info->dwAttackerVID);
++	if (!pkAttacker)
++		return 0;
++
++	// If still pending, apply now (dead-man's switch).
++	pkAttacker->MagicFlyValidate_OnHit(info->dwSkillVnum, info->dwVictimVID, info->dwCastSeq);
++	return 0;
++}
+@@ -3344,6 +3398,36 @@
+ 		ComputeSkill(dwVnum, pkVictim);
+ #endif
+
++	// Magic Fly Validate: if client supplied a cast sequence for this projectile skill,
++	// register it and delay the actual damage application until HIT_REPORT (or timeout).
++	if (pkVictim && IsMagicFlyValidateSkill(dwVnum) && IS_SET(pkSk->dwFlag, SKILL_FLAG_ATTACK))
++	{
++		DWORD dwCastSeq = MagicFlyValidate_ConsumePendingCastSeq();
++		if (dwCastSeq)
++		{
++			TMagicFlyValidateCast cast;
++			cast.dwSkillVnum = dwVnum;
++			cast.dwVictimVID = pkVictim->GetVID();
++			cast.dwServerCastTime = get_dword_time();
++			cast.pkTimeoutEvent = NULL;
++
++			int delayMs = MagicFlyValidate_ComputeDelayMS(this, pkVictim);
++			int delayPasses = MAX(1, (delayMs * passes_per_sec) / 1000);
++
++			magic_fly_validate_event_info* info = AllocEventInfo<magic_fly_validate_event_info>();
++			info->dwAttackerVID = GetVID();
++			info->dwVictimVID = pkVictim->GetVID();
++			info->dwSkillVnum = dwVnum;
++			info->dwCastSeq = dwCastSeq;
++
++			cast.pkTimeoutEvent = event_create(magic_fly_validate_timeout_event, info, delayPasses);
++			m_mapMagicFlyValidateCasts[dwCastSeq] = cast;
++			m_dwLastSkillTime = get_dword_time();
++			return true;
++		}
++	}
++
+ 	if (IS_SET(pkSk->dwFlag, SKILL_FLAG_SELFONLY))
+ 		ComputeSkill(dwVnum, this);

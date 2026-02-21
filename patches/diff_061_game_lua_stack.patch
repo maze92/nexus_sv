@@ -1,0 +1,63 @@
+--- a/home/metin2/Source/Server/game/src/questmanager.h
++++ b/home/metin2/Source/Server/game/src/questmanager.h
+@@ -226,6 +226,10 @@
+ 
+ 		int m_iRunningEventIndex;
+ 
++		// Lua reentrancy/recursion guard (C++ <-> Lua <-> C++ loops)
++		int m_iLuaCallDepth;
++		enum { LUA_CALL_DEPTH_LIMIT = 10 };
++
+ 		map<string, int> m_mapEventFlag;
+ 
+ 		void GotoSelectState(QuestState& qs);
+
+--- a/home/metin2/Source/Server/game/src/questmanager.cpp
++++ b/home/metin2/Source/Server/game/src/questmanager.cpp
+@@ -35,7 +35,7 @@
+ 	using namespace std;
+ 
+ 	CQuestManager::CQuestManager()
+-		: m_pSelectedDungeon(NULL), m_dwServerTimerArg(0), m_iRunningEventIndex(0), L(NULL), m_bNoSend(false),
++		: m_pSelectedDungeon(NULL), m_dwServerTimerArg(0), m_iRunningEventIndex(0), m_iLuaCallDepth(0), L(NULL), m_bNoSend(false),
+ 		m_CurrentRunningState(NULL), m_pCurrentCharacter(NULL), m_pCurrentNPCCharacter(NULL), m_pCurrentPartyMember(NULL),
+ 		m_pCurrentPC(NULL), m_iCurrentSkin(0), m_bError(false), m_pOtherPCBlockRootPC(NULL)
+ 	{
+
+--- a/home/metin2/Source/Server/game/src/questlua.cpp
++++ b/home/metin2/Source/Server/game/src/questlua.cpp
+@@ -888,6 +888,34 @@
+ 	bool CQuestManager::RunState(QuestState& qs)
+ 	{
+ 		ClearError();
++		struct LuaStackGuard
++		{
++			CQuestManager& qm;
++			bool active;
++			LuaStackGuard(CQuestManager& q) : qm(q), active(false)
++			{
++				if (++qm.m_iLuaCallDepth > LUA_CALL_DEPTH_LIMIT)
++				{
++					sys_err("QUEST: Lua recursion depth exceeded (%d) - aborting quest state", qm.m_iLuaCallDepth);
++					--qm.m_iLuaCallDepth;
++					return;
++				}
++				active = true;
++			}
++			~LuaStackGuard()
++			{
++				if (active)
++					--qm.m_iLuaCallDepth;
++			}
++		};
++
++		LuaStackGuard guard(*this);
++		if (!guard.active)
++		{
++			GotoEndState(qs);
++			return false;
++		}
++
+ 
+ 		m_CurrentRunningState = &qs;
+ 		int ret = lua_resume(qs.co, qs.args);
