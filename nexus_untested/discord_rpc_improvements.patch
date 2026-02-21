@@ -118,11 +118,11 @@ diff --git a/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp b/Client/User
 +#if defined(ENABLE_CONQUEROR_LEVEL)
 +		const DWORD conq = CPythonPlayer::Instance().GetStatus(POINT_CONQUEROR_LEVEL);
 +		if (conq > 0)
-+			_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u (Conq. %u)", name ? name : "", level, conq);
++			_snprintf(detailsBuf, sizeof(detailsBuf), "%s(Conq.Lv%u)", name ? name : "", conq); // Exibe Nível Conquistador
 +		else
-+			_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u", name ? name : "", level);
++			_snprintf(detailsBuf, sizeof(detailsBuf), "%s(Lv%u)", name ? name : "", level); // Exibe Nível Normal
 +#else
-+		_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u", name ? name : "", level);
++		_snprintf(detailsBuf, sizeof(detailsBuf), "%s(Lv%u)", name ? name : "", level);
 +#endif
 +		detailsBuf[sizeof(detailsBuf)-1] = '\0';
 +
