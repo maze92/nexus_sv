@@ -158,7 +158,7 @@ diff --git a/game/src/char.h b/game/src/char.h
 +	};
 +
 +	DWORD m_dwMagicFlyValidatePendingCastSeq;
-+	std::map<DWORD, TMagicFlyValidateCast> m_mapMagicFlyValidateCasts; // castSeq -> cast info
++	std::unordered_map<DWORD, TMagicFlyValidateCast> m_mapMagicFlyValidateCasts;
 +
  	bool m_bIsLoadedExtBattlePass;
  	ListExtBattlePassMap m_listExtBattlePass;
