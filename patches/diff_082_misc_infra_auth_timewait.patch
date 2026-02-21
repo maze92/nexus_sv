@@ -1,0 +1,18 @@
+--- a/server/metin2/Source/Server/libthecore/src/socket.c
++++ b/server/metin2/Source/Server/libthecore/src/socket.c
+@@ -527,6 +527,14 @@
+ 		socket_close(s);
+ 		return;
+ 	}
++
++#ifdef SO_REUSEPORT
++	if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (const char*)&opt, sizeof(opt)) < 0)
++	{
++		// Not fatal on some platforms/configs; keep server running.
++		sys_err("setsockopt: reuseport: %s", strerror(errno));
++	}
++#endif
+ }
+ 
+ void socket_keepalive(socket_t s)
+
