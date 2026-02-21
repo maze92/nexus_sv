@@ -1,0 +1,220 @@
+--- a/game/src/input_main.cpp+++ b/game/src/input_main.cpp@@ -315,6 +315,37 @@ 	return 4;
+ }
+ 
++
++static inline void __SanitizeNetworkText(char* buf, size_t bufSize)
++{
++	if (!buf || bufSize == 0)
++		return;
++
++	size_t w = 0;
++	for (size_t r = 0; r < bufSize && buf[r] != '\0'; ++r)
++	{
++		unsigned char c = (unsigned char)buf[r];
++
++		if (c == '\n' || c == '\r' || c == '\t')
++		{
++			buf[w++] = (char)c;
++			continue;
++		}
++
++		if (c < 0x20 || c == 0x7F)
++		{
++			buf[w++] = ' ';
++			continue;
++		}
++
++		buf[w++] = (char)c;
++	}
++
++	if (w >= bufSize)
++		w = bufSize - 1;
++	buf[w] = '\0';
++}
++
+ int CInputMain::Whisper(LPCHARACTER ch, const char* data, size_t uiBytes)
+ {
+ 	const TPacketCGWhisper* pinfo = reinterpret_cast<const TPacketCGWhisper*>(data);
+@@ -498,6 +529,7 @@ 
+ 			char buf[CHAT_MAX_LEN + 1];
+ 			strlcpy(buf, data + sizeof(TPacketCGWhisper), MIN(iExtraLen + 1, sizeof(buf)));
++			__SanitizeNetworkText(buf, sizeof(buf));
+ 			const size_t buflen = strlen(buf);
+ 
+ 			//if (true == SpamBlockCheck(ch, buf, buflen))
+@@ -777,6 +809,7 @@ 
+ 	char buf[CHAT_MAX_LEN - (CHARACTER_NAME_MAX_LEN + 3) + 1];
+ 	strlcpy(buf, data + sizeof(TPacketCGChat), MIN(iExtraLen + 1, sizeof(buf)));
++	__SanitizeNetworkText(buf, sizeof(buf));
+ 	const size_t buflen = strlen(buf);
+ 
+ 	if (buflen > 1 && *buf == '/')
+
+--- a/game/src/char.cpp+++ b/game/src/char.cpp@@ -5942,6 +5942,39 @@ 	CHARACTER_MANAGER::instance().PacketMonsterLog(this, buf.read_peek(), buf.size());
+ }
+ 
++
++static inline void __SanitizeNetworkText(char* buf, size_t bufSize)
++{
++    if (!buf || bufSize == 0)
++        return;
++
++    size_t w = 0;
++    for (size_t r = 0; r < bufSize && buf[r] != '\0'; ++r)
++    {
++        unsigned char c = (unsigned char)buf[r];
++
++        // allow common whitespace
++        if (c == '\n' || c == '\r' || c == '\t')
++        {
++            buf[w++] = (char)c;
++            continue;
++        }
++
++        // strip NUL, DEL, and other control chars
++        if (c < 0x20 || c == 0x7F)
++        {
++            buf[w++] = ' ';
++            continue;
++        }
++
++        buf[w++] = (char)c;
++    }
++
++    if (w >= bufSize)
++        w = bufSize - 1;
++    buf[w] = '\0';
++}
++
+ void CHARACTER::ChatPacket(BYTE type, const char* format, ...)
+ {
+ 	LPDESC d = GetDesc();
+@@ -5955,6 +5988,9 @@ 	va_start(args, format);
+ 	int len = vsnprintf(chatbuf, sizeof(chatbuf), format, args);
+ 	va_end(args);
++
++	__SanitizeNetworkText(chatbuf, sizeof(chatbuf));
++	len = (int)strlen(chatbuf);
+ 
+ 	struct packet_chat pack_chat;
+ 
+@@ -5988,6 +6024,9 @@ 	va_start(args, format);
+ 	int len = vsnprintf(chatbuf, sizeof(chatbuf), format, args);
+ 	va_end(args);
++
++	__SanitizeNetworkText(chatbuf, sizeof(chatbuf));
++	len = (int)strlen(chatbuf);
+ 
+ 	pack_chat.header = HEADER_GC_CHAT;
+ 	pack_chat.size = sizeof(struct packet_chat) + len;
+
+--- a/Client/EterLib/GrpTextInstance.cpp+++ b/Client/EterLib/GrpTextInstance.cpp@@ -13,7 +13,92 @@ #include "../EterBase/Utils.h"
+ #include "../EterLocale/Arabic.h"
+ 
++#include "../UserInterface/Locale.h"
++
+ extern DWORD GetDefaultCodePage();
++
++static inline bool __IsSafeControlChar(unsigned char c)
++{
++    return (c == '\n' || c == '\r' || c == '\t');
++}
++
++static std::string __SanitizeTextForRender(const char* c_szText, size_t len)
++{
++    if (!c_szText)
++        return std::string();
++
++    if (len == (size_t)-1)
++        len = strlen(c_szText);
++
++    const DWORD cp = GetDefaultCodePage();
++    std::string out;
++    out.reserve(len);
++
++    size_t i = 0;
++    while (i < len)
++    {
++        const unsigned char c = (unsigned char)c_szText[i];
++
++        // Strip NUL and unsafe control chars (prevents renderer edge-cases / infinite loops)
++        if (c == 0)
++            break;
++
++        if (c < 0x20 && !__IsSafeControlChar(c))
++        {
++            out.push_back(' ');
++            ++i;
++            continue;
++        }
++
++        if (c == 0x7F)
++        {
++            out.push_back(' ');
++            ++i;
++            continue;
++        }
++
++        // DBCS lead bytes need 2-byte validation.
++        if (IsDBCSLeadByteEx(cp, c))
++        {
++            if (i + 1 >= len)
++            {
++                out.push_back(' ');
++                ++i;
++                continue;
++            }
++
++            char tmp[2] = { c_szText[i], c_szText[i + 1] };
++            wchar_t wbuf[2] = { 0, 0 };
++
++            if (MultiByteToWideChar(cp, MB_ERR_INVALID_CHARS, tmp, 2, wbuf, 2) <= 0)
++            {
++                out.push_back(' ');
++            }
++            else
++            {
++                out.push_back(tmp[0]);
++                out.push_back(tmp[1]);
++            }
++
++            i += 2;
++            continue;
++        }
++
++        // Single-byte validation.
++        char tmp[1] = { c_szText[i] };
++        wchar_t wbuf[2] = { 0, 0 };
++
++        if (MultiByteToWideChar(cp, MB_ERR_INVALID_CHARS, tmp, 1, wbuf, 2) <= 0)
++            out.push_back(' ');
++        else
++            out.push_back(tmp[0]);
++
++        ++i;
++    }
++
++    return out;
++}
++
+ 
+ const float c_fFontFeather = 0.5f;
+ 
+@@ -2049,10 +2134,11 @@ 
+ void CGraphicTextInstance::SetValue(const char* c_szText, size_t len)
+ {
+-	if (0 == m_stText.compare(c_szText))
++	const std::string sanitized = __SanitizeTextForRender(c_szText, len);
++	if (0 == m_stText.compare(sanitized))
+ 		return;
+ 
+-	m_stText = c_szText;
++	m_stText = sanitized;
+ 	m_isUpdate = false;
+ 
+ #if defined(WJ_MULTI_TEXTLINE)
+@@ -2256,4 +2342,4 @@ CGraphicTextInstance::~CGraphicTextInstance()
+ {
+ 	Destroy();
+-}
++}
