@@ -9,7 +9,7 @@ diff --git a/game/src/char.cpp b/game/src/char.cpp
 +void CHARACTER::MagicFlyValidate_ClearAllPending()
 +{
 +	// Cancel and purge any pending cast timeout events.
-+	for (std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
++	for (std::unordered_map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
 +	{
 +		if (it->second.pkTimeoutEvent)
 +			event_cancel(&it->second.pkTimeoutEvent);
@@ -23,7 +23,7 @@ diff --git a/game/src/char.cpp b/game/src/char.cpp
  	CloseMyShop();
 
 -	// Magic Fly Validate: cancel any pending timeout events to avoid UAF/crash on disconnect.
--	for (std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
+-	for (std::unordered_map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
 -	{
 -		if (it->second.pkTimeoutEvent)
 -			event_cancel(&it->second.pkTimeoutEvent);
