@@ -1,0 +1,160 @@
+diff --git a/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp b/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+--- a/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
++++ b/Client/UserInterface/PythonNetworkStreamPhaseGame.cpp
+@@ -38,6 +38,8 @@
+ #if defined(ENABLE_DISCORD_RPC)
+ #include "discord_rpc.h"
+ #endif
++#include <string>
++#include <cstdio>
+
+ #ifdef ENABLE_OFFLINE_SHOP
+ #include "PythonOfflineShop.h"
+@@ -46,7 +48,9 @@
+ BOOL gs_bEmpireLanuageEnable = TRUE;
+
+ static int64_t StartTime;
++static bool s_bWasInGame = false;
+ static constexpr auto DiscordClientID = "732229869118685217"; // Change
+
+ #if defined(ENABLE_DISCORD_RPC)
+ void CPythonNetworkStream::Discord_Start()
+ {
+-	StartTime = time(0);
++	// StartTime should represent *in-game* session time, not launcher/login time.
++	StartTime = 0;
++	s_bWasInGame = false;
+ 	DiscordEventHandlers handlers;
+ 	memset(&handlers, 0, sizeof(handlers));
+ 	Discord_Initialize(DiscordClientID, &handlers, 1, nullptr);
+ 	Discord_Update(false /* bGameState */);
+ }
+
+ void CPythonNetworkStream::Discord_Update(const bool bGameState)
+ {
++	// If main player is GM, do not expose any presence (appear offline).
++	if (bGameState)
++	{
++		CInstanceBase* pMain = CPythonCharacterManager::Instance().GetMainInstancePtr();
++		if (pMain && pMain->IsGameMaster())
++		{
++			Discord_ClearPresence();
++			s_bWasInGame = true;
++			return;
++		}
++	}
++
+ 	DiscordRichPresence discordPresence;
+ 	memset(&discordPresence, 0, sizeof(discordPresence));
+ 	if (bGameState)
+ 	{
+-		discordPresence.details = CPythonPlayer::Instance().GetName();
+-		discordPresence.state = CPythonBackground::Instance().GetWarpMapName();
+-
+-		discordPresence.startTimestamp = StartTime;
+-
+-		discordPresence.largeImageKey = "logo";
+-		discordPresence.largeImageText = "Farques Development";
+-
+-		switch (CPythonPlayer::Instance().GetRace())
+-		{
+-			case MAIN_RACE_WARRIOR_M:
+-				discordPresence.smallImageKey = "warrior_m";
+-				discordPresence.smallImageText = "Savasci Erkek";
+-				break;
+-
+-			case MAIN_RACE_WARRIOR_W:
+-				discordPresence.smallImageKey = "warrior_w";
+-				discordPresence.smallImageText = "Savasci Kadin";
+-				break;
+-
+-			case MAIN_RACE_ASSASSIN_M:
+-				discordPresence.smallImageKey = "assassin_m";
+-				discordPresence.smallImageText = "Ninja Erkek";
+-				break;
+-
+-			case MAIN_RACE_ASSASSIN_W:
+-				discordPresence.smallImageKey = "assassin_w";
+-				discordPresence.smallImageText = "Ninja Kadin";
+-				break;
+-
+-			case MAIN_RACE_SURA_M:
+-				discordPresence.smallImageKey = "sura_m";
+-				discordPresence.smallImageText = "Sura Erkek";
+-				break;
+-
+-			case MAIN_RACE_SURA_W:
+-				discordPresence.smallImageKey = "sura_w";
+-				discordPresence.smallImageText = "Sura Kadin";
+-				break;
+-
+-			case MAIN_RACE_SHAMAN_M:
+-				discordPresence.smallImageKey = "shaman_m";
+-				discordPresence.smallImageText = "Saman Erkek";
+-				break;
+-
+-			case MAIN_RACE_SHAMAN_W:
+-				discordPresence.smallImageKey = "shaman_w";
+-				discordPresence.smallImageText = "Saman Kadin";
+-				break;
+-
+-			case MAIN_RACE_WOLFMAN_M:
+-				discordPresence.smallImageKey = "wolfman_w";
+-				discordPresence.smallImageText = "Wolfman";
+-				break;
+-
+-		}
++		// Reset timer on first transition into game.
++		if (!s_bWasInGame || StartTime == 0)
++			StartTime = time(0);
++		s_bWasInGame = true;
++
++		const char* name = CPythonPlayer::Instance().GetName();
++		const DWORD level = CPythonPlayer::Instance().GetStatus(POINT_LEVEL);
++
++		char detailsBuf[256];
++		detailsBuf[0] = '\0';
++
++#if defined(ENABLE_CONQUEROR_LEVEL)
++		const DWORD conq = CPythonPlayer::Instance().GetStatus(POINT_CONQUEROR_LEVEL);
++		if (conq > 0)
++			_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u (Conq. %u)", name ? name : "", level, conq);
++		else
++			_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u", name ? name : "", level);
++#else
++		_snprintf(detailsBuf, sizeof(detailsBuf), "%s \xE2\x80\xA2 Lv. %u", name ? name : "", level);
++#endif
++		detailsBuf[sizeof(detailsBuf)-1] = '\0';
++
++		discordPresence.details = detailsBuf;
++		discordPresence.state = CPythonBackground::Instance().GetWarpMapName();
++
++		// Discord will render the elapsed time automatically when startTimestamp is present.
++		discordPresence.startTimestamp = StartTime;
++
++		// Only server logo (no class/race icons).
++		discordPresence.largeImageKey = "logo";
++		discordPresence.largeImageText = "Server";
++		discordPresence.smallImageKey = nullptr;
++		discordPresence.smallImageText = nullptr;
+ 	}
++	else
++	{
++		// Not in-game: keep it minimal and do not show character identity.
++		s_bWasInGame = false;
++		StartTime = 0;
++		discordPresence.details = "In menu";
++		discordPresence.state = "Selecting character";
++		discordPresence.largeImageKey = "logo";
++		discordPresence.largeImageText = "Server";
++	}
+ 	discordPresence.buttonLabel = "Farques Discord";
+ 	discordPresence.buttonURL = "https://discord.com/invite/v36Ru9zpJ3";
+ 	Discord_UpdatePresence(&discordPresence);
+ }
+
+ void CPythonNetworkStream::Discord_Close()
+ {
+ 	Discord_Shutdown();
+ }
+ #endif
