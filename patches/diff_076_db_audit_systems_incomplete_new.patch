@@ -27,190 +27,6 @@
  	}
  	return s_buffer;
  }
---- a/server/server/home/metin2/Source/Server/game/src/char_item.cpp
-+++ b/server/server/home/metin2/Source/Server/game/src/char_item.cpp
-@@ -3677,11 +3677,11 @@
- 
- 							if (item->GetVnum() == ITEM_DRAGON_HEART_VNUM)
- 							{
--								sprintf(buf, "Inc %ds by item{VN:%d SOC%d:%d}", ret, item->GetVnum(), ITEM_SOCKET_CHARGING_AMOUNT_IDX, item->GetSocket(ITEM_SOCKET_CHARGING_AMOUNT_IDX));
-+								snprintf(buf, sizeof(buf), "Inc %ds by item{VN:%d SOC%d:%d}", ret, item->GetVnum(), ITEM_SOCKET_CHARGING_AMOUNT_IDX, item->GetSocket(ITEM_SOCKET_CHARGING_AMOUNT_IDX));
- 							}
- 							else
- 							{
--								sprintf(buf, "Inc %ds by item{VN:%d VAL%d:%d}", ret, item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
-+								snprintf(buf, sizeof(buf), "Inc %ds by item{VN:%d VAL%d:%d}", ret, item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
- 							}
- 
- 							ChatPacket(CHAT_TYPE_INFO, LC_STRING("%d�� ��ŭ �����Ǿ����ϴ�.", ret));
-@@ -3694,11 +3694,11 @@
- 						{
- 							if (item->GetVnum() == ITEM_DRAGON_HEART_VNUM)
- 							{
--								sprintf(buf, "No change by item{VN:%d SOC%d:%d}", item->GetVnum(), ITEM_SOCKET_CHARGING_AMOUNT_IDX, item->GetSocket(ITEM_SOCKET_CHARGING_AMOUNT_IDX));
-+								snprintf(buf, sizeof(buf), "No change by item{VN:%d SOC%d:%d}", item->GetVnum(), ITEM_SOCKET_CHARGING_AMOUNT_IDX, item->GetSocket(ITEM_SOCKET_CHARGING_AMOUNT_IDX));
- 							}
- 							else
- 							{
--								sprintf(buf, "No change by item{VN:%d VAL%d:%d}", item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
-+								snprintf(buf, sizeof(buf), "No change by item{VN:%d VAL%d:%d}", item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
- 							}
- 
- 							ChatPacket(CHAT_TYPE_INFO, LC_STRING("������ �� �����ϴ�."));
-@@ -3730,7 +3730,7 @@
- 
- 							ChatPacket(CHAT_TYPE_INFO, LC_STRING("%d�� ��ŭ �����Ǿ����ϴ�.", ret));
- 
--							sprintf(buf, "Increase %ds by item{VN:%d VAL%d:%d}", ret, item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
-+							snprintf(buf, sizeof(buf), "Increase %ds by item{VN:%d VAL%d:%d}", ret, item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
- 							LogManager::instance().ItemLog(this, item, "DS_CHARGING_SUCCESS", buf);
- 							item->SetCount(item->GetCount() - 1);
- 
-@@ -3739,7 +3739,7 @@
- 						else
- 						{
- 							ChatPacket(CHAT_TYPE_INFO, LC_STRING("������ �� �����ϴ�."));
--							sprintf(buf, "No change by item{VN:%d VAL%d:%d}", item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
-+							snprintf(buf, sizeof(buf), "No change by item{VN:%d VAL%d:%d}", item->GetVnum(), ITEM_VALUE_CHARGING_AMOUNT_IDX, item->GetValue(ITEM_VALUE_CHARGING_AMOUNT_IDX));
- 							LogManager::instance().ItemLog(this, item, "DS_CHARGING_FAILED", buf);
- 							return false;
- 						}
---- a/server/server/home/metin2/Source/Server/game/src/cube.cpp
-+++ b/server/server/home/metin2/Source/Server/game/src/cube.cpp
-@@ -1317,7 +1317,7 @@
- 				for (TCubeValueVector::iterator iter = materialInfo.complicateMaterial.begin(); materialInfo.complicateMaterial.end() != iter; ++iter)
- 				{
- 					char tempBuffer[128];
--					sprintf(tempBuffer, "%d,%d|", iter->vnum, iter->count);
-+					snprintf(tempBuffer, sizeof(tempBuffer), "%d,%d|", iter->vnum, iter->count);
- 
- 					infoText += std::string(tempBuffer);
- 				}
-@@ -1332,7 +1332,7 @@
- 			for (TCubeValueVector::iterator iter = materialInfo.material.begin(); materialInfo.material.end() != iter; ++iter)
- 			{
- 				char tempBuffer[128];
--				sprintf(tempBuffer, "%d,%d&", iter->vnum, iter->count);
-+				snprintf(tempBuffer, sizeof(tempBuffer), "%d,%d&", iter->vnum, iter->count);
- 				infoText += std::string(tempBuffer);
- 			}
- 
-@@ -1342,7 +1342,7 @@
- 			if (0 < materialInfo.gold)
- 			{
- 				char temp[128];
--				sprintf(temp, "%d", materialInfo.gold);
-+				snprintf(temp, sizeof(temp), "%d", materialInfo.gold);
- 				infoText += std::string("/") + temp;
- 			}
- 
-@@ -1471,7 +1471,7 @@
- 		{
- 			const SCubeMaterialInfo& materialInfo = *iter;
- 			char temp[128];
--			sprintf(temp, "%d,%d", materialInfo.reward.vnum, materialInfo.reward.count);
-+			snprintf(temp, sizeof(temp), "%d,%d", materialInfo.reward.vnum, materialInfo.reward.count);
- 
- 			resultText += std::string(temp) + "/";
- 		}
---- a/server/server/home/metin2/Source/Server/game/src/DragonSoul.cpp
-+++ b/server/server/home/metin2/Source/Server/game/src/DragonSoul.cpp
-@@ -507,9 +507,9 @@
- 		if (bSuccess)
- 		{
- 			if (pExtractor)
--				sprintf(buf, "dice(%d) prob(%d + %d) EXTR(VN:%d)", (int)fDice, (int)fProb, iBonus, pExtractor->GetVnum());
-+				snprintf(buf, sizeof(buf), "dice(%d) prob(%d + %d) EXTR(VN:%d)", (int)fDice, (int)fProb, iBonus, pExtractor->GetVnum());
- 			else
--				sprintf(buf, "dice(%d) prob(%d)", (int)fDice, (int)fProb);
-+				snprintf(buf, sizeof(buf), "dice(%d) prob(%d)", (int)fDice, (int)fProb);
- 
- 			LogManager::instance().ItemLog(ch, pItem, "DS_PULL_OUT_SUCCESS", buf);
- 
-@@ -521,9 +521,9 @@
- 		else
- 		{
- 			if (pExtractor)
--				sprintf(buf, "dice(%d) prob(%d + %d) EXTR(VN:%d) ByProd(VN:%d)", (int)fDice, (int)fProb, iBonus, pExtractor->GetVnum(), dwByProduct);
-+				snprintf(buf, sizeof(buf), "dice(%d) prob(%d + %d) EXTR(VN:%d) ByProd(VN:%d)", (int)fDice, (int)fProb, iBonus, pExtractor->GetVnum(), dwByProduct);
- 			else
--				sprintf(buf, "dice(%d) prob(%d) ByProd(VNUM:%d)", (int)fDice, (int)fProb, dwByProduct);
-+				snprintf(buf, sizeof(buf), "dice(%d) prob(%d) ByProd(VNUM:%d)", (int)fDice, (int)fProb, dwByProduct);
- 
- 			LogManager::instance().ItemLog(ch, pItem, "DS_PULL_OUT_FAILED", buf);
- 
-@@ -697,7 +697,7 @@
- 	if (result_grade > grade_idx)
- 	{
- 		char buf[128];
--		sprintf(buf, "GRADE : %d -> %d", grade_idx, result_grade);
-+		snprintf(buf, sizeof(buf), "GRADE : %d -> %d", grade_idx, result_grade);
- 		LogManager::instance().ItemLog(ch, pResultItem, "DS_GRADE_REFINE_SUCCESS", buf);
- 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("��� ������ �����߽��ϴ�."));
- 		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_SUCCEED, TItemPos(pResultItem->GetWindow(), pResultItem->GetCell()));
-@@ -706,7 +706,7 @@
- 	else
- 	{
- 		char buf[128];
--		sprintf(buf, "GRADE : %d -> %d", grade_idx, result_grade);
-+		snprintf(buf, sizeof(buf), "GRADE : %d -> %d", grade_idx, result_grade);
- 		LogManager::instance().ItemLog(ch, pResultItem, "DS_GRADE_REFINE_FAIL", buf);
- 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("��� ������ �����߽��ϴ�."));
- 		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_FAIL, TItemPos(pResultItem->GetWindow(), pResultItem->GetCell()));
-@@ -857,7 +857,7 @@
- 	if (result_step > step_idx)
- 	{
- 		char buf[128];
--		sprintf(buf, "STEP : %d -> %d", step_idx, result_step);
-+		snprintf(buf, sizeof(buf), "STEP : %d -> %d", step_idx, result_step);
- 		LogManager::instance().ItemLog(ch, pResultItem, "DS_STEP_REFINE_SUCCESS", buf);
- 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("�ܰ� ������ �����߽��ϴ�."));
- 		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_SUCCEED, TItemPos(pResultItem->GetWindow(), pResultItem->GetCell()));
-@@ -866,7 +866,7 @@
- 	else
- 	{
- 		char buf[128];
--		sprintf(buf, "STEP : %d -> %d", step_idx, result_step);
-+		snprintf(buf, sizeof(buf), "STEP : %d -> %d", step_idx, result_step);
- 		LogManager::instance().ItemLog(ch, pResultItem, "DS_STEP_REFINE_FAIL", buf);
- 		ch->ChatPacket(CHAT_TYPE_INFO, LC_STRING("�ܰ� ������ �����߽��ϴ�."));
- 		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_FAIL, TItemPos(pResultItem->GetWindow(), pResultItem->GetCell()));
-@@ -1022,7 +1022,7 @@
- 		}
- 
- 		char buf[128];
--		sprintf(buf, "STRENGTH : %d -> %d", bStrength, bStrength + 1);
-+		snprintf(buf, sizeof(buf), "STRENGTH : %d -> %d", bStrength, bStrength + 1);
- 		LogManager::instance().ItemLog(ch, pDragonSoul, "DS_STRENGTH_REFINE_SUCCESS", buf);
- 
- 		pDragonSoul->CopyAttributeTo(pResult);
-@@ -1052,7 +1052,7 @@
- 		bSubHeader = DS_SUB_HEADER_REFINE_FAIL;
- 
- 		char buf[128];
--		sprintf(buf, "STRENGTH : %d -> %d", bStrength, bStrength - 1);
-+		snprintf(buf, sizeof(buf), "STRENGTH : %d -> %d", bStrength, bStrength - 1);
- 		// strength��ȭ�� ���н� ���� ���� �־�, ���� �������� �������� �α׸� ����.
- 		LogManager::instance().ItemLog(ch, pDragonSoul, "DS_STRENGTH_REFINE_FAIL", buf);
- 
-@@ -1280,7 +1280,7 @@
- 		if (IsTimeLeftDragonSoul(pItem) && !IsActiveDragonSoul(pItem))
- 		{
- 			char buf[128];
--			sprintf(buf, "LEFT TIME(%d)", LeftTime(pItem));
-+			snprintf(buf, sizeof(buf), "LEFT TIME(%d)", LeftTime(pItem));
- 			LogManager::instance().ItemLog(pOwner, pItem, "DS_ACTIVATE", buf);
- 			pItem->ModifyPoints(true);
- 			pItem->SetSocket(ITEM_SOCKET_DRAGON_SOUL_ACTIVE_IDX, 1);
-@@ -1310,7 +1310,7 @@
- 	pItem->SetSocket(ITEM_SOCKET_DRAGON_SOUL_ACTIVE_IDX, 0);
- 	pItem->ModifyPoints(false);
- 
--	sprintf(buf, "LEFT TIME(%d)", LeftTime(pItem));
-+	snprintf(buf, sizeof(buf), "LEFT TIME(%d)", LeftTime(pItem));
- 	LogManager::instance().ItemLog(pOwner, pItem, "DS_DEACTIVATE", buf);
- 
- 	if (false == bSkipRefreshOwnerActiveState)
 --- a/server/server/home/metin2/Source/Server/game/src/threeway_war.cpp
 +++ b/server/server/home/metin2/Source/Server/game/src/threeway_war.cpp
 @@ -47,10 +47,10 @@
@@ -345,13 +161,14 @@
  	num1 = atoi(buf);
  #ifndef __WIN32__
  	{
-@@ -367,7 +367,15 @@
+@@ -367,8 +367,14 @@
  
  				if (num2 <= num1)
  				{
 -					sprintf(system_cmd, "rm -rf %s/%s", filename, name);
-+					snprintf(system_cmd, sizeof(system_cmd), "%s/%s", filename, name);
+-					system(system_cmd);
 +#ifndef __WIN32__
++					snprintf(system_cmd, sizeof(system_cmd), "%s/%s", filename, name);
 +					pid_t pid = fork();
 +					if (pid == 0) { execl("/bin/rm", "rm", "-rf", system_cmd, (char*)0); _exit(127); }
 +					if (pid > 0) { int st=0; (void)waitpid(pid, &st, 0); }
@@ -359,23 +176,21 @@
 +					snprintf(system_cmd, sizeof(system_cmd), "del %s\\%s", filename, name);
 +					system(system_cmd);
 +#endif
- 					system(system_cmd);
  
  					sys_log(0, "%s: SYSTEM_CMD: %s", __FUNCTION__, system_cmd);
-@@ -424,7 +432,15 @@
+ 				}
+@@ -424,8 +430,13 @@
  		new_tm = *tm_calc(&curr_tm, -3);
  
  #ifndef __WIN32__
 -		sprintf(system_cmd, "rm -rf %s/%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
 +		snprintf(system_cmd, sizeof(system_cmd), "%s/%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
-+#ifndef __WIN32__
 +		pid_t pid = fork();
 +		if (pid == 0) { execl("/bin/rm", "rm", "-rf", system_cmd, (char*)0); _exit(127); }
 +		if (pid > 0) { int st=0; (void)waitpid(pid, &st, 0); }
-+#else
+ #else
+-		sprintf(system_cmd, "del %s\\%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
 +		snprintf(system_cmd, sizeof(system_cmd), "del %s\\%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
 +		system(system_cmd);
-+#endif
- #else
- 		sprintf(system_cmd, "del %s\\%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
  #endif
+-		system(system_cmd);
