@@ -167,6 +167,9 @@ diff --git a/game/src/char.cpp b/game/src/char.cpp
 --- a/game/src/char.cpp
 +++ b/game/src/char.cpp
 @@ -188,6 +188,10 @@
+ #include "char.h"
++#include <unordered_map>
+@@ -188,6 +188,10 @@
  {
  	m_stName = "";
 
@@ -180,7 +183,7 @@ diff --git a/game/src/char.cpp b/game/src/char.cpp
 
 +bool CHARACTER::MagicFlyValidate_OnHit(DWORD dwSkillVnum, DWORD dwVictimVID, DWORD dwCastSeq)
 +{
-+	std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.find(dwCastSeq);
++	std::unordered_map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.find(dwCastSeq);
 +	if (it == m_mapMagicFlyValidateCasts.end())
 +		return false;
 +
@@ -209,7 +212,7 @@ diff --git a/game/src/char.cpp b/game/src/char.cpp
  	CloseMyShop();
 +
 +	// Magic Fly Validate: cancel any pending timeout events to avoid UAF/crash on disconnect.
-+	for (std::map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
++	for (std::unordered_map<DWORD, TMagicFlyValidateCast>::iterator it = m_mapMagicFlyValidateCasts.begin(); it != m_mapMagicFlyValidateCasts.end(); ++it)
 +	{
 +		if (it->second.pkTimeoutEvent)
 +			event_cancel(&it->second.pkTimeoutEvent);
