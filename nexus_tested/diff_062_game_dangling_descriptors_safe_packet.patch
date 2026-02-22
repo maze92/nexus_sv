@@ -1,0 +1,27 @@
+--- a/home/metin2/Source/Server/game/src/desc.cpp
++++ b/home/metin2/Source/Server/game/src/desc.cpp
+@@ -455,6 +455,9 @@
+ void DESC::Packet(const void* c_pvData, int iSize)
+ {
+ 	assert(iSize > 0);
++
++	if (m_bDestroyed)
++		return;
+ 
+ 	if (m_iPhase == PHASE_CLOSE) // ²÷´Â »óÅÂ¸é º¸³»Áö ¾Ê´Â´Ù.
+ 		return;
+
+--- a/home/metin2/Source/Server/game/src/desc_manager.cpp
++++ b/home/metin2/Source/Server/game/src/desc_manager.cpp
+@@ -245,8 +245,9 @@
+ 
+ 	if (d->GetHandle() != 0)
+ 		m_map_handle.erase(d->GetHandle());
+-	else
+-		m_set_pkClientDesc.erase((LPCLIENT_DESC)d);
++
++	// Always attempt to remove from client-desc set as well (safe no-op if not present).
++	m_set_pkClientDesc.erase((LPCLIENT_DESC)d);
+ 
+ 	// Explicit call to the virtual function Destroy()
+ 	d->Destroy();

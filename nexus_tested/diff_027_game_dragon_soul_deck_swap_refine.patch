@@ -1,0 +1,118 @@
+--- server/metin2/Source/Server/game/src/char.h
++++ server/metin2/Source/Server/game/src/char.h
+@@ -803,6 +803,7 @@
+ 	BYTE bUnlockedShopBanner;
+ #endif
+ 	int iDragonSoulActiveDeck;
++	int iDragonSoulRefineDeckSnapshot;
+ 	LPENTITY m_pDragonSoulRefineWindowOpener;
+ #if defined(__ACCE_COSTUME_SYSTEM__)
+ 	LPENTITY m_pAcceRefineWindowOpener;
+@@ -2820,6 +2821,8 @@
+ #endif
+ 	bool DragonSoul_RefineWindow_Close();
+ 	LPENTITY DragonSoul_RefineWindow_GetOpener() { return m_pointsInstant.m_pDragonSoulRefineWindowOpener; }
++	int DragonSoul_RefineWindow_GetDeckSnapshot() const { return m_pointsInstant.iDragonSoulRefineDeckSnapshot; }
++	void DragonSoul_RefineWindow_SetDeckSnapshot(int iDeck) { m_pointsInstant.iDragonSoulRefineDeckSnapshot = iDeck; }
+ 	bool DragonSoul_RefineWindow_CanRefine();
+ #endif
+ 
+--- server/metin2/Source/Server/game/src/char.cpp
++++ server/metin2/Source/Server/game/src/char.cpp
+@@ -559,6 +559,7 @@
+ 	m_fDamMul = 1.0f;
+ 
+ 	m_pointsInstant.iDragonSoulActiveDeck = -1;
++	m_pointsInstant.iDragonSoulRefineDeckSnapshot = -1;
+ 
+ 	memset(&m_tvLastSyncTime, 0, sizeof(m_tvLastSyncTime));
+ 	m_iSyncHackCount = 0;
+--- server/metin2/Source/Server/game/src/char_dragonsoul.cpp
++++ server/metin2/Source/Server/game/src/char_dragonsoul.cpp
+@@ -70,6 +70,11 @@
+ 	if (DragonSoul_GetActiveDeck() == iDeckIdx)
+ 		return true;
+ 
++	// If the player switches deck while the Dragon Soul refine window is open,
++	// close it to prevent stale-slot refinement / deck desync.
++	if (DragonSoul_RefineWindow_CanRefine())
++		DragonSoul_RefineWindow_Close();
++
+ 	DragonSoul_DeactivateAll();
+ 
+ 	if (!DragonSoul_IsQualified())
+@@ -191,6 +196,9 @@
+ 		m_pointsInstant.m_pDragonSoulRefineWindowOpener = pEntity;
+ 	}
+ 
++	// Snapshot the active deck at open-time (used to detect deck swaps during refinement).
++	DragonSoul_RefineWindow_SetDeckSnapshot(DragonSoul_GetActiveDeck());
++
+ 	TPacketGCDragonSoulRefine PDS;
+ 	PDS.header = HEADER_GC_DRAGON_SOUL_REFINE;
+ 	PDS.bSubType = DS_SUB_HEADER_OPEN;
+@@ -213,6 +221,9 @@
+ 	if (m_pointsInstant.m_pDragonSoulRefineWindowOpener == nullptr)
+ 		m_pointsInstant.m_pDragonSoulRefineWindowOpener = pEntity;
+ 
++	// Snapshot the active deck at open-time (used to detect deck swaps during refinement).
++	DragonSoul_RefineWindow_SetDeckSnapshot(DragonSoul_GetActiveDeck());
++
+ 	TPacketGCDragonSoulRefine PDS;
+ 	PDS.header = HEADER_GC_DRAGON_SOUL_REFINE;
+ 	PDS.bSubType = DS_SUB_HEADER_OPEN_CHANGE_ATTR;
+@@ -232,6 +243,7 @@
+ bool CHARACTER::DragonSoul_RefineWindow_Close()
+ {
+ 	m_pointsInstant.m_pDragonSoulRefineWindowOpener = NULL;
++	DragonSoul_RefineWindow_SetDeckSnapshot(-1);
+ 	return true;
+ }
+ 
+--- server/metin2/Source/Server/game/src/DragonSoul.cpp
++++ server/metin2/Source/Server/game/src/DragonSoul.cpp
+@@ -561,6 +561,14 @@
+ 		return false;
+ 	}
+ 
++	// Hardening: if the active deck changed while the refine window is open, abort.
++	if (ch->DragonSoul_RefineWindow_GetDeckSnapshot() != ch->DragonSoul_GetActiveDeck())
++	{
++		ch->DragonSoul_RefineWindow_Close();
++		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_FAIL, NPOS);
++		return false;
++	}
++
+ 	// Ȥ�ó� �� �ߺ��Ǵ� item pointer ���ֱ� ���ؼ� set ���
+ 	// �̻��� ��Ŷ�� ���� ���, �ߺ��� TItemPos�� ���� ���� �ְ�, �߸��� TItemPos�� ���� ���� �ִ�.
+ 	std::set <LPITEM> set_items;
+@@ -722,6 +730,14 @@
+ 		return false;
+ 	}
+ 
++	// Hardening: if the active deck changed while the refine window is open, abort.
++	if (ch->DragonSoul_RefineWindow_GetDeckSnapshot() != ch->DragonSoul_GetActiveDeck())
++	{
++		ch->DragonSoul_RefineWindow_Close();
++		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_FAIL, NPOS);
++		return false;
++	}
++
+ 	// Ȥ�ó� �� �ߺ��Ǵ� item pointer ���ֱ� ���ؼ� set ���
+ 	// �̻��� ��Ŷ�� ���� ���, �ߺ��� TItemPos�� ���� ���� �ְ�, �߸��� TItemPos�� ���� ���� �ִ�.
+ 	std::set <LPITEM> set_items;
+@@ -887,6 +903,14 @@
+ 		return false;
+ 	}
+ 
++	// Hardening: if the active deck changed while the refine window is open, abort.
++	if (ch->DragonSoul_RefineWindow_GetDeckSnapshot() != ch->DragonSoul_GetActiveDeck())
++	{
++		ch->DragonSoul_RefineWindow_Close();
++		SendRefineResultPacket(ch, DS_SUB_HEADER_REFINE_FAIL, NPOS);
++		return false;
++	}
++
+ 	// Ȥ�ó� �� �ߺ��Ǵ� item pointer ���ֱ� ���ؼ� set ���
+ 	// �̻��� ��Ŷ�� ���� ���, �ߺ��� TItemPos�� ���� ���� �ְ�, �߸��� TItemPos�� ���� ���� �ִ�.
+ 	std::set<LPITEM> set_items;

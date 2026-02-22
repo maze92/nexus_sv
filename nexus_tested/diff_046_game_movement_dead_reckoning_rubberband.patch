@@ -1,0 +1,127 @@
+--- a/server/metin2/Source/Server/game/src/char.h
++++ b/server/metin2/Source/Server/game/src/char.h
+@@ -1293,6 +1293,10 @@
+ 	DWORD GetLastMoveTime() const { return m_dwLastMoveTime; }
+ 	DWORD GetLastAttackTime() const { return m_dwLastAttackTime; }
+ 
++	// Dead-reckoning (micro-speedhack / accumulated drift hardening)
++	void ResetDeadReckoning();
++	bool CheckDeadReckoning(long x, long y, DWORD dwNow);
++
+ 	void SetLastAttacked(DWORD time); // ���������� ���ݹ��� �ð� �� ��ġ�� ������
+ 
+ 	bool SetSyncOwner(LPCHARACTER ch, bool bRemoveFromList = true);
+@@ -1343,6 +1347,11 @@
+ 	DWORD m_dwWalkStartTime;
+ 	DWORD m_dwStopTime;
+ 
++	// Dead-reckoning state
++	DWORD m_dwDRLastTime;
++	long  m_lDRLastX;
++	long  m_lDRLastY;
++
+ 	bool m_bWalking;
+ 	bool m_bNowWalking;
+ 	bool m_bStaminaConsume;
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -350,6 +350,9 @@
+ 	SetPosition(POS_STANDING);
+ 
+ 	m_dwPlayStartTime = m_dwLastMoveTime = get_dword_time();
++	m_dwDRLastTime = 0;
++	m_lDRLastX = 0;
++	m_lDRLastY = 0;
+ #if defined(__LEFT_SEAT__)
+ 	m_dwLastRequestTime = get_dword_time();
+ #endif
+@@ -3947,6 +3950,63 @@
+ 	return GetMoveMotionSpeed() * 10000 / CalculateDuration(GetLimitPoint(POINT_MOV_SPEED), 10000);
+ }
+ 
++void CHARACTER::ResetDeadReckoning()
++{
++	m_dwDRLastTime = 0;
++	m_lDRLastX = GetX();
++	m_lDRLastY = GetY();
++}
++
++bool CHARACTER::CheckDeadReckoning(long x, long y, DWORD dwNow)
++{
++	if (!IsPC() || IsNPC())
++		return true;
++	if (!GetDesc())
++		return true;
++	if (GetDesc()->IsHandshaking())
++		return true;
++
++	if (dwNow == 0)
++		dwNow = get_dword_time();
++
++	if (m_dwDRLastTime == 0)
++	{
++		m_dwDRLastTime = dwNow;
++		m_lDRLastX = GetX();
++		m_lDRLastY = GetY();
++		return true;
++	}
++
++	DWORD dt = dwNow - m_dwDRLastTime;
++	if (dt == 0)
++		return true;
++
++	// Reset after long idle to avoid false positives due to client-side buffering/lag.
++	if (dt > 4000)
++	{
++		m_dwDRLastTime = dwNow;
++		m_lDRLastX = GetX();
++		m_lDRLastY = GetY();
++		return true;
++	}
++
++	float speed_pct = GetMoveSpeed();
++	if (speed_pct < 1.0f)
++		speed_pct = 1.0f;
+
++	// Metin2 Engine: 100% de Velocidade de Movimento = 500 Unidades 3D por segundo
++	float real_speed_units = 500.0f * (speed_pct / 100.0f);
+
++	// Aumentamos o slack base para 300 para acomodar lag spikes, cavalos e montadas rápidas
++	const float slack = MAX(300.0f, real_speed_units * 0.20f); 
++	
++	// Tolerância de 10% (1.10f) no movimento permitido
++	const float allowed = real_speed_units * (dt / 1000.0f) * 1.10f + slack;
++
++	const float dist = DISTANCE_SQRT((float)(x - m_lDRLastX), (float)(y - m_lDRLastY));
++	if (dist > allowed)
++		return false;
++
++	m_dwDRLastTime = dwNow;
++	m_lDRLastX = x;
++	m_lDRLastY = y;
++	return true;
++}
++
+ void CHARACTER::CalculateMoveDuration()
+ {
+ 	m_posStart.x = GetX();
+--- a/server/metin2/Source/Server/game/src/input_main.cpp
++++ b/server/metin2/Source/Server/game/src/input_main.cpp
+@@ -1873,6 +1873,17 @@
+ 		//
+ 		// ���ǵ���(SPEEDHACK) Check
+ 		//
++
++		// Accumulated movement drift guard (dead-reckoning).
++		// Prevents micro-speedhacks that stay under per-packet distance thresholds.
++		if (!ch->CheckDeadReckoning(pinfo->lX, pinfo->lY, 0))
++		{
++			sys_log(0, "MOVE_DRIFT: %s exceeded dead-reckoning budget", ch->GetName());
++			ch->Show(ch->GetMapIndex(), ch->GetX(), ch->GetY(), ch->GetZ());
++			ch->Stop();
++			ch->ResetDeadReckoning();
++			return;
++		}
+ 		int dwCurTime = get_dword_time();
+ 		// �ð��� Sync�ϰ� 7�� �� ���� �˻��Ѵ�. (20090702 ������ 5�ʿ���)
+ 		bool CheckSpeedHack = (false == ch->GetDesc()->IsHandshaking() && dwCurTime - ch->GetDesc()->GetClientTime() > 7000);

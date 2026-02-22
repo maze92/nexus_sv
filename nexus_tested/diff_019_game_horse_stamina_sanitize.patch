@@ -1,0 +1,21 @@
+diff -uNr "/mnt/data/nexus_orig/Nexus OS/server/metin2/Source/Server/game/src/horse_rider.cpp" /mnt/data/tmp_horse_small/game/src/horse_rider.cpp
+--- a/server/metin2/Source/Server/game/src/horse_rider.cpp
++++ b/server/metin2/Source/Server/game/src/horse_rider.cpp
+@@ -150,6 +150,17 @@
+ void CHorseRider::SetHorseData(const THorseInfo& crInfo)
+ {
+ 	m_Horse = crInfo;
++
++	// Defensive sanitization (DB or packet corruption should never be able to under/overflow stamina/health).
++	if (m_Horse.bLevel > HORSE_MAX_LEVEL)
++		m_Horse.bLevel = HORSE_MAX_LEVEL;
++
++	const int level = GetHorseLevel();
++	if (level > 0 && level <= HORSE_MAX_LEVEL)
++	{
++		m_Horse.sHealth = MINMAX(0, m_Horse.sHealth, c_aHorseStat[level].iMaxHealth);
++		m_Horse.sStamina = MINMAX(0, m_Horse.sStamina, c_aHorseStat[level].iMaxStamina);
++	}
+ }
+ 
+ // Stamina

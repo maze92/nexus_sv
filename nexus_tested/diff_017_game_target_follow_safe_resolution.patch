@@ -1,0 +1,102 @@
+--- a/server/metin2/Source/Server/game/src/char.h
++++ b/server/metin2/Source/Server/game/src/char.h
+@@ -2153,6 +2153,7 @@
+ 	void ClearTarget();
+ 	void CheckTarget();
+ 	LPCHARACTER GetTarget() const { return m_pkChrTarget; }
++	LPCHARACTER GetTargetSafe();
+ 
+ 	////////////////////////////////////////////////////////////////////////////////////////
+ 	// Safebox
+
+--- a/server/metin2/Source/Server/game/src/char.cpp
++++ b/server/metin2/Source/Server/game/src/char.cpp
+@@ -7188,13 +7188,37 @@
+ 	m_pkChrStone = NULL;
+ }
+ 
+-void CHARACTER::ClearTarget()
+-{
+-	if (m_pkChrTarget)
+-	{
+-		m_pkChrTarget->m_set_pkChrTargetedBy.erase(this);
+-		m_pkChrTarget = NULL;
+-	}
++
++LPCHARACTER CHARACTER::GetTargetSafe()
++{
++	if (!m_pkChrTarget)
++		return nullptr;
++
++	if (m_dwTargetVID == 0)
++		return m_pkChrTarget;
++
++	LPCHARACTER pkReal = CHARACTER_MANAGER::instance().Find(m_dwTargetVID);
++	if (pkReal != m_pkChrTarget)
++	{
++		// Target disappeared or was replaced; clear locally without dereferencing a stale pointer.
++		m_pkChrTarget = nullptr;
++		m_dwTargetVID = 0;
++		return nullptr;
++	}
++
++	return m_pkChrTarget;
++}
++
++void CHARACTER::ClearTarget()
++{
++	if (m_pkChrTarget)
++	{
++		LPCHARACTER pkReal = (m_dwTargetVID ? CHARACTER_MANAGER::instance().Find(m_dwTargetVID) : nullptr);
++		if (pkReal == m_pkChrTarget)
++			pkReal->m_set_pkChrTargetedBy.erase(this);
++		m_pkChrTarget = NULL;
++		m_dwTargetVID = 0;
++	}
+ 
+ 	TPacketGCTarget p;
+ 
+@@ -7239,10 +7263,15 @@
+ 		return;
+ 	// CASTLE
+ 
+-	if (m_pkChrTarget)
+-		m_pkChrTarget->m_set_pkChrTargetedBy.erase(this);
+-
+-	m_pkChrTarget = pkChrTarget;
++	if (m_pkChrTarget)
++	{
++		LPCHARACTER pkReal = (m_dwTargetVID ? CHARACTER_MANAGER::instance().Find(m_dwTargetVID) : nullptr);
++		if (pkReal == m_pkChrTarget)
++			pkReal->m_set_pkChrTargetedBy.erase(this);
++	}
++
++	m_pkChrTarget = pkChrTarget;
++	m_dwTargetVID = m_pkChrTarget ? m_pkChrTarget->GetVID() : 0;
+ 
+ 	TPacketGCTarget p;
+ 
+@@ -7478,14 +7507,15 @@
+ 	}
+ }
+ 
+-void CHARACTER::CheckTarget()
+-{
+-	if (!m_pkChrTarget)
+-		return;
+-
+-	if (DISTANCE_APPROX(GetX() - m_pkChrTarget->GetX(), GetY() - m_pkChrTarget->GetY()) >= 4800)
+-		SetTarget(NULL);
+-}
++void CHARACTER::CheckTarget()
++{
++	LPCHARACTER pkTarget = GetTargetSafe();
++	if (!pkTarget)
++		return;
++
++	if (DISTANCE_APPROX(GetX() - pkTarget->GetX(), GetY() - pkTarget->GetY()) >= 4800)
++		SetTarget(NULL);
++}
+ 
+ void CHARACTER::SetWarpLocation(long lMapIndex, long x, long y)
+ {

@@ -1,0 +1,66 @@
+--- a/game/src/char_item.cpp
++++ b/game/src/char_item.cpp
+@@ -2652,7 +2652,7 @@
+ 	snprintf(szLine, sizeof(szLine), "MyShopPriceList %u %u", dwItemVnum, dwItemPrice);
+ #endif
+ 	ChatPacket(CHAT_TYPE_COMMAND, szLine);
+-	sys_log(0, szLine);
++	sys_log(0, "%s", szLine);
+ }
+ 
+ //
+--- a/game/src/char_manager.cpp
++++ b/game/src/char_manager.cpp
+@@ -362,7 +362,7 @@
+ 	if (test_server)
+ 		SendNotice(buf);
+ 
+-	sys_log(0, buf);
++	sys_log(0, "%s", buf);
+ 	return (ch);
+ }
+ 
+--- a/game/src/cmd_gm.cpp
++++ b/game/src/cmd_gm.cpp
+@@ -62,7 +62,7 @@
+ 	char arg1[256];
+ 	one_argument(argument, arg1, sizeof(arg1));
+ 
+-	sys_log(0, arg1);
++	sys_log(0, "%s", arg1);
+ 
+ 	if (!*arg1)
+ 	{
+--- a/game/src/cmd_gm.cpp
++++ b/game/src/cmd_gm.cpp
+@@ -5895,7 +5895,7 @@
+ 
+ 	char buf[255 + 1];
+ 	snprintf(buf, sizeof(buf), "LOG LEVEL : %d", level);
+-	sys_log(0, buf);
++	sys_log(0, "%s", buf);
+ 
+ 	log_set_level(level);
+ }
+--- a/game/src/minigame_roulette.cpp
++++ b/game/src/minigame_roulette.cpp
+@@ -699,7 +699,7 @@
+ 	vsnprintf(buf, sizeof(buf), format, args);
+ 	va_end(args);
+ 
+-	sys_err(buf);
++	sys_err("%s", buf);
+ 
+ 	Close(true);
+ }
+--- a/libsql/AsyncSQL.cpp
++++ b/libsql/AsyncSQL.cpp
+@@ -272,7 +272,7 @@
+ 			"AsyncSQL::DirectQuery : mysql_query error: %s\nquery: %s",
+ 			mysql_error(&m_hDB), p->stQuery.c_str());
+ 
+-		sys_err(buf);
++		sys_err("%s", buf);
+ 		p->uiSQLErrno = mysql_errno(&m_hDB);
+ 	}
+ 

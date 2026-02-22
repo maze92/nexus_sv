@@ -1,0 +1,30 @@
+--- a/server/metin2/Source/Server/game/src/safebox.cpp
++++ b/server/metin2/Source/Server/game/src/safebox.cpp
+@@ -257,6 +257,27 @@
+ 		if (!IsEmpty(bDestCell, item->GetSize()))
+ 			return false;
+ 
++		// Split stacks safely: only allow splitting stackable items into an empty cell.
++		if (count != 0 && count < item->GetCount())
++		{
++			if (!item->IsStackable() || IS_SET(item->GetAntiFlag(), ITEM_ANTIFLAG_STACK) || item->GetSize() != 1)
++				return false;
++
++			LPITEM newItem = ITEM_MANAGER::instance().CreateItem(item->GetVnum(), count, 0, false);
++			if (!newItem)
++				return false;
++
++			ITEM_MANAGER::instance().CopyAllAttrTo(item, newItem);
++
++			item->SetCount(item->GetCount() - count);
++			item->Save();
++			ITEM_MANAGER::instance().FlushDelayedSave(item);
++
++			Add(bDestCell, newItem);
++			sys_log(1, "SAFEBOX: SPLIT %s %d -> %d %s count %d", m_pkChrOwner->GetName(), bCell, bDestCell, newItem->GetName(), newItem->GetCount());
++			return true;
++		}
++
+ 		m_pkGrid->Get(bCell, 1, item->GetSize());
+ 
+ 		if (!m_pkGrid->Put(bDestCell, 1, item->GetSize()))

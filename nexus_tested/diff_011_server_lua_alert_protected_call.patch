@@ -1,0 +1,16 @@
+--- a/server/metin2/Source/Server/liblua/src/lib/lauxlib.c
++++ b/server/metin2/Source/Server/liblua/src/lib/lauxlib.c
+@@ -565,7 +565,12 @@
+ 		if (lua_isfunction(L, -1))
+ 		{
+ 			lua_insert(L, -2);
+-			lua_call(L, 1, 0);
++			if (lua_pcall(L, 1, 0, 0) != 0)
++			{
++				/* _ALERT failed; print its error and clear stack */
++				fprintf(stderr, "%s\n", lua_tostring(L, -1));
++				lua_pop(L, 1);
++			}
+ 		}
+ 		else { /* no _ALERT function; print it on stderr */
+ 			fprintf(stderr, "%s\n", lua_tostring(L, -2));

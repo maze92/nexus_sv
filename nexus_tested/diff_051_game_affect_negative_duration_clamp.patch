@@ -1,0 +1,15 @@
+--- a/Nexus OS/server/metin2/Source/Server/game/src/char_affect.cpp
++++ b/Nexus OS/server/metin2/Source/Server/game/src/char_affect.cpp
+@@ -651,6 +651,12 @@
+ 		CSnowflakeStickEvent::Process(this, SNOWFLAKE_STICK_EVENT_GC_SUBHEADER_MESSAGE_GET_SNOWFLAKE_BUFF);
+ #endif
+ 
++	if (lDuration < 0)
++	{
++		sys_err("Character::AddAffect negative affect duration %ld type %u name %s", lDuration, dwType, GetName());
++		lDuration = 0;
++	}
++
+ 	if (lDuration == 0)
+ 	{
+ 		sys_err("Character::AddAffect lDuration == 0 type %d", lDuration, dwType);

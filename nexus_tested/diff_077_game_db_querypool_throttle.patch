@@ -1,0 +1,78 @@
+--- a/server/metin2/Source/Server/libsql/AsyncSQL.cpp
++++ b/server/metin2/Source/Server/libsql/AsyncSQL.cpp
+@@ -437,12 +437,24 @@
+ 
+ DWORD CAsyncSQL::CountQuery()
+ {
+-	return m_queue_query.size();
++	if (!m_mtxQuery)
++		return m_queue_query.size();
++
++	MUTEX_LOCK(m_mtxQuery);
++	DWORD dwSize = m_queue_query.size();
++	MUTEX_UNLOCK(m_mtxQuery);
++	return dwSize;
+ }
+ 
+ DWORD CAsyncSQL::CountResult()
+ {
+-	return m_queue_result.size();
++	if (!m_mtxResult)
++		return m_queue_result.size();
++
++	MUTEX_LOCK(m_mtxResult);
++	DWORD dwSize = m_queue_result.size();
++	MUTEX_UNLOCK(m_mtxResult);
++	return dwSize;
+ }
+ 
+ void __timediff(struct timeval* a, struct timeval* b, struct timeval* rslt)
+
+--- a/server/metin2/Source/Server/game/src/log.cpp
++++ b/server/metin2/Source/Server/game/src/log.cpp
+@@ -7,8 +7,14 @@
+ #include "desc.h"
+ #include "item.h"
+ #include "locale_service.h"
++#include <time.h>
+ 
+ static char __escape_hint[1024];
++
++// Guard rails: prevent unbounded growth of async log SQL queue under spam (DoS) conditions.
++// Only affects *logs* (not gameplay-critical DB writes).
++static const DWORD LOG_SQL_QUEUE_HARD_LIMIT = 50000;
++static const DWORD LOG_SQL_QUEUE_WARN_INTERVAL_SEC = 30;
+ 
+ LogManager::LogManager() : m_bIsConnect(false)
+ {
+@@ -38,6 +44,30 @@
+ 	if (test_server)
+ 		sys_log(0, "LOG: %s", szQuery);
+ 
++
++	const DWORD dwPending = m_sql.CountQuery();
++	if (dwPending > LOG_SQL_QUEUE_HARD_LIMIT)
++	{
++		// Keep only high-signal security/admin logs during overload.
++		const bool bCritical =
++			(strstr(szQuery, "VALUES('HACK'") ||
++			 strstr(szQuery, "VALUES('SPEEDHACK'") ||
++			 strstr(szQuery, "VALUES('GMCOMMAND'") ||
++			 strstr(szQuery, "VALUES('BOOT'") ||
++			 strstr(szQuery, "VALUES('LOGIN'"));
++
++		if (!bCritical)
++		{
++			static time_t s_lastWarn = 0;
++			const time_t now = time(NULL);
++			if (now != (time_t)-1 && now - s_lastWarn >= (time_t)LOG_SQL_QUEUE_WARN_INTERVAL_SEC)
++			{
++				sys_err("LOG SQL queue overload: pending=%u (limit=%u). Dropping non-critical log query.", dwPending, LOG_SQL_QUEUE_HARD_LIMIT);
++				s_lastWarn = now;
++			}
++			return;
++		}
++	}
+ 	m_sql.AsyncQuery(szQuery);
+ }
+

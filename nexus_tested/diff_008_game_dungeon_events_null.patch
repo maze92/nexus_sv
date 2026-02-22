@@ -1,0 +1,35 @@
+--- a/server/metin2/Source/Server/game/src/dungeon.cpp
++++ b/server/metin2/Source/Server/game/src/dungeon.cpp
+@@ -1322,12 +1322,13 @@
+ 	}
+ 
+ 	LPDUNGEON pDungeon = CDungeonManager::instance().Find(info->dungeon_id);
+-	pDungeon->jump_to_event_ = NULL;
+-
+ 	if (pDungeon)
++	{
++		pDungeon->jump_to_event_ = NULL;
+ 		pDungeon->JumpToEliminateLocation();
++	}
+ 	else
+-		sys_err("cannot find dungeon with map index %u", info->dungeon_id);
++		sys_err("cannot find dungeon with id %u", info->dungeon_id);
+ 
+ 	return 0;
+ }
+@@ -1343,10 +1344,13 @@
+ 	}
+ 
+ 	LPDUNGEON pDungeon = CDungeonManager::instance().Find(info->dungeon_id);
+-	pDungeon->exit_all_event_ = NULL;
+-
+ 	if (pDungeon)
++	{
++		pDungeon->exit_all_event_ = NULL;
+ 		pDungeon->ExitAll();
++	}
++	else
++		sys_err("cannot find dungeon with id %u", info->dungeon_id);
+ 
+ 	return 0;
+ }

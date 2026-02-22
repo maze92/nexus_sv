@@ -1,0 +1,196 @@
+--- a/server/server/home/metin2/Source/Server/game/src/db.cpp
++++ b/server/server/home/metin2/Source/Server/game/src/db.cpp
+@@ -435,8 +435,13 @@
+ 
+ 						char szQuery[1024];
+ #if defined(__MULTI_LANGUAGE_SYSTEM__)
+-						snprintf(szQuery, sizeof(szQuery), "UPDATE `account` SET `last_play` = NOW(), `country` = '%s' WHERE `id` = %u",
+-							LocaleService_GetCountry(pinfo->country), dwID);
++						{
++							char esc_country[64];
++							const char* country = LocaleService_GetCountry(pinfo->country);
++							DBManager::instance().EscapeString(esc_country, sizeof(esc_country), country ? country : "", country ? strlen(country) : 0);
++							snprintf(szQuery, sizeof(szQuery), "UPDATE `account` SET `last_play` = NOW(), `country` = '%s' WHERE `id` = %u", esc_country, dwID);
++						}
++
+ #else
+ 						snprintf(szQuery, sizeof(szQuery), "UPDATE `account` SET `last_play` = NOW() WHERE `id` = %u", dwID);
+ #endif
+--- a/server/server/home/metin2/Source/Server/game/src/auth_brazil.cpp
++++ b/server/server/home/metin2/Source/Server/game/src/auth_brazil.cpp
+@@ -37,7 +37,7 @@
+ 	int offset = 0;
+ 	for (int i = 0; i < 16; ++i)
+ 	{
+-		offset += sprintf(s_buffer + offset, "%02x", digest[i]);
++		offset += snprintf(s_buffer + offset, sizeof(s_buffer) - offset, "%02x", digest[i]);
+ 	}
+ 	return s_buffer;
+ }
+--- a/server/server/home/metin2/Source/Server/game/src/threeway_war.cpp
++++ b/server/server/home/metin2/Source/Server/game/src/threeway_war.cpp
+@@ -47,10 +47,10 @@
+ 
+ 	int choice = quest::CQuestManager::instance().GetEventFlag("threeway_war_choice");
+ 	if (0 == choice)
+-		sprintf(filename, "%sregen00.txt", GetSungziMapPath());
++		snprintf(filename, sizeof(filename), "%sregen00.txt", GetSungziMapPath());
+ 	else
+ 	{
+-		sprintf(filename, "%sregen00_%d.txt", GetSungziMapPath(), choice);
++		snprintf(filename, sizeof(filename), "%sregen00_%d.txt", GetSungziMapPath(), choice);
+ 	}
+ 
+ 	LPSECTREE_MAP pkMap = SECTREE_MANAGER::instance().GetMap(iMapIndex);
+@@ -60,7 +60,7 @@
+ 		if (0 != choice)
+ 			if (regen_load_in_file(filename, iMapIndex, pkMap->m_setting.iBaseX, pkMap->m_setting.iBaseY))
+ 			{
+-				sprintf(filename, "%sregen00.txt", GetSungziMapPath());
++				snprintf(filename, sizeof(filename), "%sregen00.txt", GetSungziMapPath());
+ 				regen_load_in_file(filename, iMapIndex, pkMap->m_setting.iBaseX, pkMap->m_setting.iBaseY);
+ 			}
+ 	}
+--- a/server/server/home/metin2/Source/Server/db/src/ClientManagerBoot.cpp
++++ b/server/server/home/metin2/Source/Server/db/src/ClientManagerBoot.cpp
+@@ -1210,18 +1210,20 @@
+ 		return true;
+ 
+ 	char szQuery[QUERY_MAX_LEN];
+-	int len = sprintf(szQuery, "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
++	int len = snprintf(szQuery, sizeof(szQuery), "SELECT `name`, `who`, `title`, `message`, `gm`, `confirm`, `send_time`, `delete_time`"
+ 		", `gold`, `won`, `vnum`, `count`"
+ 	);
++	if (len < 0 || len >= (int)sizeof(szQuery))
++		return;
+ 
+ 	for (BYTE i = 0; i < ITEM_SOCKET_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `socket%u`", i);
++		len += snprintf(szQuery + len, sizeof(szQuery) - len, ", `socket%u`", i);
+ 
+ 	for (BYTE i = 0; i < ITEM_ATTRIBUTE_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `attrtype%u`, `attrvalue%u`", i, i);
++		len += snprintf(szQuery + len, sizeof(szQuery) - len, ", `attrtype%u`, `attrvalue%u`", i, i);
+ 
+ #if defined(__CHANGE_LOOK_SYSTEM__)
+-	len += sprintf(szQuery + len, ", `changelookvnum`");
++	len += snprintf(szQuery + len, sizeof(szQuery) - len, ", `changelookvnum`");
+ #endif
+ 
+ #if defined(__REFINE_ELEMENT_SYSTEM__)
+@@ -1235,14 +1237,14 @@
+ 
+ #if defined(__ITEM_APPLY_RANDOM__)
+ 	for (BYTE i = 0; i < ITEM_APPLY_MAX_NUM; i++)
+-		len += sprintf(szQuery + len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i);
++		len += snprintf(szQuery + len, sizeof(szQuery) - len, ", `apply_type%u`, `apply_value%u`, `apply_path%u`", i, i, i);
+ #endif
+ 
+ #if defined(__SET_ITEM__)
+-	len += sprintf(szQuery + len, ", `set_value`");
+-#endif
+-
+-	len += sprintf(szQuery + len, " FROM `mailbox%s`", GetTablePostfix());
++	len += snprintf(szQuery + len, sizeof(szQuery) - len, ", `set_value`");
++#endif
++
++	len += snprintf(szQuery + len, sizeof(szQuery) - len, " FROM `mailbox%s`", GetTablePostfix());
+ 
+ 	std::unique_ptr<SQLMsg> pkMsg(CDBManager::instance().DirectQuery(szQuery));
+ 	const SQLResult* pRes = pkMsg->Get();
+@@ -1326,12 +1328,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = snprintf(szQuery, sizeof(szQuery), "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++	if (iLen < 0 || iLen >= (int)sizeof(szQuery))
++		return;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
+-
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop%s`", GetTablePostfix());
++			iLen += snprintf(szQuery + iLen, sizeof(szQuery) - iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++
++		iLen += snprintf(szQuery + iLen, sizeof(szQuery) - iLen, " FROM `gem_shop%s`", GetTablePostfix());
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();
+@@ -1368,12 +1372,14 @@
+ 			return true;
+ 
+ 		char szQuery[1024];
+-		int iLen = sprintf(szQuery, "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++		int iLen = snprintf(szQuery, sizeof(szQuery), "SELECT `pid`, UNIX_TIMESTAMP(`refresh_time`), `enabled_slots`");
++	if (iLen < 0 || iLen >= (int)sizeof(szQuery))
++		return;
+ 
+ 		for (BYTE i = 0; i < GEM_SHOP_SLOT_COUNT; i++)
+-			iLen += sprintf(szQuery + iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
+-
+-		iLen += sprintf(szQuery + iLen, " FROM `gem_shop_port%s`", GetTablePostfix());
++			iLen += snprintf(szQuery + iLen, sizeof(szQuery) - iLen, ", `slot%d_enable`, `slot%d_vnum`, `slot%d_count`, `slot%d_price`", i, i, i, i);
++
++		iLen += snprintf(szQuery + iLen, sizeof(szQuery) - iLen, " FROM `gem_shop_port%s`", GetTablePostfix());
+ 
+ 		std::unique_ptr<SQLMsg> pMsg(CDBManager::instance().DirectQuery(szQuery));
+ 		const SQLResult* c_pRes = pMsg->Get();
+--- a/server/server/home/metin2/Source/Server/db/src/ClientManager.cpp
++++ b/server/server/home/metin2/Source/Server/db/src/ClientManager.cpp
+@@ -4741,9 +4741,9 @@
+ 	char szQuery[512];
+ 
+ 	if (ERequestCharge_Cash == packet->eChargeType)
+-		sprintf(szQuery, "update account set `cash` = `cash` + %d where id = %d limit 1", packet->dwAmount, packet->dwAID);
++		snprintf(szQuery, sizeof(szQuery), "update account set `cash` = `cash` + %d where id = %d limit 1", packet->dwAmount, packet->dwAID);
+ 	else if (ERequestCharge_Mileage == packet->eChargeType)
+-		sprintf(szQuery, "update account set `mileage` = `mileage` + %d where id = %d limit 1", packet->dwAmount, packet->dwAID);
++		snprintf(szQuery, sizeof(szQuery), "update account set `mileage` = `mileage` + %d where id = %d limit 1", packet->dwAmount, packet->dwAID);
+ 	else
+ 	{
+ 		sys_err("Invalid request charge type (type : %d, amount : %d, aid : %d)", packet->eChargeType, packet->dwAmount, packet->dwAID);
+--- a/server/server/home/metin2/Source/Server/libthecore/src/log.c
++++ b/server/server/home/metin2/Source/Server/libthecore/src/log.c
+@@ -335,7 +335,7 @@
+ 		return;
+ 
+ 	new_tm = *tm_calc(NULL, -static_cast<int>(log_keep_days));
+-	sprintf(buf, "%04d%02d%02d", new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
++	snprintf(buf, sizeof(buf), "%04d%02d%02d", new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
+ 	num1 = atoi(buf);
+ #ifndef __WIN32__
+ 	{
+@@ -367,8 +367,14 @@
+ 
+ 				if (num2 <= num1)
+ 				{
+-					sprintf(system_cmd, "rm -rf %s/%s", filename, name);
+-					system(system_cmd);
++#ifndef __WIN32__
++					snprintf(system_cmd, sizeof(system_cmd), "%s/%s", filename, name);
++					pid_t pid = fork();
++					if (pid == 0) { execl("/bin/rm", "rm", "-rf", system_cmd, (char*)0); _exit(127); }
++					if (pid > 0) { int st=0; (void)waitpid(pid, &st, 0); }
++#else
++					snprintf(system_cmd, sizeof(system_cmd), "del %s\\%s", filename, name);
++					system(system_cmd);
++#endif
+ 
+ 					sys_log(0, "%s: SYSTEM_CMD: %s", __FUNCTION__, system_cmd);
+ 				}
+@@ -424,8 +430,13 @@
+ 		new_tm = *tm_calc(&curr_tm, -3);
+ 
+ #ifndef __WIN32__
+-		sprintf(system_cmd, "rm -rf %s/%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
++		snprintf(system_cmd, sizeof(system_cmd), "%s/%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
++		pid_t pid = fork();
++		if (pid == 0) { execl("/bin/rm", "rm", "-rf", system_cmd, (char*)0); _exit(127); }
++		if (pid > 0) { int st=0; (void)waitpid(pid, &st, 0); }
+ #else
+-		sprintf(system_cmd, "del %s\\%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
++		snprintf(system_cmd, sizeof(system_cmd), "del %s\\%04d%02d%02d", log_dir, new_tm.tm_year + 1900, new_tm.tm_mon + 1, new_tm.tm_mday);
++		system(system_cmd);
+ #endif
+-		system(system_cmd);

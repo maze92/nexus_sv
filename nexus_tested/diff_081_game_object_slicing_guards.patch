@@ -1,0 +1,30 @@
+--- Nexus OS/server/metin2/Source/Server/game/src/item.h
++++ Nexus OS/server/metin2/Source/Server/game/src/item.h
+@@ -508,6 +508,11 @@
+ 	void CopyApplyRandom(std::array<TPlayerItemAttribute, ITEM_APPLY_MAX_NUM>& ApplyRandom);
+ #endif
+ #endif
++private:
++	CItem(const CItem&);
++	CItem& operator=(const CItem&);
++
++
+ };
+ 
+ EVENTINFO(item_event_info)
+
+--- Nexus OS/server/metin2/Source/Server/game/src/char.h
++++ Nexus OS/server/metin2/Source/Server/game/src/char.h
+@@ -3283,6 +3283,11 @@
+ 	bool m_bIsLoadedExtBattlePass;
+ 	ListExtBattlePassMap m_listExtBattlePass;
+ #endif
++private:
++	CHARACTER(const CHARACTER&);
++	CHARACTER& operator=(const CHARACTER&);
++
++
+ };
+ 
+ ESex GET_SEX(LPCHARACTER ch);
+
