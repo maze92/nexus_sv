@@ -1,4 +1,4 @@
-// Archive.cc (REVISADO)
+// Archive.cc (REVISADO - corrige enum e mantém normalização única)
 #include <FoxFS.h>
 #include "Archive.h"
 
@@ -8,7 +8,6 @@
 
 #include "../xxhash/xxhash.h"
 #include "../lz4/lz4.h"
-#include "../lz4/lz4hc.h"
 
 #include <algorithm>
 #include <cctype>
@@ -20,15 +19,16 @@ namespace FoxFS
 #ifdef MIN
 #undef MIN
 #endif
-    template <typename A, typename B> static inline A MIN(A a, B b) { return a < b ? a : (A)b; }
+    template <typename A, typename B>
+    static inline A MIN(A a, B b) { return a < b ? a : (A)b; }
 
     static inline void NormalizeFoxPath(std::string& fn)
     {
         std::transform(fn.begin(), fn.end(), fn.begin(),
             [](unsigned char c) { return (char)std::tolower(c); });
 
-        for (size_t i = 0; i < fn.size(); ++i)
-            if (fn[i] == '\\') fn[i] = '/';
+        for (char& c : fn)
+            if (c == '\\') c = '/';
 
         const std::string ymir = "/ymir work/";
         size_t pos = fn.find(ymir);
@@ -46,6 +46,7 @@ namespace FoxFS
         while (fn.rfind("./", 0) == 0) fn = fn.substr(2);
         while (!fn.empty() && fn[0] == '/') fn.erase(fn.begin());
 
+        // fonte: "tahoma:12.fnt" -> "tahoma.fnt"
         size_t colonPos = fn.find(':');
         if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
             fn = fn.substr(0, colonPos) + ".fnt";
@@ -73,10 +74,10 @@ namespace FoxFS
         file(-1)
 #endif
     {
-        memset(this->key, 0, sizeof(this->key));
-        memset(this->iv, 0, sizeof(this->iv));
-        memset(&header, 0, sizeof(header));
-        memset(filename, 0, sizeof(filename));
+        std::memset(key, 0, sizeof(key));
+        std::memset(iv, 0, sizeof(iv));
+        std::memset(&header, 0, sizeof(header));
+        std::memset(filename, 0, sizeof(filename));
     }
 
     Archive::~Archive() { unload(); }
@@ -86,15 +87,14 @@ namespace FoxFS
     int Archive::exists(const char* filename_) const
     {
         unsigned int index = Archive::generateFilenameIndex(filename_);
-        std::map<unsigned int, FileListEntry>::const_iterator iter = files.find(index);
-        return (iter != files.end()) ? ERROR_OK : ERROR_FILE_WAS_NOT_FOUND;
+        return (files.find(index) != files.end()) ? ERROR_OK : ERROR_FILE_WAS_NOT_FOUND;
     }
 
     unsigned int Archive::size(const char* filename_) const
     {
         unsigned int index = Archive::generateFilenameIndex(filename_);
-        std::map<unsigned int, FileListEntry>::const_iterator iter = files.find(index);
-        return (iter != files.end()) ? iter->second.decompressed : 0;
+        std::map<unsigned int, FileListEntry>::const_iterator it = files.find(index);
+        return (it != files.end()) ? it->second.decompressed : 0;
     }
 
     int Archive::get(const char* filename_, void* buffer, unsigned int maxsize, unsigned int* outsize) const
@@ -106,6 +106,7 @@ namespace FoxFS
 
         const FileListEntry& e = iter->second;
 
+        // sem compressão
         if (e.size == e.decompressed)
         {
             unsigned int len = MIN(maxsize, e.size);
@@ -129,7 +130,7 @@ namespace FoxFS
             }
             catch (...)
             {
-                return ERROR_DECRYPTION_FAILED;
+                return ERROR_DECRYPTION_HAS_FAILED;
             }
 
             if (len == e.size && XXH32(reinterpret_cast<char*>(buffer), len, FOXFS_MAGIC) != e.hash)
@@ -139,6 +140,7 @@ namespace FoxFS
             return ERROR_OK;
         }
 
+        // com compressão
         std::vector<unsigned char> tmp(e.size + e.decompressed);
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
@@ -159,7 +161,7 @@ namespace FoxFS
         }
         catch (...)
         {
-            return ERROR_DECRYPTION_FAILED;
+            return ERROR_DECRYPTION_HAS_FAILED;
         }
 
         if (LZ4_decompress_fast(reinterpret_cast<char*>(&tmp[0]),
@@ -171,7 +173,7 @@ namespace FoxFS
             return ERROR_CORRUPTED_FILE;
 
         unsigned int outLen = MIN(maxsize, e.decompressed);
-        memcpy(buffer, &tmp[e.size], outLen);
+        std::memcpy(buffer, &tmp[e.size], outLen);
         if (outsize) *outsize = outLen;
 
         return ERROR_OK;
@@ -217,8 +219,8 @@ namespace FoxFS
             return ERROR_ARCHIVE_INVALID;
         }
 
-        memcpy(this->key, header.key, 32);
-        memcpy(this->iv, header.iv, 32);
+        std::memcpy(this->key, header.key, 32);
+        std::memcpy(this->iv, header.iv, 32);
 
         if (key_)
         {
@@ -253,9 +255,6 @@ namespace FoxFS
             if (entry.size == 0)
                 break;
 
-            if (entry.offset < sizeof(header))
-                break;
-
             unsigned long long endPos = (unsigned long long)entry.offset + (unsigned long long)entry.size;
             if (endPos > (unsigned long long)size)
                 break;
@@ -278,10 +277,10 @@ namespace FoxFS
     void Archive::unload()
     {
         files.clear();
-        memset(filename, 0, sizeof(filename));
-        memset(&header, 0, sizeof(header));
-        memset(key, 0, sizeof(key));
-        memset(iv, 0, sizeof(iv));
+        std::memset(filename, 0, sizeof(filename));
+        std::memset(&header, 0, sizeof(header));
+        std::memset(key, 0, sizeof(key));
+        std::memset(iv, 0, sizeof(iv));
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
         if (file != INVALID_HANDLE_VALUE)
