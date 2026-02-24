@@ -1,6 +1,5 @@
-// ArchiveWriter.cpp (COMPLETO - com mutex e sem “const_cast” perigoso)
 #include "ArchiveWriter.h"
-#include "../FoxFS/Config.h"
+#include "../FoxFS/config.h"
 
 #include <cryptopp/modes.h>
 #include <cryptopp/blowfish.h>
@@ -11,7 +10,6 @@
 #include <cctype>
 #include <cstring>
 #include <string>
-#include <vector>
 
 static inline std::string NormalizePathA(const char* filename)
 {
@@ -21,7 +19,8 @@ static inline std::string NormalizePathA(const char* filename)
     std::transform(fn.begin(), fn.end(), fn.begin(),
         [](unsigned char c) { return (char)std::tolower(c); });
 
-    size_t colonPos = fn.find(':');
+    // fontes: "tahoma:12.fnt" -> "tahoma.fnt"
+    const size_t colonPos = fn.find(':');
     if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
         fn = fn.substr(0, colonPos) + ".fnt";
 
@@ -55,12 +54,21 @@ ArchiveWriter::~ArchiveWriter()
 
 bool ArchiveWriter::create(const char* filename, const char* keyfile)
 {
+    if (!filename)
+        return false;
+
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    EnterCriticalSection(&mutex);
+#else
+    pthread_mutex_lock(&mutex);
+#endif
+
     close();
 
     CryptoPP::AutoSeededRandomPool rng;
     FoxFS::TArchiveHeader header;
-    header.magic = FOXFS_MAGIC;
 
+    header.magic = FOXFS_MAGIC;
     rng.GenerateBlock(header.key, 32);
     rng.GenerateBlock(header.iv, 32);
 
@@ -70,7 +78,10 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     if (file == INVALID_HANDLE_VALUE)
+    {
+        LeaveCriticalSection(&mutex);
         return false;
+    }
 
     DWORD dwWritten = 0;
     WriteFile(file, &header, sizeof(header), &dwWritten, 0);
@@ -87,19 +98,28 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 #else
     file = ::open(filename, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (file == -1)
+    {
+        pthread_mutex_unlock(&mutex);
         return false;
+    }
 
-    write(file, &header, sizeof(header));
+    ::write(file, &header, sizeof(header));
 
     if (keyfile)
     {
         keys = ::open(keyfile, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
         if (keys != -1)
         {
-            write(keys, this->key, 32);
-            write(keys, this->iv, 32);
+            ::write(keys, this->key, 32);
+            ::write(keys, this->iv, 32);
         }
     }
+#endif
+
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    LeaveCriticalSection(&mutex);
+#else
+    pthread_mutex_unlock(&mutex);
 #endif
     return true;
 }
@@ -135,7 +155,7 @@ bool ArchiveWriter::add(const char* filename,
                         unsigned int decompressed,
                         unsigned int compressed,
                         unsigned int hash,
-                        const void* data)
+                        void* data)
 {
     if (!filename || !data || compressed == 0)
         return false;
@@ -145,6 +165,22 @@ bool ArchiveWriter::add(const char* filename,
 #else
     pthread_mutex_lock(&mutex);
 #endif
+
+    if (
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+        file == INVALID_HANDLE_VALUE
+#else
+        file == -1
+#endif
+    )
+    {
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+        LeaveCriticalSection(&mutex);
+#else
+        pthread_mutex_unlock(&mutex);
+#endif
+        return false;
+    }
 
     const std::string norm = NormalizePathA(filename);
 
@@ -161,12 +197,11 @@ bool ArchiveWriter::add(const char* filename,
     entry.size = compressed;
     entry.name = index;
 
-    // Encripta para um buffer temporário (evita mexer no buffer original)
-    std::vector<unsigned char> enc(compressed);
-    std::memcpy(&enc[0], data, compressed);
-
-    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
-    encoder.ProcessData(&enc[0], &enc[0], compressed);
+    // encripta in-place
+    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption enc(this->key, 32, this->iv);
+    enc.ProcessData(reinterpret_cast<unsigned char*>(data),
+                    reinterpret_cast<unsigned char*>(data),
+                    compressed);
 
     const unsigned short namelen = (unsigned short)norm.size();
 
@@ -183,23 +218,22 @@ bool ArchiveWriter::add(const char* filename,
     LARGE_INTEGER m, p;
     m.QuadPart = 0;
     SetFilePointerEx(file, m, &p, FILE_CURRENT);
-
     entry.offset += (unsigned int)p.QuadPart;
 
     WriteFile(file, &entry, sizeof(entry), &dwWritten, 0);
-    WriteFile(file, &enc[0], compressed, &dwWritten, 0);
+    WriteFile(file, data, compressed, &dwWritten, 0);
 #else
     if (keys != -1)
     {
-        write(keys, &namelen, sizeof(namelen));
-        write(keys, norm.c_str(), namelen);
-        write(keys, &hash, sizeof(hash));
+        ::write(keys, &namelen, sizeof(namelen));
+        ::write(keys, norm.c_str(), namelen);
+        ::write(keys, &hash, sizeof(hash));
     }
 
-    entry.offset += (unsigned int)lseek(file, 0, SEEK_CUR);
+    entry.offset += (unsigned int)::lseek(file, 0, SEEK_CUR);
 
-    write(file, &entry, sizeof(entry));
-    write(file, &enc[0], compressed);
+    ::write(file, &entry, sizeof(entry));
+    ::write(file, data, compressed);
 #endif
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
@@ -207,6 +241,5 @@ bool ArchiveWriter::add(const char* filename,
 #else
     pthread_mutex_unlock(&mutex);
 #endif
-
     return true;
 }
