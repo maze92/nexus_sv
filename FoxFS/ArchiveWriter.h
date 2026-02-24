@@ -1,4 +1,4 @@
-// ArchiveWriter.h (COMPLETO - com init/cleanup do mutex)
+// ArchiveWriter.h (COMPLETO)
 #ifndef FOXFS_ARCHIVEWRITER_H
 #define FOXFS_ARCHIVEWRITER_H
 
@@ -6,7 +6,6 @@
 #   include <windows.h>
 #else
 #   include <pthread.h>
-#   include <limits.h>
 #   include <sys/types.h>
 #   include <sys/stat.h>
 #   include <unistd.h>
@@ -22,7 +21,11 @@ public:
     bool create(const char* filename, const char* keyfile = 0);
     void close();
 
-    bool add(const char* filename, unsigned int decompressed, unsigned int compressed, unsigned int hash, const void* data);
+    bool add(const char* filename,
+             unsigned int decompressed,
+             unsigned int compressed,
+             unsigned int hash,
+             const void* data);
 
 private:
     unsigned char key[32];
