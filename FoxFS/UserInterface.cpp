@@ -265,7 +265,7 @@ bool PackInitialize(const char* c_pszFolder)
         { "d:/ymir work/effect/", "effect" },
         { "d:/ymir work/zone/", "zone" },
         { "d:/ymir work/special/", "special" }, { "d:/ymir work/environment/", "environment" },
-        { "d:/ymir work/terrain/", "terrain" }, { "d:/ymir work/tree/", "tree" },
+        { "d:/ymir work/terrainmaps/", "terrainmaps" }, { "d:/ymir work/tree/", "tree" },
 
         { "sound/", "sound" }, { "bgm/", "bgm" },
         { "textureset/", "textureset" }, { "property/", "property" },
@@ -929,6 +929,7 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
 
 
 
