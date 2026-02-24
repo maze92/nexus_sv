@@ -1,24 +1,16 @@
+// ArchiveWriter.h (COMPLETO - com init/cleanup do mutex)
 #ifndef FOXFS_ARCHIVEWRITER_H
 #define FOXFS_ARCHIVEWRITER_H
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-    #include <windows.h>
-    #ifdef _DEBUG
-        #pragma comment( lib, "cryptlib.lib" )
-        #pragma comment( lib, "lz4_Debug.lib" )
-        #pragma comment( lib, "Xxhash_Debug.lib" )
-    #else
-        #pragma comment( lib, "cryptlib.lib" )
-        #pragma comment( lib, "lz4_Release.lib" )
-        #pragma comment( lib, "xxhash_Release.lib" )
-    #endif
+#   include <windows.h>
 #else
-    #include <pthread.h>
-    #include <limits.h>
-    #include <sys/types.h>
-    #include <sys/stat.h>
-    #include <unistd.h>
-    #include <fcntl.h>
+#   include <pthread.h>
+#   include <limits.h>
+#   include <sys/types.h>
+#   include <sys/stat.h>
+#   include <unistd.h>
+#   include <fcntl.h>
 #endif
 
 class ArchiveWriter
@@ -30,11 +22,7 @@ public:
     bool create(const char* filename, const char* keyfile = 0);
     void close();
 
-    bool add(const char* filename,
-             unsigned int decompressed,
-             unsigned int compressed,
-             unsigned int hash,
-             const void* data);
+    bool add(const char* filename, unsigned int decompressed, unsigned int compressed, unsigned int hash, const void* data);
 
 private:
     unsigned char key[32];
