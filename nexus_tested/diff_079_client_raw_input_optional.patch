@@ -101,7 +101,9 @@
 +		return;
 +
 +	UINT dwSize = 0;
-+	if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) != 0)
++	// Pega o tamanho dos dados.
++	GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
++	if (dwSize == 0)
 +		return;
 +
 +	std::vector<BYTE> buffer(dwSize);
@@ -120,16 +122,21 @@
 +	const bool isBreak = (rk.Flags & RI_KEY_BREAK) != 0;
 +	if (isBreak)
 +	{
++		// TECLA SOLTA: Limpa o bit 0x80 no array do DirectInput
++		ms_diks[dik] = 0; 
++		
 +		if (IsPressed(dik))
 +			KeyUp(dik);
 +	}
 +	else
 +	{
++		// TECLA PRESSIONADA: Seta o bit 0x80 (comportamento padrão do DirectInput)
++		ms_diks[dik] = 0x80; 
+		
 +		if (!IsPressed(dik))
 +			KeyDown(dik);
 +	}
 +}
-+#endif
 --- Nexus OS/src-client/Client/EterLib/MSWindow.cpp
 +++ Nexus OS/src-client/Client/EterLib/MSWindow.cpp
 @@ -1,5 +1,6 @@
@@ -171,7 +178,7 @@
 +#if defined(ENABLE_RAW_INPUT)
 +		case WM_INPUT:
 +			CInputKeyboard::ProcessRawInput(lParam);
-+			return 0;
++			return DefWindowProc(hWnd, uiMsg, wParam, lParam);
 +#endif
 +
 +case WM_KEYDOWN:
