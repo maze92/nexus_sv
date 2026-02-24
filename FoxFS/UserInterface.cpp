@@ -240,77 +240,108 @@ int Setup(LPSTR lpCmdLine); // Internal function forward
 bool PackInitialize(const char* c_pszFolder)
 {
 #if defined(USE_FOX_FS) || defined(USE_ZFS)
-	if (_access(c_pszFolder, 0) != 0)
-		return true;
 
-	// 1. Agrupamos por categorias logicas (como no property.xml)
-	std::vector<std::pair<std::string, std::string>> indexVec = {
-		{ "d:/ymir work/pc/", "pc" }, { "d:/ymir work/pc2/", "pc2" }, { "d:/ymir work/pc3/", "pc3" },
-		{ "d:/ymir work/monster/", "monster" }, { "d:/ymir work/monster2/", "monster2" },
-		{ "d:/ymir work/npc/", "npc" }, { "d:/ymir work/npc2/", "npc2" },
-		{ "d:/ymir work/npc_mount/", "npc_mount" }, { "d:/ymir work/npc_pet/", "npc_pet" },
-		{ "d:/ymir work/guild/", "guild" }, { "d:/ymir work/item/", "item" },
-		{ "d:/ymir work/ui/", "ui" }, { "d:/ymir work/effect/", "effect" },
-		{ "d:/ymir work/zone/", "zone" }, // A "casa" de quase tudo o que esta no property.xml
-		{ "d:/ymir work/special/", "special" }, { "d:/ymir work/environment/", "environment" },
-		{ "d:/ymir work/terrainmaps/", "terrain" }, { "d:/ymir work/tree/", "tree" },
-		{ "d:/ymir work/uiloading/", "uiloading" },
-		
-		{ "sound/", "sound" }, { "bgm/", "bgm" },
-		{ "textureset/", "textureset" }, { "property/", "property" }, 
-		{ "icon/", "icon" }, { "locale/", "locale" }, { "uiscript/", "uiscript" }
-	};
+    (void)c_pszFolder; // runtime usa sempre "pack"
 
-	std::string stFolder = c_pszFolder;
-	stFolder += "/";
-	std::string ext = ".ipk";
-	std::string ymirPrefix = "d:/ymir work/";
+    const char* folder = "pack";
+    if (_access(folder, 0) != 0)
+        return false; // n√£o continuar sem pack/
 
-	// 2. Registo Inteligente
-	for (auto& packInfo : indexVec)
-	{
-		std::string virtualPath = packInfo.first;
-		std::string packName    = packInfo.second;
-		std::string fullPackPath = stFolder + packName + ext;
+    std::string stFolder = folder;
+    stFolder += "/";
 
-		if (_access(fullPackPath.c_str(), 0) == 0)
-		{
-			// Registo Principal
-			CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), virtualPath.c_str());
+    for (char& ch : stFolder)
+        if (ch == '\\') ch = '/';
 
-			// Se for um caminho 'ymir work', registamos a versao curta automaticamente
-			if (virtualPath.compare(0, ymirPrefix.length(), ymirPrefix) == 0)
-			{
-				std::string shortPath = virtualPath.substr(ymirPrefix.length());
-				if (!shortPath.empty())
-					CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), shortPath.c_str());
-			}
-			// Se for um caminho curto, registamos a versao 'ymir work' (Inverso)
-			else if (virtualPath.find("/") != std::string::npos && virtualPath.find("pack/") == std::string::npos)
-			{
-				std::string longPath = ymirPrefix + virtualPath;
-				CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), longPath.c_str());
-			}
-		}
-	}
+    CEterPackManager::Instance().SetCacheMode();
+    CEterPackManager::Instance().SetSearchMode(false);
+    CSoundData::SetPackMode();
 
-	// 3. Registo Automatico de Mapas (Para evitar a lista gigante)
-	// Registamos o prefixo 'map/' para o arquivo 'map.ipk'
-	// Assim, qualquer mapa novo que comece por 'metin2_map_' ou similar sera procurado aqui
-	std::string mapPack = stFolder + "map" + ext;
-	if (_access(mapPack.c_str(), 0) == 0) {
-		CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "map/"); 
-		// Opcional: Se os teus mapas no property.xml usam caminhos variados
-		CEterPackManager::Instance().RegisterPack(mapPack.c_str(), ""); 
-	}
+    static const std::pair<const char*, const char*> indexVec[] = {
+        { "d:/ymir work/pc/", "pc" }, { "d:/ymir work/pc2/", "pc2" }, { "d:/ymir work/pc3/", "pc3" },
+        { "d:/ymir work/monster/", "monster" }, { "d:/ymir work/monster2/", "monster2" },
+        { "d:/ymir work/npc/", "npc" }, { "d:/ymir work/npc2/", "npc2" },
+        { "d:/ymir work/npc_mount/", "npc_mount" }, { "d:/ymir work/npc_pet/", "npc_pet" },
+        { "d:/ymir work/guild/", "guild" }, { "d:/ymir work/item/", "item" },
+        { "d:/ymir work/ui/", "ui" }, { "d:/ymir work/uiloading/", "uiloading" },
+        { "d:/ymir work/effect/", "effect" },
+        { "d:/ymir work/zone/", "zone" },
+        { "d:/ymir work/special/", "special" }, { "d:/ymir work/environment/", "environment" },
+        { "d:/ymir work/terrainmaps/", "terrain" }, { "d:/ymir work/tree/", "tree" },
 
-	// Root Pack (O teu "Saco de Salvamento")
-	std::string rootFile = stFolder + "root" + ext;
-	if (_access(rootFile.c_str(), 0) == 0) {
-		CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
-		CEterPackManager::Instance().RegisterPack(rootFile.c_str(), ymirPrefix.c_str());
-		CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
-	}
+        { "sound/", "sound" }, { "bgm/", "bgm" },
+        { "textureset/", "textureset" }, { "property/", "property" },
+        { "icon/", "icon" }, { "locale/", "locale" }, { "uiscript/", "uiscript" },
+    };
+
+    const std::string ext = ".ipk";
+    const std::string ymirPrefix = "d:/ymir work/";
+
+    auto starts_with = [](const std::string& s, const std::string& p) -> bool {
+        return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
+    };
+
+    int mounted = 0;
+
+    for (const auto& it : indexVec)
+    {
+        const std::string virtualPath = it.first;
+        const std::string packName    = it.second;
+        const std::string fullPackPath = stFolder + packName + ext;
+
+        if (_access(fullPackPath.c_str(), 0) != 0)
+            continue;
+
+        CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), virtualPath.c_str());
+        ++mounted;
+
+        // regista tamb√©m o caminho curto
+        if (starts_with(virtualPath, ymirPrefix))
+        {
+            std::string shortPath = virtualPath.substr(ymirPrefix.size());
+            if (!shortPath.empty())
+                CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), shortPath.c_str());
+        }
+        else
+        {
+            // regista tamb√©m o longo (opcionalmente exclui locale/ e uiscript/)
+            if (virtualPath != "locale/" && virtualPath != "uiscript/")
+            {
+                std::string longPath = ymirPrefix + virtualPath;
+                CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), longPath.c_str());
+            }
+        }
+    }
+
+    // map.ipk (opcional)
+    const std::string mapPack = stFolder + "map" + ext;
+    if (_access(mapPack.c_str(), 0) == 0)
+    {
+        CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "map/");
+        ++mounted;
+
+        // s√≥ usa "" se tiveres ficheiros na raiz do map.ipk
+        CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "");
+    }
+
+    // root.ipk (recomendado ser obrigat√≥rio)
+    const std::string rootFile = stFolder + "root" + ext;
+    if (_access(rootFile.c_str(), 0) == 0)
+    {
+        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
+        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), ymirPrefix.c_str());
+        CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
+        ++mounted;
+    }
+    else
+    {
+        return false; // sem root, normalmente n√£o d√° para arrancar
+    }
+
+    if (mounted <= 0)
+        return false;
+
+    return true;
 #else
 bool PackInitialize(const char* c_pszFolder)
 {
@@ -349,22 +380,22 @@ bool PackInitialize(const char* c_pszFolder)
 	}
 
 #ifdef _DISTRIBUTE
-	Tracef("æÀ∏≤: ∆— ∏µÂ¿‘¥œ¥Ÿ.\n");
+	Tracef("ÏïåÎ¶º: Ìå© Î™®ÎìúÏûÖÎãàÎã§.\n");
 
 	/*
 	if (0 == strPackType.compare("FILE"))
 	{
 		bPackFirst = FALSE;
-		Tracef("æÀ∏≤: ∆ƒ¿œ ∏µÂ¿‘¥œ¥Ÿ.\n");
+		Tracef("ÏïåÎ¶º: ÌååÏùº Î™®ÎìúÏûÖÎãàÎã§.\n");
 	}
 	else
 	{
-		Tracef("æÀ∏≤: ∆— ∏µÂ¿‘¥œ¥Ÿ.\n");
+		Tracef("ÏïåÎ¶º: Ìå© Î™®ÎìúÏûÖÎãàÎã§.\n");
 	}
 	*/
 #else
 	bPackFirst = false;
-	Tracef("æÀ∏≤: ∆ƒ¿œ ∏µÂ¿‘¥œ¥Ÿ.\n");
+	Tracef("ÏïåÎ¶º: ÌååÏùº Î™®ÎìúÏûÖÎãàÎã§.\n");
 #endif
 
 	CTextFileLoader::SetCacheMode();
@@ -374,7 +405,7 @@ bool PackInitialize(const char* c_pszFolder)
 	CEterPackManager::Instance().SetCacheMode();
 	CEterPackManager::Instance().SetSearchMode(bPackFirst);
 
-	CSoundData::SetPackMode(); // Miles ∆ƒ¿œ ƒ›πÈ¿ª º¬∆√
+	CSoundData::SetPackMode(); // Miles ÌååÏùº ÏΩúÎ∞±ÏùÑ ÏÖãÌåÖ
 
 	std::string strPackName, strTexCachePackName;
 	for (DWORD i = 1; i < TextLoader.GetLineCount() - 1; i += 2)
@@ -506,7 +537,7 @@ bool RunMainScript(CPythonLauncher& pyLauncher, const char* lpCmdLine)
 		SplitLine(lpCmdLine, seperator, &stVec);
 		if (CmdSize == stVec.size() && stVec[0] == loginMark)
 		{
-			char buf[MAX_PATH]; // TODO æ∆∑° «‘ºˆ string «¸≈¬∑Œ ºˆ¡§
+			char buf[MAX_PATH]; // TODO ÏïÑÎûò Ìï®Ïàò string ÌòïÌÉúÎ°ú ÏàòÏ†ï
 			base64_decode(stVec[2].c_str(), buf);
 			stVec[2] = buf;
 			string_join(seperator, stVec, &stCmdLine);
@@ -626,12 +657,12 @@ bool Main(HINSTANCE hInstance, LPSTR lpCmdLine)
 
 		if (pyLauncher.Create())
 		{
-			ret = RunMainScript(pyLauncher, lpCmdLine); // ∞‘¿” Ω««‡¡ﬂø£ «‘ºˆ∞° ≥°≥™¡ˆ æ ¥¬¥Ÿ.
+			ret = RunMainScript(pyLauncher, lpCmdLine); // Í≤åÏûÑ Ïã§ÌñâÏ§ëÏóî Ìï®ÏàòÍ∞Ä ÎÅùÎÇòÏßÄ ÏïäÎäîÎã§.
 		}
 
 		//ProcessScanner_ReleaseQuitEvent();
 
-		// ∞‘¿” ¡æ∑·Ω√.
+		// Í≤åÏûÑ Ï¢ÖÎ£åÏãú.
 		app->Clear();
 
 		timeEndPeriod(1);
@@ -755,7 +786,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		if (szArgv[i] == 0)
 			continue;
 
-		if (__IsLocaleVersion(szArgv[i])) // #0000829: [M2EU] πˆ¿¸ ∆ƒ¿œ¿Ã «◊ªÛ ª˝±‚¡ˆ æ µµ∑œ ºˆ¡§ 
+		if (__IsLocaleVersion(szArgv[i])) // #0000829: [M2EU] Î≤ÑÏ†Ñ ÌååÏùºÏù¥ Ìï≠ÏÉÅ ÏÉùÍ∏∞ÏßÄ ÏïäÎèÑÎ°ù ÏàòÏ†ï 
 		{
 			char szModuleName[MAX_PATH];
 			char szVersionPath[MAX_PATH];
@@ -784,7 +815,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 		else if ((strcmp(szArgv[i], "--force-set-locale") == 0))
 		{
-			// locale º≥¡§ø£ ¿Œ¿⁄∞° µŒ ∞≥ ¥ı « ø‰«‘ (∑Œƒ…¿œ ∏Ìƒ™, µ•¿Ã≈Õ ∞Ê∑Œ)
+			// locale ÏÑ§Ï†ïÏóî Ïù∏ÏûêÍ∞Ä Îëê Í∞ú Îçî ÌïÑÏöîÌï® (Î°úÏºÄÏùº Î™ÖÏπ≠, Îç∞Ïù¥ÌÑ∞ Í≤ΩÎ°ú)
 			if (nArgc <= i + 2)
 			{
 				MessageBox(NULL, "Invalid arguments", ApplicationStringTable_GetStringz(IDS_APP_NAME, "APP_NAME"), MB_ICONSTOP);
@@ -805,7 +836,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		goto Clean;
 
 #if defined(NEEDED_COMMAND_ARGUMENT)
-	// ø…º«¿Ã æ¯¿∏∏È ∫Ò¡§ªÛ Ω««‡¿∏∑Œ ∞£¡÷, «¡∑Œ±◊∑• ¡æ∑·
+	// ÏòµÏÖòÏù¥ ÏóÜÏúºÎ©¥ ÎπÑÏ†ïÏÉÅ Ïã§ÌñâÏúºÎ°ú Í∞ÑÏ£º, ÌîÑÎ°úÍ∑∏Îû® Ï¢ÖÎ£å
 	if (strstr(lpCmdLine, NEEDED_COMMAND_ARGUMENT) == 0) {
 		MessageBox(NULL, ApplicationStringTable_GetStringz(IDS_ERR_MUST_LAUNCH_FROM_PATCHER, "ERR_MUST_LAUNCH_FROM_PATCHER"), ApplicationStringTable_GetStringz(IDS_APP_NAME, "APP_NAME"), MB_ICONSTOP);
 		goto Clean;
@@ -890,7 +921,7 @@ static void GrannyError(granny_log_message_type Type,
 int Setup(LPSTR lpCmdLine)
 {
 	/*
-	* ≈∏¿Ã∏” ¡§π–µµ∏¶ ø√∏∞¥Ÿ.
+	* ÌÉÄÏù¥Î®∏ Ï†ïÎ∞ÄÎèÑÎ•º Ïò¨Î¶∞Îã§.
 	*/
 	TIMECAPS tc;
 	UINT wTimerRes;
@@ -902,7 +933,7 @@ int Setup(LPSTR lpCmdLine)
 	timeBeginPeriod(wTimerRes);
 
 	/*
-	* ±◊∑°¥œ ø°∑Ø «⁄µÈ∏µ
+	* Í∑∏ÎûòÎãà ÏóêÎü¨ Ìï∏Îì§ÎßÅ
 	*/
 
 	granny_log_callback Callback;
@@ -911,3 +942,4 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
