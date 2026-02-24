@@ -257,6 +257,29 @@ bool PackInitialize(const char* c_pszFolder)
     CEterPackManager::Instance().SetSearchMode(false);
     CSoundData::SetPackMode();
 
+    const std::string ext = ".ipk";
+    const std::string ymirPrefix = "d:/ymir work/";
+
+    auto starts_with = [](const std::string& s, const std::string& p) -> bool {
+        return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
+    };
+
+    int mounted = 0;
+
+    // 1) root.ipk primeiro (obrigatório)
+    const std::string rootFile = stFolder + "root" + ext;
+    if (_access(rootFile.c_str(), 0) == 0)
+    {
+        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
+        CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
+        ++mounted;
+    }
+    else
+    {
+        return false; // sem root, normalmente não dá para arrancar
+    }
+
+    // 2) restantes packs (uiscript NÃO é pack separado; está dentro do root)
     static const std::pair<const char*, const char*> indexVec[] = {
         { "d:/ymir work/pc/", "pc" }, { "d:/ymir work/pc2/", "pc2" }, { "d:/ymir work/pc3/", "pc3" },
         { "d:/ymir work/monster/", "monster" }, { "d:/ymir work/monster2/", "monster2" },
@@ -271,17 +294,8 @@ bool PackInitialize(const char* c_pszFolder)
 
         { "sound/", "sound" }, { "bgm/", "bgm" },
         { "textureset/", "textureset" }, { "property/", "property" },
-        { "icon/", "icon" }, { "locale/", "locale" }, { "uiscript/", "uiscript" },
+        { "icon/", "icon" }, { "locale/", "locale" },
     };
-
-    const std::string ext = ".ipk";
-    const std::string ymirPrefix = "d:/ymir work/";
-
-    auto starts_with = [](const std::string& s, const std::string& p) -> bool {
-        return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
-    };
-
-    int mounted = 0;
 
     for (const auto& it : indexVec)
     {
@@ -295,7 +309,6 @@ bool PackInitialize(const char* c_pszFolder)
         CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), virtualPath.c_str());
         ++mounted;
 
-        // regista também o caminho curto
         if (starts_with(virtualPath, ymirPrefix))
         {
             std::string shortPath = virtualPath.substr(ymirPrefix.size());
@@ -304,8 +317,8 @@ bool PackInitialize(const char* c_pszFolder)
         }
         else
         {
-            // regista também o longo (opcionalmente exclui locale/ e uiscript/)
-            if (virtualPath != "locale/" && virtualPath != "uiscript/")
+            // opcional: registar o longo
+            if (virtualPath != "locale/")
             {
                 std::string longPath = ymirPrefix + virtualPath;
                 CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), longPath.c_str());
@@ -313,7 +326,7 @@ bool PackInitialize(const char* c_pszFolder)
         }
     }
 
-    // map.ipk (opcional)
+    // 3) map.ipk (opcional)
     const std::string mapPack = stFolder + "map" + ext;
     if (_access(mapPack.c_str(), 0) == 0)
     {
@@ -324,24 +337,7 @@ bool PackInitialize(const char* c_pszFolder)
         CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "");
     }
 
-    // root.ipk (recomendado ser obrigatório)
-    const std::string rootFile = stFolder + "root" + ext;
-    if (_access(rootFile.c_str(), 0) == 0)
-    {
-        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
-        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), ymirPrefix.c_str());
-        CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
-        ++mounted;
-    }
-    else
-    {
-        return false; // sem root, normalmente não dá para arrancar
-    }
-
-    if (mounted <= 0)
-        return false;
-
-    return true;
+    return (mounted > 0);
 #else
 bool PackInitialize(const char* c_pszFolder)
 {
@@ -942,4 +938,5 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
 
