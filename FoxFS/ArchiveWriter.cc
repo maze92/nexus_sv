@@ -1,5 +1,6 @@
+// ArchiveWriter.cpp (COMPLETO)
 #include "ArchiveWriter.h"
-#include "../FoxFS/config.h"
+#include "../FoxFS/Config.h"
 
 #include <cryptopp/modes.h>
 #include <cryptopp/blowfish.h>
@@ -23,6 +24,14 @@ static inline std::string NormalizePathA(const char* filename)
     const size_t colonPos = fn.find(':');
     if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
         fn = fn.substr(0, colonPos) + ".fnt";
+
+    // remove "./" no início
+    while (fn.rfind("./", 0) == 0)
+        fn = fn.substr(2);
+
+    // remove "/" no início
+    while (!fn.empty() && fn[0] == '/')
+        fn.erase(fn.begin());
 
     return fn;
 }
@@ -54,9 +63,6 @@ ArchiveWriter::~ArchiveWriter()
 
 bool ArchiveWriter::create(const char* filename, const char* keyfile)
 {
-    if (!filename)
-        return false;
-
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     EnterCriticalSection(&mutex);
 #else
@@ -67,8 +73,8 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 
     CryptoPP::AutoSeededRandomPool rng;
     FoxFS::TArchiveHeader header;
-
     header.magic = FOXFS_MAGIC;
+
     rng.GenerateBlock(header.key, 32);
     rng.GenerateBlock(header.iv, 32);
 
@@ -77,8 +83,7 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-    if (file == INVALID_HANDLE_VALUE)
-    {
+    if (file == INVALID_HANDLE_VALUE) {
         LeaveCriticalSection(&mutex);
         return false;
     }
@@ -97,8 +102,7 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
     }
 #else
     file = ::open(filename, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-    if (file == -1)
-    {
+    if (file == -1) {
         pthread_mutex_unlock(&mutex);
         return false;
     }
@@ -155,9 +159,9 @@ bool ArchiveWriter::add(const char* filename,
                         unsigned int decompressed,
                         unsigned int compressed,
                         unsigned int hash,
-                        void* data)
+                        const void* data)
 {
-    if (!filename || !data || compressed == 0)
+    if (!filename || !data)
         return false;
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
@@ -166,30 +170,17 @@ bool ArchiveWriter::add(const char* filename,
     pthread_mutex_lock(&mutex);
 #endif
 
-    if (
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-        file == INVALID_HANDLE_VALUE
-#else
-        file == -1
-#endif
-    )
-    {
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-        LeaveCriticalSection(&mutex);
-#else
-        pthread_mutex_unlock(&mutex);
-#endif
-        return false;
-    }
-
+    // 1) normaliza UMA vez
     const std::string norm = NormalizePathA(filename);
 
+    // 2) CRC32 do nome normalizado
     unsigned int index = 0;
     CryptoPP::CRC32 crc;
     crc.CalculateDigest(reinterpret_cast<unsigned char*>(&index),
                         reinterpret_cast<const unsigned char*>(norm.c_str()),
                         (unsigned int)norm.length());
 
+    // 3) Entry (offset será ajustado depois de saber a posição atual)
     FoxFS::TArchiveEntry entry;
     entry.decompressed = decompressed;
     entry.hash = hash;
@@ -197,12 +188,15 @@ bool ArchiveWriter::add(const char* filename,
     entry.size = compressed;
     entry.name = index;
 
-    // encripta in-place
-    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption enc(this->key, 32, this->iv);
-    enc.ProcessData(reinterpret_cast<unsigned char*>(data),
-                    reinterpret_cast<unsigned char*>(data),
-                    compressed);
+    // 4) encriptação in-place (data é mutado!)
+    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
+    encoder.ProcessData(
+        const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(data)),
+        reinterpret_cast<const unsigned char*>(data),
+        compressed
+    );
 
+    // 5) opcional: escreve keyfile com nome normalizado
     const unsigned short namelen = (unsigned short)norm.size();
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
@@ -218,6 +212,7 @@ bool ArchiveWriter::add(const char* filename,
     LARGE_INTEGER m, p;
     m.QuadPart = 0;
     SetFilePointerEx(file, m, &p, FILE_CURRENT);
+
     entry.offset += (unsigned int)p.QuadPart;
 
     WriteFile(file, &entry, sizeof(entry), &dwWritten, 0);
