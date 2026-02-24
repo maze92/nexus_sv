@@ -1,95 +1,44 @@
-// Archive.h (REVISADO e ALINHADO)
-#ifndef FOXFS_ARCHIVE_H
-#define FOXFS_ARCHIVE_H
-
-#include <map>
-#include <cstring>
+#ifndef FOXFS_ARCHIVEWRITER_H
+#define FOXFS_ARCHIVEWRITER_H
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-#   pragma warning(disable : 4996)
 #   include <windows.h>
 #else
-#   include <limits.h>
+#   include <pthread.h>
 #   include <sys/types.h>
 #   include <sys/stat.h>
 #   include <unistd.h>
 #   include <fcntl.h>
 #endif
 
-#include "Config.h"
-
-namespace FoxFS
+class ArchiveWriter
 {
-    class Archive
-    {
-    public:
-        enum
-        {
-            ERROR_OK = 0,
-            ERROR_BASE_CODE = 0,
-            ERROR_FILE_WAS_NOT_FOUND = ERROR_BASE_CODE + 1,
-            ERROR_CORRUPTED_FILE = ERROR_BASE_CODE + 2,
-            ERROR_MISSING_KEY = ERROR_BASE_CODE + 3,
-            ERROR_MISSING_IV = ERROR_BASE_CODE + 4,
-            ERROR_DECRYPTION_HAS_FAILED = ERROR_BASE_CODE + 5,
-            ERROR_DECOMPRESSION_FAILED = ERROR_BASE_CODE + 6,
-            ERROR_ARCHIVE_NOT_FOUND = ERROR_BASE_CODE + 7,
-            ERROR_ARCHIVE_NOT_READABLE = ERROR_BASE_CODE + 8,
-            ERROR_ARCHIVE_INVALID = ERROR_BASE_CODE + 9,
-            ERROR_ARCHIVE_ACCESS_DENIED = ERROR_BASE_CODE + 10,
-            ERROR_KEYSERVER_SOCKET = ERROR_BASE_CODE + 11,
-            ERROR_KEYSERVER_CONNECTION = ERROR_BASE_CODE + 12,
-            ERROR_KEYSERVER_RESPONSE = ERROR_BASE_CODE + 13,
-            ERROR_KEYSERVER_TIMEOUT = ERROR_BASE_CODE + 14,
-            ERROR_UNKNOWN = ERROR_BASE_CODE + 15
-        };
+public:
+    ArchiveWriter();
+    ~ArchiveWriter();
 
-        struct FileListEntry
-        {
-            unsigned long long offset;
-            unsigned int size;
-            unsigned int decompressed;
-            unsigned int hash;
-            unsigned int name;
-        };
+    bool create(const char* filename, const char* keyfile = 0);
+    void close();
 
-        Archive();
-        ~Archive();
+    bool add(const char* filename,
+             unsigned int decompressed,
+             unsigned int compressed,
+             unsigned int hash,
+             void* data); // NOTE: não pode ser const se encripta in-place
 
-        const wchar_t* getFilename() const;
-
-        int exists(const char* filename) const;
-        unsigned int size(const char* filename) const;
-        int get(const char* filename, void* buffer, unsigned int maxsize, unsigned int* outsize) const;
-
-        int load(const wchar_t* filename, const void* key, const void* iv);
-        void unload();
-
-        // IMPLEMENTAÇÃO fica no Archive.cc para garantir normalização única
-        static unsigned int generateFilenameIndex(const char* filename);
-
-    private:
-        std::map<unsigned int, FileListEntry> files;
-
-        unsigned char key[32];
-        unsigned char iv[32];
-
-        TArchiveHeader header;
+private:
+    unsigned char key[32];
+    unsigned char iv[32];
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-        HANDLE file;
+    CRITICAL_SECTION mutex;
+    HANDLE file;
+    HANDLE keys;
 #else
-        int file;
+    pthread_mutex_t mutex;
+    int file;
+    int keys;
 #endif
-
-        wchar_t filename[
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-            MAX_PATH + 1
-#else
-            PATH_MAX + 1
-#endif
-        ];
-    };
-}
+};
 
 #endif
