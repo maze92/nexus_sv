@@ -1,17 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
-import subprocess
 import time
 
 input_dir = "pack_data"
 xml_data_dir = "xml_data"
 pack_output = "pack_output"
 xml_output = "xml_output"
-
-property_exe = "PropertyGen.exe"
-property_source = os.path.join(input_dir, "property")
-root_dir = os.path.join(input_dir, "root")
 
 # Pastas que NÃO devem virar .ipk
 EXCLUDE_FOLDERS = set([
@@ -47,7 +42,6 @@ def force_lowercase(directory):
                 src = os.path.join(root_path, name)
                 dst = os.path.join(root_path, lower)
 
-                # colisão: já existe um ficheiro com o mesmo nome em lowercase
                 if os.path.exists(dst):
                     print "   [WARN] Colisao (ficheiro ja existe): %s -> %s" % (src, dst)
                     continue
@@ -63,7 +57,6 @@ def force_lowercase(directory):
                 src = os.path.join(root_path, name)
                 dst = os.path.join(root_path, lower)
 
-                # colisão: já existe dir com esse nome
                 if os.path.exists(dst):
                     print "   [WARN] Colisao (pasta ja existe): %s -> %s" % (src, dst)
                     continue
@@ -101,7 +94,6 @@ def fix_duplicate_inner_folder(pack_folder):
         dst = os.path.join(pack_folder, item)
 
         if os.path.exists(dst):
-            # Se ambos são dirs, faz merge simples
             if os.path.isdir(src) and os.path.isdir(dst):
                 for rp, ds, fs in os.walk(src):
                     rel = os.path.relpath(rp, src)
@@ -158,16 +150,11 @@ def generate_xmls():
         folder_lower = folder.lower()
         folder_path = os.path.join(input_dir, folder)
 
-        # corrige sound/sound etc.
         fix_duplicate_inner_folder(folder_path)
 
         xml_file_name = "%s_data.xml" % folder_lower
         xml_full_path = os.path.join(xml_data_dir, xml_file_name)
 
-        # IMPORTANTÍSSIMO:
-        # - root fica vazio (ficheiros na raiz do pack)
-        # - todos os outros packs ficam com prefixo "nome_do_pack/"
-        #   Ex: locale -> "locale/", sound -> "sound/"
         if folder_lower == "root":
             virtual_path = ""
         else:
@@ -177,7 +164,7 @@ def generate_xmls():
         archive_path = "%s/%s.ipk" % (_to_posix(pack_output), folder_lower)
         out_xml = "%s/%s_output.xml" % (_to_posix(xml_output), folder_lower)
 
-        with open(xml_full_path, "w") as fp:
+        with open(xml_full_path, "wb") as fp:
             fp.write("<ScriptFile>\n")
             fp.write('\t<CreateEterPackXml Input="%s" ArchivePath="%s" XmlPath="%s"></CreateEterPackXml>\n'
                      % (input_spec, archive_path, out_xml))
