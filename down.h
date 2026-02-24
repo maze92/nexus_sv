@@ -7,3 +7,4 @@ https://metin2.dev/topic/33967-fix-questbuttons-out-of-questwindow-when-multiple
 https://metin2.dev/topic/16814-fix-for-the-refresh-of-the-skill-cooldown/
 https://metin2.dev/topic/32961-fix-hitting-from-the-top-of-the-horse/
 https://metin2.dev/topic/32247-fix-overin-tooltip-with-another-slot-behind/
+https://metin2.dev/topic/29344-leadership-skill-description-bonus-values-display-fix/
