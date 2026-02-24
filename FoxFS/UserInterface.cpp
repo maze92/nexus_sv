@@ -240,46 +240,21 @@ int Setup(LPSTR lpCmdLine); // Internal function forward
 bool PackInitialize(const char* c_pszFolder)
 {
 #if defined(USE_FOX_FS) || defined(USE_ZFS)
-
-    (void)c_pszFolder; // runtime usa sempre "pack"
+    (void)c_pszFolder;
 
     const char* folder = "pack";
     if (_access(folder, 0) != 0)
-        return false; // não continuar sem pack/
+        return false;
 
     std::string stFolder = folder;
     stFolder += "/";
-
-    for (char& ch : stFolder)
-        if (ch == '\\') ch = '/';
+    for (char& ch : stFolder) if (ch == '\\') ch = '/';
 
     CEterPackManager::Instance().SetCacheMode();
     CEterPackManager::Instance().SetSearchMode(false);
     CSoundData::SetPackMode();
 
-    const std::string ext = ".ipk";
-    const std::string ymirPrefix = "d:/ymir work/";
-
-    auto starts_with = [](const std::string& s, const std::string& p) -> bool {
-        return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
-    };
-
-    int mounted = 0;
-
-    // 1) root.ipk primeiro (obrigatório)
-    const std::string rootFile = stFolder + "root" + ext;
-    if (_access(rootFile.c_str(), 0) == 0)
-    {
-        CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
-        CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
-        ++mounted;
-    }
-    else
-    {
-        return false; // sem root, normalmente não dá para arrancar
-    }
-
-    // 2) restantes packs (uiscript NÃO é pack separado; está dentro do root)
+    // NOTA: removi uiscript daqui porque está dentro do root.ipk no teu setup.
     static const std::pair<const char*, const char*> indexVec[] = {
         { "d:/ymir work/pc/", "pc" }, { "d:/ymir work/pc2/", "pc2" }, { "d:/ymir work/pc3/", "pc3" },
         { "d:/ymir work/monster/", "monster" }, { "d:/ymir work/monster2/", "monster2" },
@@ -290,17 +265,37 @@ bool PackInitialize(const char* c_pszFolder)
         { "d:/ymir work/effect/", "effect" },
         { "d:/ymir work/zone/", "zone" },
         { "d:/ymir work/special/", "special" }, { "d:/ymir work/environment/", "environment" },
-        { "d:/ymir work/terrainmaps/", "terrainmaps" }, { "d:/ymir work/tree/", "tree" },
+        { "d:/ymir work/terrainmaps/", "terrain" }, { "d:/ymir work/tree/", "tree" },
 
         { "sound/", "sound" }, { "bgm/", "bgm" },
         { "textureset/", "textureset" }, { "property/", "property" },
         { "icon/", "icon" }, { "locale/", "locale" },
     };
 
+    const std::string ext = ".ipk";
+    const std::string ymirPrefix = "d:/ymir work/";
+
+    auto starts_with = [](const std::string& s, const std::string& p) -> bool {
+        return s.size() >= p.size() && s.compare(0, p.size(), p) == 0;
+    };
+
+    int mounted = 0;
+
+    // root primeiro (para ficheiros sem prefixo + uiscript dentro do root)
+    const std::string rootFile = stFolder + "root" + ext;
+    if (_access(rootFile.c_str(), 0) != 0)
+        return false;
+
+    CEterPackManager::Instance().RegisterPack(rootFile.c_str(), "");
+    CEterPackManager::Instance().RegisterPack(rootFile.c_str(), ymirPrefix.c_str());
+    CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
+    ++mounted;
+
+    // restantes packs
     for (const auto& it : indexVec)
     {
         const std::string virtualPath = it.first;
-        const std::string packName    = it.second;
+        const std::string packName = it.second;
         const std::string fullPackPath = stFolder + packName + ext;
 
         if (_access(fullPackPath.c_str(), 0) != 0)
@@ -317,7 +312,7 @@ bool PackInitialize(const char* c_pszFolder)
         }
         else
         {
-            // opcional: registar o longo
+            // evita duplicar ruído desnecessário (locale normalmente só curto)
             if (virtualPath != "locale/")
             {
                 std::string longPath = ymirPrefix + virtualPath;
@@ -326,15 +321,11 @@ bool PackInitialize(const char* c_pszFolder)
         }
     }
 
-    // 3) map.ipk (opcional)
     const std::string mapPack = stFolder + "map" + ext;
     if (_access(mapPack.c_str(), 0) == 0)
     {
         CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "map/");
         ++mounted;
-
-        // só usa "" se tiveres ficheiros na raiz do map.ipk
-        // CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "");
     }
 
     return (mounted > 0);
@@ -938,6 +929,7 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
 
 
 
