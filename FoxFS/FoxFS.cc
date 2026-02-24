@@ -2,12 +2,13 @@
 #include "FileSystem.h"
 
 #include <string>
+#include <cwchar>   // mbsrtowcs, wcsrtombs
+#include <cstdlib>  // size_t
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     #include <windows.h>
 #endif
 
-// Conversões (normalmente os paths do cliente são ASCII/UTF-8; isto cobre bem)
 static inline std::wstring AnsiToWide(const char* s)
 {
     if (!s) return std::wstring();
@@ -22,8 +23,9 @@ static inline std::wstring AnsiToWide(const char* s)
     if (n <= 0) return std::wstring();
 
     std::wstring out;
-    out.resize((size_t)n - 1);
+    out.resize((size_t)n); // inclui '\0'
     MultiByteToWideChar(usedCp, 0, s, -1, &out[0], n);
+    if (!out.empty() && out.back() == L'\0') out.pop_back();
     return out;
 #else
     std::mbstate_t st{};
@@ -54,8 +56,9 @@ static inline std::string WideToAnsi(const wchar_t* ws)
     if (n <= 0) return std::string();
 
     std::string out;
-    out.resize((size_t)n - 1);
+    out.resize((size_t)n); // inclui '\0'
     WideCharToMultiByte(usedCp, 0, ws, -1, &out[0], n, NULL, NULL);
+    if (!out.empty() && out.back() == '\0') out.pop_back();
     return out;
 #else
     std::mbstate_t st{};
@@ -86,18 +89,14 @@ extern "C"
 
     int FOXFS_EXPORT FOXFS_API FoxFS_SetKeyServerA(PFoxFS manager, const char* hostname, unsigned short port)
     {
-        // No teu FileSystem.cc o setKeyServer está comentado.
-        // Para compilar sem isso, mantém stub:
         (void)manager; (void)hostname; (void)port;
-        return 0; // ERROR_OK
-        // Se reativares setKeyServer em FileSystem, troca para:
-        // return reinterpret_cast<FoxFS::FileSystem*>(manager)->setKeyServer(hostname, port);
+        return 0;
     }
 
     int FOXFS_EXPORT FOXFS_API FoxFS_SetKeyServerW(PFoxFS manager, const wchar_t* hostname, unsigned short port)
     {
         (void)manager; (void)hostname; (void)port;
-        return 0; // ERROR_OK
+        return 0;
     }
 
     int FOXFS_EXPORT FOXFS_API FoxFS_LoadA(PFoxFS manager, const char* filename)
