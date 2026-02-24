@@ -1,3 +1,4 @@
+// ArchiveWriter.cpp (COMPLETO / REVISADO)
 #include "ArchiveWriter.h"
 #include "../FoxFS/config.h"
 
@@ -10,34 +11,26 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include <vector>
+
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <fcntl.h>
+    #include <sys/stat.h>
+#endif
 
 static inline std::string NormalizePathA(const char* filename)
 {
     std::string fn = filename ? filename : "";
+    std::replace(fn.begin(), fn.end(), '\\', '/');
 
-    // lower + slash
     std::transform(fn.begin(), fn.end(), fn.begin(),
         [](unsigned char c) { return (char)std::tolower(c); });
-    for (char& ch : fn)
-        if (ch == '\\') ch = '/';
 
-    // strip "/ymir work/" ou "ymir work/"
-    const std::string ymir = "/ymir work/";
-    size_t pos = fn.find(ymir);
-    if (pos != std::string::npos)
-        fn = fn.substr(pos + ymir.size());
-    else
-    {
-        const std::string ymir2 = "ymir work/";
-        if (fn.rfind(ymir2, 0) == 0)
-            fn = fn.substr(ymir2.size());
-    }
-
-    while (fn.rfind("./", 0) == 0) fn = fn.substr(2);
-    while (!fn.empty() && fn[0] == '/') fn.erase(fn.begin());
-
-    // fonte: "tahoma:12.fnt" -> "tahoma.fnt"
-    size_t colonPos = fn.find(':');
+    // fontes: "tahoma:12.fnt" -> "tahoma.fnt"
+    const size_t colonPos = fn.find(':');
     if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
         fn = fn.substr(0, colonPos) + ".fnt";
 
@@ -53,6 +46,8 @@ ArchiveWriter::ArchiveWriter()
     keys = -1;
     file = -1;
 #endif
+    std::memset(key, 0, sizeof(key));
+    std::memset(iv, 0, sizeof(iv));
 }
 
 ArchiveWriter::~ArchiveWriter()
@@ -64,8 +59,12 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 {
     close();
 
+    if (!filename || !*filename)
+        return false;
+
     CryptoPP::AutoSeededRandomPool rng;
     FoxFS::TArchiveHeader header;
+    std::memset(&header, 0, sizeof(header));
 
     header.magic = FOXFS_MAGIC;
 
@@ -73,8 +72,8 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
     rng.GenerateBlock(header.iv, 32);
 
     // usa exatamente o que vai no header
-    memcpy(this->key, header.key, 32);
-    memcpy(this->iv, header.iv, 32);
+    std::memcpy(this->key, header.key, 32);
+    std::memcpy(this->iv, header.iv, 32);
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
@@ -82,9 +81,13 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
         return false;
 
     DWORD dwWritten = 0;
-    WriteFile(file, &header, sizeof(header), &dwWritten, 0);
+    if (!WriteFile(file, &header, (DWORD)sizeof(header), &dwWritten, 0) || dwWritten != sizeof(header))
+    {
+        close();
+        return false;
+    }
 
-    if (keyfile)
+    if (keyfile && *keyfile)
     {
         keys = CreateFileA(keyfile, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         if (keys != INVALID_HANDLE_VALUE)
@@ -98,15 +101,19 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
     if (file == -1)
         return false;
 
-    write(file, &header, sizeof(header));
+    if (::write(file, &header, sizeof(header)) != (ssize_t)sizeof(header))
+    {
+        close();
+        return false;
+    }
 
-    if (keyfile)
+    if (keyfile && *keyfile)
     {
         keys = ::open(keyfile, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
         if (keys != -1)
         {
-            write(keys, this->key, 32);
-            write(keys, this->iv, 32);
+            ::write(keys, this->key, 32);
+            ::write(keys, this->iv, 32);
         }
     }
 #endif
@@ -139,6 +146,9 @@ void ArchiveWriter::close()
         file = -1;
     }
 #endif
+
+    std::memset(key, 0, sizeof(key));
+    std::memset(iv, 0, sizeof(iv));
 }
 
 bool ArchiveWriter::add(const char* filename,
@@ -147,10 +157,18 @@ bool ArchiveWriter::add(const char* filename,
                         unsigned int hash,
                         const void* data)
 {
-    if (!filename || !data)
+    if (!filename || !*filename || !data || compressed == 0)
         return false;
 
-    // 1) Normaliza UMA vez e usa em tudo (nome, CRC, keys)
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+#else
+    if (file == -1)
+        return false;
+#endif
+
+    // 1) Normaliza UMA vez e usa em tudo
     const std::string norm = NormalizePathA(filename);
 
     // 2) CRC32 do nome normalizado (igual ao que o client vai pedir)
@@ -160,55 +178,71 @@ bool ArchiveWriter::add(const char* filename,
                         reinterpret_cast<const unsigned char*>(norm.c_str()),
                         (unsigned int)norm.length());
 
-    // 3) Entry
+    // 3) prepara payload encriptado sem mexer no buffer original
+    std::vector<unsigned char> enc;
+    enc.resize(compressed);
+    std::memcpy(&enc[0], data, compressed);
+
+    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
+    encoder.ProcessData(&enc[0], &enc[0], compressed);
+
+    // 4) Entry
     FoxFS::TArchiveEntry entry;
+    std::memset(&entry, 0, sizeof(entry));
     entry.decompressed = decompressed;
     entry.hash = hash;
-    entry.offset = sizeof(entry);
     entry.size = compressed;
     entry.name = index;
 
-    // 4) Encriptação (in-place)
-    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
-    encoder.ProcessData(
-        const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(data)),
-        reinterpret_cast<const unsigned char*>(data),
-        compressed
-    );
-
-    // 5) escrever no keyfile o NOME NORMALIZADO (não o original)
-    const unsigned short namelen = (unsigned short)norm.size();
-
+    // offset aponta para o início do bloco de dados (logo após o entry)
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    LARGE_INTEGER m, p;
+    m.QuadPart = 0;
+    if (!SetFilePointerEx(file, m, &p, FILE_CURRENT))
+        return false;
+
+    entry.offset = (unsigned int)p.QuadPart + (unsigned int)sizeof(entry);
+
+    // 5) keyfile: escreve NOME NORMALIZADO
     DWORD dwWritten = 0;
+    const unsigned short namelen = (unsigned short)norm.size();
 
     if (keys != INVALID_HANDLE_VALUE)
     {
-        WriteFile(keys, &namelen, sizeof(namelen), &dwWritten, 0);
-        WriteFile(keys, norm.c_str(), namelen, &dwWritten, 0);
-        WriteFile(keys, &hash, sizeof(hash), &dwWritten, 0);
+        WriteFile(keys, &namelen, (DWORD)sizeof(namelen), &dwWritten, 0);
+        if (namelen)
+            WriteFile(keys, norm.c_str(), namelen, &dwWritten, 0);
+        WriteFile(keys, &hash, (DWORD)sizeof(hash), &dwWritten, 0);
     }
 
-    LARGE_INTEGER m, p;
-    m.QuadPart = 0;
-    SetFilePointerEx(file, m, &p, FILE_CURRENT);
+    // 6) escreve entry + dados
+    if (!WriteFile(file, &entry, (DWORD)sizeof(entry), &dwWritten, 0) || dwWritten != sizeof(entry))
+        return false;
 
-    entry.offset += (unsigned int)p.QuadPart;
+    if (!WriteFile(file, &enc[0], compressed, &dwWritten, 0) || dwWritten != compressed)
+        return false;
 
-    WriteFile(file, &entry, sizeof(entry), &dwWritten, 0);
-    WriteFile(file, data, compressed, &dwWritten, 0);
 #else
+    const off_t cur = lseek(file, 0, SEEK_CUR);
+    if (cur < 0)
+        return false;
+
+    entry.offset = (unsigned int)cur + (unsigned int)sizeof(entry);
+
+    const unsigned short namelen = (unsigned short)norm.size();
     if (keys != -1)
     {
-        write(keys, &namelen, sizeof(namelen));
-        write(keys, norm.c_str(), namelen);
-        write(keys, &hash, sizeof(hash));
+        ::write(keys, &namelen, sizeof(namelen));
+        if (namelen)
+            ::write(keys, norm.c_str(), namelen);
+        ::write(keys, &hash, sizeof(hash));
     }
 
-    entry.offset += (unsigned int)lseek(file, 0, SEEK_CUR);
+    if (::write(file, &entry, sizeof(entry)) != (ssize_t)sizeof(entry))
+        return false;
 
-    write(file, &entry, sizeof(entry));
-    write(file, data, compressed);
+    if (::write(file, &enc[0], compressed) != (ssize_t)compressed)
+        return false;
 #endif
 
     return true;
