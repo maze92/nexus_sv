@@ -14,12 +14,29 @@
 static inline std::string NormalizePathA(const char* filename)
 {
     std::string fn = filename ? filename : "";
-    std::replace(fn.begin(), fn.end(), '\\', '/');
 
+    // lower + slash
     std::transform(fn.begin(), fn.end(), fn.begin(),
         [](unsigned char c) { return (char)std::tolower(c); });
+    for (char& ch : fn)
+        if (ch == '\\') ch = '/';
 
-    // fontes: "tahoma:12.fnt" -> "tahoma.fnt" (se aplicável ao teu packer)
+    // strip "/ymir work/" ou "ymir work/"
+    const std::string ymir = "/ymir work/";
+    size_t pos = fn.find(ymir);
+    if (pos != std::string::npos)
+        fn = fn.substr(pos + ymir.size());
+    else
+    {
+        const std::string ymir2 = "ymir work/";
+        if (fn.rfind(ymir2, 0) == 0)
+            fn = fn.substr(ymir2.size());
+    }
+
+    while (fn.rfind("./", 0) == 0) fn = fn.substr(2);
+    while (!fn.empty() && fn[0] == '/') fn.erase(fn.begin());
+
+    // fonte: "tahoma:12.fnt" -> "tahoma.fnt"
     size_t colonPos = fn.find(':');
     if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
         fn = fn.substr(0, colonPos) + ".fnt";
