@@ -67,11 +67,6 @@ def force_lowercase(directory):
                     print "   [WARN] Falha rename: %s -> %s" % (src, dst)
 
 def fix_duplicate_inner_folder(pack_folder):
-    """
-    Corrige: pack_data/sound/sound/... -> pack_data/sound/...
-            pack_data/ui/ui/...       -> pack_data/ui/...
-    Detecção case-insensitive.
-    """
     base = os.path.basename(pack_folder.rstrip("\\/")).lower()
 
     inner = None
