@@ -1,6 +1,5 @@
-// ArchiveWriter.cpp (COMPLETO / REVISADO)
 #include "ArchiveWriter.h"
-#include "../FoxFS/config.h"
+#include "../FoxFS/Config.h"
 
 #include <cryptopp/modes.h>
 #include <cryptopp/blowfish.h>
@@ -13,24 +12,19 @@
 #include <string>
 #include <vector>
 
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-    #include <windows.h>
-#else
-    #include <unistd.h>
-    #include <fcntl.h>
-    #include <sys/stat.h>
-#endif
-
 static inline std::string NormalizePathA(const char* filename)
 {
     std::string fn = filename ? filename : "";
+
+    // \ -> /
     std::replace(fn.begin(), fn.end(), '\\', '/');
 
+    // lowercase
     std::transform(fn.begin(), fn.end(), fn.begin(),
         [](unsigned char c) { return (char)std::tolower(c); });
 
     // fontes: "tahoma:12.fnt" -> "tahoma.fnt"
-    const size_t colonPos = fn.find(':');
+    size_t colonPos = fn.find(':');
     if (colonPos != std::string::npos && fn.find(".fnt") != std::string::npos)
         fn = fn.substr(0, colonPos) + ".fnt";
 
@@ -40,9 +34,11 @@ static inline std::string NormalizePathA(const char* filename)
 ArchiveWriter::ArchiveWriter()
 {
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    InitializeCriticalSection(&mutex);
     keys = INVALID_HANDLE_VALUE;
     file = INVALID_HANDLE_VALUE;
 #else
+    pthread_mutex_init(&mutex, 0);
     keys = -1;
     file = -1;
 #endif
@@ -53,19 +49,35 @@ ArchiveWriter::ArchiveWriter()
 ArchiveWriter::~ArchiveWriter()
 {
     close();
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    DeleteCriticalSection(&mutex);
+#else
+    pthread_mutex_destroy(&mutex);
+#endif
 }
 
 bool ArchiveWriter::create(const char* filename, const char* keyfile)
 {
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    EnterCriticalSection(&mutex);
+#else
+    pthread_mutex_lock(&mutex);
+#endif
+
     close();
 
     if (!filename || !*filename)
+    {
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+        LeaveCriticalSection(&mutex);
+#else
+        pthread_mutex_unlock(&mutex);
+#endif
         return false;
+    }
 
     CryptoPP::AutoSeededRandomPool rng;
     FoxFS::TArchiveHeader header;
-    std::memset(&header, 0, sizeof(header));
-
     header.magic = FOXFS_MAGIC;
 
     rng.GenerateBlock(header.key, 32);
@@ -78,14 +90,13 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
     file = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
     if (file == INVALID_HANDLE_VALUE)
-        return false;
-
-    DWORD dwWritten = 0;
-    if (!WriteFile(file, &header, (DWORD)sizeof(header), &dwWritten, 0) || dwWritten != sizeof(header))
     {
-        close();
+        LeaveCriticalSection(&mutex);
         return false;
     }
+
+    DWORD dwWritten = 0;
+    WriteFile(file, &header, sizeof(header), &dwWritten, 0);
 
     if (keyfile && *keyfile)
     {
@@ -99,13 +110,12 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
 #else
     file = ::open(filename, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (file == -1)
-        return false;
-
-    if (::write(file, &header, sizeof(header)) != (ssize_t)sizeof(header))
     {
-        close();
+        pthread_mutex_unlock(&mutex);
         return false;
     }
+
+    ::write(file, &header, sizeof(header));
 
     if (keyfile && *keyfile)
     {
@@ -118,12 +128,19 @@ bool ArchiveWriter::create(const char* filename, const char* keyfile)
     }
 #endif
 
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    LeaveCriticalSection(&mutex);
+#else
+    pthread_mutex_unlock(&mutex);
+#endif
     return true;
 }
 
 void ArchiveWriter::close()
 {
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    // Nota: close() pode ser chamado dentro de create() com mutex já segurado.
+    // Aqui não voltamos a lockar para evitar deadlock.
     if (keys != INVALID_HANDLE_VALUE)
     {
         CloseHandle(keys);
@@ -146,9 +163,6 @@ void ArchiveWriter::close()
         file = -1;
     }
 #endif
-
-    std::memset(key, 0, sizeof(key));
-    std::memset(iv, 0, sizeof(iv));
 }
 
 bool ArchiveWriter::add(const char* filename,
@@ -161,89 +175,91 @@ bool ArchiveWriter::add(const char* filename,
         return false;
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-    if (file == INVALID_HANDLE_VALUE)
-        return false;
+    EnterCriticalSection(&mutex);
 #else
-    if (file == -1)
-        return false;
+    pthread_mutex_lock(&mutex);
 #endif
+
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    const bool fileOk = (file != INVALID_HANDLE_VALUE);
+#else
+    const bool fileOk = (file != -1);
+#endif
+    if (!fileOk)
+    {
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+        LeaveCriticalSection(&mutex);
+#else
+        pthread_mutex_unlock(&mutex);
+#endif
+        return false;
+    }
 
     // 1) Normaliza UMA vez e usa em tudo
     const std::string norm = NormalizePathA(filename);
 
-    // 2) CRC32 do nome normalizado (igual ao que o client vai pedir)
+    // 2) CRC32 do nome normalizado
     unsigned int index = 0;
     CryptoPP::CRC32 crc;
     crc.CalculateDigest(reinterpret_cast<unsigned char*>(&index),
                         reinterpret_cast<const unsigned char*>(norm.c_str()),
                         (unsigned int)norm.length());
 
-    // 3) prepara payload encriptado sem mexer no buffer original
-    std::vector<unsigned char> enc;
-    enc.resize(compressed);
-    std::memcpy(&enc[0], data, compressed);
-
-    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
-    encoder.ProcessData(&enc[0], &enc[0], compressed);
-
-    // 4) Entry
+    // 3) Entry
     FoxFS::TArchiveEntry entry;
-    std::memset(&entry, 0, sizeof(entry));
     entry.decompressed = decompressed;
     entry.hash = hash;
+    entry.offset = sizeof(entry); // depois somamos a posição atual
     entry.size = compressed;
     entry.name = index;
 
-    // offset aponta para o início do bloco de dados (logo após o entry)
-#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
-    LARGE_INTEGER m, p;
-    m.QuadPart = 0;
-    if (!SetFilePointerEx(file, m, &p, FILE_CURRENT))
-        return false;
+    // 4) Encripta para buffer temporário (evita mexer em memória const)
+    std::vector<unsigned char> enc;
+    enc.resize(compressed);
+    std::memcpy(enc.data(), data, compressed);
 
-    entry.offset = (unsigned int)p.QuadPart + (unsigned int)sizeof(entry);
+    CryptoPP::CFB_Mode<CryptoPP::Blowfish>::Encryption encoder(this->key, 32, this->iv);
+    encoder.ProcessData(enc.data(), enc.data(), compressed);
 
-    // 5) keyfile: escreve NOME NORMALIZADO
-    DWORD dwWritten = 0;
+    // 5) Keyfile: escreve nome NORMALIZADO + hash (se existir)
     const unsigned short namelen = (unsigned short)norm.size();
+
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    DWORD dwWritten = 0;
 
     if (keys != INVALID_HANDLE_VALUE)
     {
-        WriteFile(keys, &namelen, (DWORD)sizeof(namelen), &dwWritten, 0);
-        if (namelen)
-            WriteFile(keys, norm.c_str(), namelen, &dwWritten, 0);
-        WriteFile(keys, &hash, (DWORD)sizeof(hash), &dwWritten, 0);
+        WriteFile(keys, &namelen, sizeof(namelen), &dwWritten, 0);
+        WriteFile(keys, norm.c_str(), namelen, &dwWritten, 0);
+        WriteFile(keys, &hash, sizeof(hash), &dwWritten, 0);
     }
 
-    // 6) escreve entry + dados
-    if (!WriteFile(file, &entry, (DWORD)sizeof(entry), &dwWritten, 0) || dwWritten != sizeof(entry))
-        return false;
+    LARGE_INTEGER m, p;
+    m.QuadPart = 0;
+    SetFilePointerEx(file, m, &p, FILE_CURRENT);
 
-    if (!WriteFile(file, &enc[0], compressed, &dwWritten, 0) || dwWritten != compressed)
-        return false;
+    entry.offset += (unsigned int)p.QuadPart;
 
+    WriteFile(file, &entry, sizeof(entry), &dwWritten, 0);
+    WriteFile(file, enc.data(), compressed, &dwWritten, 0);
 #else
-    const off_t cur = lseek(file, 0, SEEK_CUR);
-    if (cur < 0)
-        return false;
-
-    entry.offset = (unsigned int)cur + (unsigned int)sizeof(entry);
-
-    const unsigned short namelen = (unsigned short)norm.size();
     if (keys != -1)
     {
         ::write(keys, &namelen, sizeof(namelen));
-        if (namelen)
-            ::write(keys, norm.c_str(), namelen);
+        ::write(keys, norm.c_str(), namelen);
         ::write(keys, &hash, sizeof(hash));
     }
 
-    if (::write(file, &entry, sizeof(entry)) != (ssize_t)sizeof(entry))
-        return false;
+    entry.offset += (unsigned int)::lseek(file, 0, SEEK_CUR);
 
-    if (::write(file, &enc[0], compressed) != (ssize_t)compressed)
-        return false;
+    ::write(file, &entry, sizeof(entry));
+    ::write(file, enc.data(), compressed);
 #endif
 
+#if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
+    LeaveCriticalSection(&mutex);
+#else
+    pthread_mutex_unlock(&mutex);
+#endif
     return true;
 }
