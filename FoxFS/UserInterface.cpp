@@ -286,11 +286,11 @@ bool PackInitialize(const char* c_pszFolder)
         { "d:/ymir work/npc/", "npc" }, { "d:/ymir work/npc2/", "npc2" },
         { "d:/ymir work/npc_mount/", "npc_mount" }, { "d:/ymir work/npc_pet/", "npc_pet" },
         { "d:/ymir work/guild/", "guild" }, { "d:/ymir work/item/", "item" },
-        { "d:/ymir work/ui/", "ui" }, { "d:/ymir work/uiloading/", "uiloading" },
+        { "d:/ymir work/ui/", "ui" },
         { "d:/ymir work/effect/", "effect" },
         { "d:/ymir work/zone/", "zone" },
         { "d:/ymir work/special/", "special" }, { "d:/ymir work/environment/", "environment" },
-        { "d:/ymir work/terrainmaps/", "terrain" }, { "d:/ymir work/tree/", "tree" },
+        { "d:/ymir work/terrainmaps/", "terrainmaps" }, { "d:/ymir work/tree/", "tree" },
 
         { "sound/", "sound" }, { "bgm/", "bgm" },
         { "textureset/", "textureset" }, { "property/", "property" },
@@ -334,7 +334,7 @@ bool PackInitialize(const char* c_pszFolder)
         ++mounted;
 
         // só usa "" se tiveres ficheiros na raiz do map.ipk
-        CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "");
+        // CEterPackManager::Instance().RegisterPack(mapPack.c_str(), "");
     }
 
     return (mounted > 0);
@@ -938,5 +938,6 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
 
 
