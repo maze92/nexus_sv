@@ -5,12 +5,12 @@
     #include <windows.h>
     #ifdef _DEBUG
         #pragma comment( lib, "cryptlib.lib" )
-        #pragma comment( lib, "Lz4Lib_D.lib" )
-        #pragma comment( lib, "XxhashLib_D.lib" )
+        #pragma comment( lib, "lz4_Debug.lib" )
+        #pragma comment( lib, "Xxhash_Debug.lib" )
     #else
         #pragma comment( lib, "cryptlib.lib" )
-        #pragma comment( lib, "Lz4Lib.lib" )
-        #pragma comment( lib, "XxhashLib.lib" )
+        #pragma comment( lib, "lz4_Release.lib" )
+        #pragma comment( lib, "xxhash_Release.lib" )
     #endif
 #else
     #include <pthread.h>
