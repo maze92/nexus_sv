@@ -247,14 +247,16 @@ bool PackInitialize(const char* c_pszFolder)
         return false;
 
     std::string stFolder = folder;
-    stFolder += "/";
-    for (char& ch : stFolder) if (ch == '\\') ch = '/';
+    if (stFolder.empty() || (stFolder.back() != '/' && stFolder.back() != '\\'))
+        stFolder += "/";
+
+    for (char& ch : stFolder)
+        if (ch == '\\') ch = '/';
 
     CEterPackManager::Instance().SetCacheMode();
     CEterPackManager::Instance().SetSearchMode(false);
     CSoundData::SetPackMode();
 
-    // NOTA: removi uiscript daqui porque está dentro do root.ipk no teu setup.
     static const std::pair<const char*, const char*> indexVec[] = {
         { "d:/ymir work/pc/", "pc" }, { "d:/ymir work/pc2/", "pc2" }, { "d:/ymir work/pc3/", "pc3" },
         { "d:/ymir work/monster/", "monster" }, { "d:/ymir work/monster2/", "monster2" },
@@ -281,7 +283,7 @@ bool PackInitialize(const char* c_pszFolder)
 
     int mounted = 0;
 
-    // root primeiro (para ficheiros sem prefixo + uiscript dentro do root)
+    // root.ipk primeiro (para ficheiros sem pasta e para uiscript/ dentro do root)
     const std::string rootFile = stFolder + "root" + ext;
     if (_access(rootFile.c_str(), 0) != 0)
         return false;
@@ -291,11 +293,11 @@ bool PackInitialize(const char* c_pszFolder)
     CEterPackManager::Instance().RegisterRootPack(rootFile.c_str());
     ++mounted;
 
-    // restantes packs
+    // packs normais
     for (const auto& it : indexVec)
     {
         const std::string virtualPath = it.first;
-        const std::string packName = it.second;
+        const std::string packName    = it.second;
         const std::string fullPackPath = stFolder + packName + ext;
 
         if (_access(fullPackPath.c_str(), 0) != 0)
@@ -312,14 +314,14 @@ bool PackInitialize(const char* c_pszFolder)
         }
         else
         {
-            // evita duplicar ruído desnecessário (locale normalmente só curto)
-            if (virtualPath != "locale/")
+            if (virtualPath != "locale/") // opcional: evita “ruído”
             {
                 std::string longPath = ymirPrefix + virtualPath;
                 CEterPackManager::Instance().RegisterPack(fullPackPath.c_str(), longPath.c_str());
             }
         }
     }
+
 
     const std::string mapPack = stFolder + "map" + ext;
     if (_access(mapPack.c_str(), 0) == 0)
@@ -929,6 +931,7 @@ int Setup(LPSTR lpCmdLine)
 	GrannySetLogCallback(&Callback);
 	return 1;
 }
+
 
 
 
