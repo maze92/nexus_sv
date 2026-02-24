@@ -1,7 +1,50 @@
-1. Atualizar o Input.h
-Precisamos adicionar as funções de registro e processamento do mouse na classe CInputMouse (assim como fizemos com o teclado). Adicione isso no final da definição de CInputMouse:
+Ficheiro: EterLib/Input.h
+1. Procura por (Variáveis do DirectInput):
 
 C++
+
+	static LPDIRECTINPUT8 ms_lpDI;
+Substitui por:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	static LPDIRECTINPUT8 ms_lpDI;
+#endif
+2. Procura por (na classe CInputKeyboard):
+
+C++
+
+	static LPDIRECTINPUTDEVICE8 ms_lpKeyboard;
+Substitui por:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	static LPDIRECTINPUTDEVICE8 ms_lpKeyboard;
+#endif
+
+#if defined(ENABLE_RAW_INPUT)
+public:
+	static void SetUseRawInput(bool enable);
+	static bool IsUsingRawInput();
+	static bool RegisterRawInputKeyboard(HWND hWnd);
+	static void ProcessRawInputKeyboard(const RAWINPUT* raw);
+private:
+	static bool ms_bUseRawInput;
+#endif
+3. Procura por (na classe CInputMouse):
+
+C++
+
+	static LPDIRECTINPUTDEVICE8 ms_lpMouse;
+Substitui por:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	static LPDIRECTINPUTDEVICE8 ms_lpMouse;
+#endif
 
 #if defined(ENABLE_RAW_INPUT)
 public:
@@ -12,25 +55,158 @@ public:
 private:
 	static bool ms_bUseRawInput;
 #endif
-2. Atualizar o Input.cpp
-Agora vamos implementar a lógica. O segredo aqui é que o Metin2/EterLib precisa do movimento relativo (para girar a câmera) e do estado dos botões.
+Ficheiro: EterLib/Input.cpp
+1. Procura por (Declarações globais no topo):
 
-Adicione as variáveis e funções no Input.cpp (perto das implementações do CInputMouse):
+C++
+
+LPDIRECTINPUT8 CInputDevice::ms_lpDI = NULL;
+LPDIRECTINPUTDEVICE8 CInputKeyboard::ms_lpKeyboard = NULL;
+Substitui por:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+LPDIRECTINPUT8 CInputDevice::ms_lpDI = NULL;
+LPDIRECTINPUTDEVICE8 CInputKeyboard::ms_lpKeyboard = NULL;
+LPDIRECTINPUTDEVICE8 CInputMouse::ms_lpMouse = NULL;
+#endif
+
+#if defined(ENABLE_RAW_INPUT)
+bool CInputKeyboard::ms_bUseRawInput = false;
+bool CInputMouse::ms_bUseRawInput = false;
+#endif
+2. Procura por (Inicialização do DirectInput no construtor CInputDevice::CInputDevice ou função Create):
+
+C++
+
+	if (FAILED(DirectInput8Create(hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&ms_lpDI, NULL)))
+Envolve com a macro:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	if (FAILED(DirectInput8Create(hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&ms_lpDI, NULL)))
+	{
+		return false; // Ou o log original
+	}
+#endif
+3. Procura por (Setup do Teclado - CInputKeyboard::Initialize ou Create):
+
+C++
+
+	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysKeyboard, &ms_lpKeyboard, NULL)))
+Envolve com a macro:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysKeyboard, &ms_lpKeyboard, NULL)))
+		return false;
+
+	ms_lpKeyboard->SetDataFormat(&c_dfDIKeyboard);
+	ms_lpKeyboard->SetCooperativeLevel(hWnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
+	ms_lpKeyboard->Acquire();
+#endif
+4. Procura por (Setup do Rato - CInputMouse::Initialize ou Create):
+
+C++
+
+	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysMouse, &ms_lpMouse, NULL)))
+Envolve com a macro:
+
+C++
+
+#if !defined(ENABLE_RAW_INPUT)
+	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysMouse, &ms_lpMouse, NULL)))
+		return false;
+
+	ms_lpMouse->SetDataFormat(&c_dfDIMouse); // Ou c_dfDIMouse2
+	ms_lpMouse->SetCooperativeLevel(hWnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE);
+	ms_lpMouse->Acquire();
+#endif
+5. Procura por (CInputKeyboard::UpdateKeyboard()):
+Adiciona o bypass logo na primeira linha da função:
+
+C++
+
+void CInputKeyboard::UpdateKeyboard()
+{
+#if defined(ENABLE_RAW_INPUT)
+	if (ms_bUseRawInput)
+		return;
+#endif
+	// ... resto do código
+6. Procura por (CInputMouse::UpdateMouse() ou similar que chama GetDeviceState):
+Adiciona o bypass logo na primeira linha da função:
+
+C++
+
+void CInputMouse::Update()
+{
+#if defined(ENABLE_RAW_INPUT)
+	if (ms_bUseRawInput)
+		return;
+#endif
+	// ... resto do código
+7. Vai até o final do ficheiro Input.cpp e adiciona as lógicas do Raw Input:
 
 C++
 
 #if defined(ENABLE_RAW_INPUT)
-bool CInputMouse::ms_bUseRawInput = false;
+// ==========================================
+// RAW INPUT - TECLADO
+// ==========================================
+void CInputKeyboard::SetUseRawInput(bool enable) { ms_bUseRawInput = enable; }
+bool CInputKeyboard::IsUsingRawInput() { return ms_bUseRawInput; }
 
-void CInputMouse::SetUseRawInput(bool enable)
+bool CInputKeyboard::RegisterRawInputKeyboard(HWND hWnd)
 {
-	ms_bUseRawInput = enable;
+	RAWINPUTDEVICE rid;
+	rid.usUsagePage = 0x01; // generic desktop controls
+	rid.usUsage = 0x06;     // keyboard
+	rid.dwFlags = RIDEV_INPUTSINK;
+	rid.hwndTarget = hWnd;
+	return RegisterRawInputDevices(&rid, 1, sizeof(rid)) == TRUE;
 }
 
-bool CInputMouse::IsUsingRawInput()
+static int __RawInputMakeDik(const RAWKEYBOARD& rk)
 {
-	return ms_bUseRawInput;
+	UINT make = rk.MakeCode & 0xFF;
+	UINT flags = rk.Flags;
+	if ((flags & RI_KEY_E0) && (make == 0x2A || make == 0x36)) return -1;
+	if ((flags & RI_KEY_E1) && make == 0x1D) return 0xC5; // DIK_PAUSE
+	int dik = (int)make;
+	if (flags & RI_KEY_E0) dik |= 0x80;
+	return dik;
 }
+
+void CInputKeyboard::ProcessRawInputKeyboard(const RAWINPUT* raw)
+{
+	if (!ms_bUseRawInput || raw->header.dwType != RIM_TYPEKEYBOARD) return;
+
+	const RAWKEYBOARD& rk = raw->data.keyboard;
+	int dik = __RawInputMakeDik(rk);
+	if (dik < 0 || dik >= 256) return;
+
+	const bool isBreak = (rk.Flags & RI_KEY_BREAK) != 0;
+	if (isBreak)
+	{
+		ms_diks[dik] = 0; // Desliga o bit
+		if (IsPressed(dik)) KeyUp(dik);
+	}
+	else
+	{
+		ms_diks[dik] = 0x80; // Liga o bit (formato DirectInput)
+		if (!IsPressed(dik)) KeyDown(dik);
+	}
+}
+
+// ==========================================
+// RAW INPUT - RATO
+// ==========================================
+void CInputMouse::SetUseRawInput(bool enable) { ms_bUseRawInput = enable; }
+bool CInputMouse::IsUsingRawInput() { return ms_bUseRawInput; }
 
 bool CInputMouse::RegisterRawInputMouse(HWND hWnd)
 {
@@ -39,68 +215,54 @@ bool CInputMouse::RegisterRawInputMouse(HWND hWnd)
 	rid.usUsage = 0x02;     // mouse
 	rid.dwFlags = RIDEV_INPUTSINK; 
 	rid.hwndTarget = hWnd;
-
 	return RegisterRawInputDevices(&rid, 1, sizeof(rid)) == TRUE;
 }
 
 void CInputMouse::ProcessRawInputMouse(const RAWINPUT* raw)
 {
-	if (!ms_bUseRawInput)
-		return;
-
-	if (raw->header.dwType != RIM_TYPEMOUSE)
-		return;
+	if (!ms_bUseRawInput || raw->header.dwType != RIM_TYPEMOUSE) return;
 
 	const RAWMOUSE& rm = raw->data.mouse;
 
-	// O Metin2 usa variáveis estáticas ou membros na classe CInputMouse para guardar os eixos.
-	// NOTA: Se o seu cliente usar um array específico (como o ms_diks do teclado) ou 
-	// variáveis como m_lX, m_lY, atualize-as aqui. Assumindo o padrão de DIMOUSESTATE:
-
-	// 1. Movimento Relativo (Eixos X e Y)
-	// Se a flag MOUSE_MOVE_RELATIVE estiver ativa, pegamos o movimento.
-	if ((rm.usFlags & MOUSE_MOVE_ABSOLUTE) == 0) 
+	// Movimento Relativo (Câmera)
+	if ((rm.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
 	{
-		// Você deve somar o movimento relativo às variáveis que o jogo usa para girar a câmera.
-		// Exemplo genérico (substitua pelas variáveis reais da sua CInputMouse):
-		// ms_lX += rm.lLastX;
-		// ms_lY += rm.lLastY;
+		m_lX += rm.lLastX;
+		m_lY += rm.lLastY;
 	}
 
-	// 2. Scroll (Roda do Mouse)
+	// Scroll do Rato
 	if (rm.usButtonFlags & RI_MOUSE_WHEEL)
 	{
-		short wheelDelta = (short)rm.usButtonData;
-		// Atualize a variável do eixo Z (scroll) do jogo
-		// ms_lZ += wheelDelta;
+		m_lZ += (short)rm.usButtonData;
 	}
 
-	// 3. Botões do Mouse
-	// O Raw Input envia flags separadas para o momento que o botão é apertado (DOWN) e solto (UP)
-	
 	// Botão Esquerdo
 	if (rm.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
-		/* ms_bLeftButton = true; */;
+		m_bLeftButtonDown = true;
 	if (rm.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)
-		/* ms_bLeftButton = false; */;
+		m_bLeftButtonDown = false;
 
 	// Botão Direito
 	if (rm.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)
-		/* ms_bRightButton = true; */;
+		m_bRightButtonDown = true;
 	if (rm.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
-		/* ms_bRightButton = false; */;
+		m_bRightButtonDown = false;
 
-	// Botão do Meio (Scroll Click)
+	// Botão do Meio
 	if (rm.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
-		/* ms_bMiddleButton = true; */;
+		m_bMiddleButtonDown = true;
 	if (rm.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
-		/* ms_bMiddleButton = false; */;
+		m_bMiddleButtonDown = false;
 }
 #endif
-Atenção: Onde eu coloquei os comentários /* ms_lX += rm.lLastX; */, você precisa verificar no seu Input.cpp quais são as variáveis exatas que a EterLib usa para armazenar o estado do mouse (geralmente elas são preenchidas pela função ms_lpMouse->GetDeviceState()).
+Ficheiro: EterLib/MSWindow.cpp
+1. Procura por (CWindow::Create ou onde o HWND é criado e guardado, ex: SetWindowLongPtr):
 
-3. Atualizar o MSWindow.cpp (Registro)
-Onde você registrou o teclado, registre o mouse também:
+C++
+
+	SetWindowLongPtr(m_hWnd, GWLP_USERDATA, (DWORD)this);
+Adiciona LOGO ABAIXO:
 
 C++
 
@@ -111,8 +273,13 @@ C++
 	CInputMouse::RegisterRawInputMouse(m_hWnd);
 	CInputMouse::SetUseRawInput(true);
 #endif
-4. Atualizar o PythonApplicationProcedure.cpp
-No seu WM_INPUT, agora precisamos distribuir os dados tanto para o teclado quanto para o mouse. O código ficará muito mais limpo se você fizer a leitura do buffer aqui e só repassar o ponteiro raw para a classe correta:
+Ficheiro: UserInterface/PythonApplicationProcedure.cpp
+1. Procura por (Dentro da função WindowProcedure, no bloco switch (uiMsg)):
+
+C++
+
+		case WM_KEYDOWN:
+Adiciona LOGO ACIMA do case WM_KEYDOWN::
 
 C++
 
@@ -130,7 +297,7 @@ C++
 					const RAWINPUT* raw = (const RAWINPUT*)buffer.data();
 					
 					if (raw->header.dwType == RIM_TYPEKEYBOARD)
-						CInputKeyboard::ProcessRawInput(raw); // Ajuste a função do teclado para receber 'const RAWINPUT* raw' em vez de lParam
+						CInputKeyboard::ProcessRawInputKeyboard(raw);
 					else if (raw->header.dwType == RIM_TYPEMOUSE)
 						CInputMouse::ProcessRawInputMouse(raw);
 				}
