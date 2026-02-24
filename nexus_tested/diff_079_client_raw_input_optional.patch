@@ -1,25 +1,47 @@
-Ficheiro: EterLib/Input.h
-1. Procura por (Variáveis do DirectInput):
+EterLib/Input.h
+#pragma once
 
-C++
+#if defined(ENABLE_RAW_INPUT)
+	#include <windows.h>
+#endif
 
-	static LPDIRECTINPUT8 ms_lpDI;
-Substitui por:
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = NULL; } }
+#endif
 
-C++
+class CInputDevice
+{
+public:
+	CInputDevice();
+	virtual ~CInputDevice();
 
+	HRESULT CreateDevice(HWND hWnd);
+
+protected:
 #if !defined(ENABLE_RAW_INPUT)
 	static LPDIRECTINPUT8 ms_lpDI;
 #endif
-2. Procura por (na classe CInputKeyboard):
+};
 
-C++
+class CInputKeyboard : public CInputDevice
+{
+public:
+	CInputKeyboard();
+	virtual ~CInputKeyboard();
 
-	static LPDIRECTINPUTDEVICE8 ms_lpKeyboard;
-Substitui por:
+	bool InitializeKeyboard(HWND hWnd);
+	void UpdateKeyboard();
+	void ResetKeyboard();
 
-C++
+	bool IsPressed(int iIndex);
+	void KeyDown(int iIndex);
+	void KeyUp(int iIndex);
 
+protected:
+	virtual void OnKeyDown(int iIndex) = 0;
+	virtual void OnKeyUp(int iIndex) = 0;
+
+protected:
 #if !defined(ENABLE_RAW_INPUT)
 	static LPDIRECTINPUTDEVICE8 ms_lpKeyboard;
 #endif
@@ -33,102 +55,115 @@ public:
 private:
 	static bool ms_bUseRawInput;
 #endif
-3. Procura por (na classe CInputMouse):
+	static bool ms_bPressedKey[256];
+	static char ms_diks[256];
 
-C++
-
-	static LPDIRECTINPUTDEVICE8 ms_lpMouse;
-Substitui por:
-
-C++
-
-#if !defined(ENABLE_RAW_INPUT)
-	static LPDIRECTINPUTDEVICE8 ms_lpMouse;
-#endif
-
-#if defined(ENABLE_RAW_INPUT)
-public:
-	static void SetUseRawInput(bool enable);
-	static bool IsUsingRawInput();
-	static bool RegisterRawInputMouse(HWND hWnd);
-	static void ProcessRawInputMouse(const RAWINPUT* raw);
-private:
-	static bool ms_bUseRawInput;
-#endif
-Ficheiro: EterLib/Input.cpp
-1. Procura por (Declarações globais no topo):
-
-C++
-
-LPDIRECTINPUT8 CInputDevice::ms_lpDI = NULL;
-LPDIRECTINPUTDEVICE8 CInputKeyboard::ms_lpKeyboard = NULL;
-Substitui por:
-
-C++
+};
+EterLib/Input.cpp
+#include "StdAfx.h"
+#include "Input.h"
 
 #if !defined(ENABLE_RAW_INPUT)
 LPDIRECTINPUT8 CInputDevice::ms_lpDI = NULL;
 LPDIRECTINPUTDEVICE8 CInputKeyboard::ms_lpKeyboard = NULL;
-LPDIRECTINPUTDEVICE8 CInputMouse::ms_lpMouse = NULL;
 #endif
 
 #if defined(ENABLE_RAW_INPUT)
 bool CInputKeyboard::ms_bUseRawInput = false;
-bool CInputMouse::ms_bUseRawInput = false;
 #endif
-2. Procura por (Inicialização do DirectInput no construtor CInputDevice::CInputDevice ou função Create):
 
-C++
+bool CInputKeyboard::ms_bPressedKey[256];
+char CInputKeyboard::ms_diks[256];
 
-	if (FAILED(DirectInput8Create(hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&ms_lpDI, NULL)))
-Envolve com a macro:
+CInputDevice::CInputDevice()
+{
+}
 
-C++
-
+CInputDevice::~CInputDevice()
+{
 #if !defined(ENABLE_RAW_INPUT)
-	if (FAILED(DirectInput8Create(hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&ms_lpDI, NULL)))
+	SAFE_RELEASE(ms_lpDI);
+#endif
+}
+
+HRESULT CInputDevice::CreateDevice(HWND /*hWnd*/)
+{
+#if !defined(ENABLE_RAW_INPUT)
+	if (ms_lpDI)
 	{
-		return false; // Ou o log original
+		ms_lpDI->AddRef();
+		return S_OK;
 	}
+
+	HRESULT hr;
+
+	// Create a DInput object
+	if (FAILED(hr = DirectInput8Create(GetModuleHandle(NULL), DIRECTINPUT_VERSION,
+		IID_IDirectInput8, (VOID**)&ms_lpDI, NULL)))
+		return hr;
+
+	return S_OK;
+#else
+	// Raw Input build: DirectInput disabled
+	return S_OK;
 #endif
-3. Procura por (Setup do Teclado - CInputKeyboard::Initialize ou Create):
+}
 
-C++
+CInputKeyboard::CInputKeyboard()
+{
+	ResetKeyboard();
+}
 
-	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysKeyboard, &ms_lpKeyboard, NULL)))
-Envolve com a macro:
+CInputKeyboard::~CInputKeyboard()
+{
+#if !defined(ENABLE_RAW_INPUT)
+	if (ms_lpKeyboard)
+		ms_lpKeyboard->Unacquire();
 
-C++
+	SAFE_RELEASE(ms_lpKeyboard);
+#endif
+}
+
+void CInputKeyboard::ResetKeyboard()
+{
+	memset(ms_diks, 0, sizeof(ms_diks));
+	memset(ms_bPressedKey, 0, sizeof(ms_bPressedKey));
+}
+
+bool CInputKeyboard::InitializeKeyboard(HWND hWnd)
+{
+	NANOBEGIN
 
 #if !defined(ENABLE_RAW_INPUT)
-	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysKeyboard, &ms_lpKeyboard, NULL)))
+		if (ms_lpKeyboard)
+			return true;
+
+	if (FAILED(CreateDevice(hWnd)))
 		return false;
 
-	ms_lpKeyboard->SetDataFormat(&c_dfDIKeyboard);
-	ms_lpKeyboard->SetCooperativeLevel(hWnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
+	HRESULT hr;
+
+	// Obtain an interface to the system keyboard device.
+	if (FAILED(hr = ms_lpDI->CreateDevice(GUID_SysKeyboard, &ms_lpKeyboard, NULL)))
+		return false;
+
+	if (FAILED(hr = ms_lpKeyboard->SetDataFormat(&c_dfDIKeyboard)))
+		return false;
+
+	// Alt + F4    - [levites]
+	//DWORD dwCoopFlags = DISCL_FOREGROUND | DISCL_EXCLUSIVE;
+	//DWORD dwCoopFlags = DISCL_NONEXCLUSIVE | DISCL_BACKGROUND;
+	DWORD dwCoopFlags = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
+
+	if (FAILED(hr = ms_lpKeyboard->SetCooperativeLevel(hWnd, dwCoopFlags)))
+		return false;
+
 	ms_lpKeyboard->Acquire();
 #endif
-4. Procura por (Setup do Rato - CInputMouse::Initialize ou Create):
 
-C++
-
-	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysMouse, &ms_lpMouse, NULL)))
-Envolve com a macro:
-
-C++
-
-#if !defined(ENABLE_RAW_INPUT)
-	if (FAILED(CInputDevice::ms_lpDI->CreateDevice(GUID_SysMouse, &ms_lpMouse, NULL)))
-		return false;
-
-	ms_lpMouse->SetDataFormat(&c_dfDIMouse); // Ou c_dfDIMouse2
-	ms_lpMouse->SetCooperativeLevel(hWnd, DISCL_FOREGROUND | DISCL_EXCLUSIVE);
-	ms_lpMouse->Acquire();
-#endif
-5. Procura por (CInputKeyboard::UpdateKeyboard()):
-Adiciona o bypass logo na primeira linha da função:
-
-C++
+	NANOEND
+		return true;
+}
 
 void CInputKeyboard::UpdateKeyboard()
 {
@@ -136,22 +171,53 @@ void CInputKeyboard::UpdateKeyboard()
 	if (ms_bUseRawInput)
 		return;
 #endif
-	// ... resto do código
-6. Procura por (CInputMouse::UpdateMouse() ou similar que chama GetDeviceState):
-Adiciona o bypass logo na primeira linha da função:
 
-C++
-
-void CInputMouse::Update()
-{
-#if defined(ENABLE_RAW_INPUT)
-	if (ms_bUseRawInput)
+#if !defined(ENABLE_RAW_INPUT)
+	if (!ms_lpKeyboard)
 		return;
-#endif
-	// ... resto do código
-7. Vai até o final do ficheiro Input.cpp e adiciona as lógicas do Raw Input:
 
-C++
+	HRESULT hr;
+
+	hr = ms_lpKeyboard->GetDeviceState(sizeof(ms_diks), &ms_diks);
+
+	if (FAILED(hr))
+	{
+		hr = ms_lpKeyboard->Acquire();
+
+		//  ø̼ Ȱȭ Ǿ ־ Է   .
+		//if (hr == DIERR_OTHERAPPHASPRIO || hr == DIERR_NOTACQUIRED);
+		return;
+	}
+
+	for (int i = 0; i < 256; ++i)
+	{
+		if (ms_diks[i] & 0x80)
+		{
+			if (!IsPressed(i))
+				KeyDown(i);
+		}
+		else if (IsPressed(i))
+			KeyUp(i);
+	}
+#endif
+}
+
+void CInputKeyboard::KeyDown(int iIndex)
+{
+	ms_bPressedKey[iIndex] = true;
+	OnKeyDown(iIndex);
+}
+
+void CInputKeyboard::KeyUp(int iIndex)
+{
+	ms_bPressedKey[iIndex] = false;
+	OnKeyUp(iIndex);
+}
+
+bool CInputKeyboard::IsPressed(int iIndex)
+{
+	return ms_bPressedKey[iIndex];
+}
 
 #if defined(ENABLE_RAW_INPUT)
 // ==========================================
@@ -165,7 +231,9 @@ bool CInputKeyboard::RegisterRawInputKeyboard(HWND hWnd)
 	RAWINPUTDEVICE rid;
 	rid.usUsagePage = 0x01; // generic desktop controls
 	rid.usUsage = 0x06;     // keyboard
-	rid.dwFlags = RIDEV_INPUTSINK;
+	// Mantém legacy (WM_KEYDOWN/WM_CHAR) para IME/texto.
+	// Se quiseres suprimir duplicação de mensagens, usa RIDEV_NOLEGACY|RIDEV_NOHOTKEYS.
+	rid.dwFlags = 0;
 	rid.hwndTarget = hWnd;
 	return RegisterRawInputDevices(&rid, 1, sizeof(rid)) == TRUE;
 }
@@ -174,134 +242,312 @@ static int __RawInputMakeDik(const RAWKEYBOARD& rk)
 {
 	UINT make = rk.MakeCode & 0xFF;
 	UINT flags = rk.Flags;
+
+	// Filtra o "fake E0" dos shifts
 	if ((flags & RI_KEY_E0) && (make == 0x2A || make == 0x36)) return -1;
-	if ((flags & RI_KEY_E1) && make == 0x1D) return 0xC5; // DIK_PAUSE
+
+	// Pause (E1 1D 45...) mapeia para DIK_PAUSE (0xC5)
+	if ((flags & RI_KEY_E1) && make == 0x1D) return 0xC5;
+
 	int dik = (int)make;
-	if (flags & RI_KEY_E0) dik |= 0x80;
+	if (flags & RI_KEY_E0) dik |= 0x80; // convenção DI
 	return dik;
 }
 
 void CInputKeyboard::ProcessRawInputKeyboard(const RAWINPUT* raw)
 {
-	if (!ms_bUseRawInput || raw->header.dwType != RIM_TYPEKEYBOARD) return;
+	if (!ms_bUseRawInput || !raw || raw->header.dwType != RIM_TYPEKEYBOARD) return;
 
 	const RAWKEYBOARD& rk = raw->data.keyboard;
 	int dik = __RawInputMakeDik(rk);
 	if (dik < 0 || dik >= 256) return;
 
+	const bool wasPressed = IsPressed(dik);
 	const bool isBreak = (rk.Flags & RI_KEY_BREAK) != 0;
+
 	if (isBreak)
 	{
-		ms_diks[dik] = 0; // Desliga o bit
-		if (IsPressed(dik)) KeyUp(dik);
+		ms_diks[dik] = 0; // formato DirectInput
+		if (wasPressed) KeyUp(dik);
 	}
 	else
 	{
-		ms_diks[dik] = 0x80; // Liga o bit (formato DirectInput)
-		if (!IsPressed(dik)) KeyDown(dik);
+		ms_diks[dik] = (char)0x80; // formato DirectInput
+		if (!wasPressed) KeyDown(dik);
 	}
-}
-
-// ==========================================
-// RAW INPUT - RATO
-// ==========================================
-void CInputMouse::SetUseRawInput(bool enable) { ms_bUseRawInput = enable; }
-bool CInputMouse::IsUsingRawInput() { return ms_bUseRawInput; }
-
-bool CInputMouse::RegisterRawInputMouse(HWND hWnd)
-{
-	RAWINPUTDEVICE rid;
-	rid.usUsagePage = 0x01; // generic desktop controls
-	rid.usUsage = 0x02;     // mouse
-	rid.dwFlags = RIDEV_INPUTSINK; 
-	rid.hwndTarget = hWnd;
-	return RegisterRawInputDevices(&rid, 1, sizeof(rid)) == TRUE;
-}
-
-void CInputMouse::ProcessRawInputMouse(const RAWINPUT* raw)
-{
-	if (!ms_bUseRawInput || raw->header.dwType != RIM_TYPEMOUSE) return;
-
-	const RAWMOUSE& rm = raw->data.mouse;
-
-	// Movimento Relativo (Câmera)
-	if ((rm.usFlags & MOUSE_MOVE_ABSOLUTE) == 0)
-	{
-		m_lX += rm.lLastX;
-		m_lY += rm.lLastY;
-	}
-
-	// Scroll do Rato
-	if (rm.usButtonFlags & RI_MOUSE_WHEEL)
-	{
-		m_lZ += (short)rm.usButtonData;
-	}
-
-	// Botão Esquerdo
-	if (rm.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
-		m_bLeftButtonDown = true;
-	if (rm.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)
-		m_bLeftButtonDown = false;
-
-	// Botão Direito
-	if (rm.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)
-		m_bRightButtonDown = true;
-	if (rm.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
-		m_bRightButtonDown = false;
-
-	// Botão do Meio
-	if (rm.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
-		m_bMiddleButtonDown = true;
-	if (rm.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
-		m_bMiddleButtonDown = false;
 }
 #endif
-Ficheiro: EterLib/MSWindow.cpp
-1. Procura por (CWindow::Create ou onde o HWND é criado e guardado, ex: SetWindowLongPtr):
+EterLib/MSWindow.cpp
+#include "StdAfx.h"
+#include "MsWindow.h"
+#include "Input.h"
 
-C++
+#include <windowsx.h>
+
+CMSWindow::TWindowClassSet CMSWindow::ms_stWCSet;
+HINSTANCE CMSWindow::ms_hInstance = NULL;
+
+LRESULT CALLBACK MSWindowProcedure(HWND hWnd, UINT uiMsg, WPARAM wParam, LPARAM lParam)
+{
+	CMSWindow* pWnd = (CMSWindow*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
+	if (pWnd)
+		return pWnd->WindowProcedure(hWnd, uiMsg, wParam, lParam);
+
+	return DefWindowProc(hWnd, uiMsg, wParam, lParam);
+}
+
+LRESULT CMSWindow::WindowProcedure(HWND hWnd, UINT uiMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uiMsg)
+	{
+	case WM_SIZE:
+		OnSize(wParam, lParam);
+		break;
+
+	case WM_ACTIVATEAPP:
+		m_isActive = (wParam == WA_ACTIVE) || (wParam == WA_CLICKACTIVE);
+		break;
+	}
+
+	return DefWindowProc(hWnd, uiMsg, wParam, lParam);
+}
+
+void CMSWindow::OnSize(WPARAM wParam, LPARAM /*lParam*/)
+{
+	if (wParam == SIZE_MINIMIZED)
+	{
+		InvalidateRect(m_hWnd, NULL, true);
+		m_isActive = false;
+		m_isVisible = false;
+	}
+	else
+	{
+		m_isActive = true;
+		m_isVisible = true;
+	}
+}
+
+void CMSWindow::Destroy()
+{
+	if (!m_hWnd)
+		return;
+
+	if (IsWindow(m_hWnd))
+		DestroyWindow(m_hWnd);
+
+	m_hWnd = NULL;
+	m_isVisible = false;
+}
+
+bool CMSWindow::Create(const char* c_szName, int brush, DWORD cs, DWORD ws, HICON hIcon, int iCursorResource)
+{
+	//assert(ms_hInstance != NULL);
+	Destroy();
+
+	const char* c_szClassName = RegisterWindowClass(cs, brush, MSWindowProcedure, hIcon, iCursorResource);
+
+	m_hWnd = CreateWindow(
+		c_szClassName,
+		c_szName,
+		ws,
+		0, 0, 0, 0,
+		NULL,
+		NULL,
+		ms_hInstance,
+		NULL);
+
+	if (!m_hWnd)
+		return false;
 
 	SetWindowLongPtr(m_hWnd, GWLP_USERDATA, (DWORD)this);
-Adiciona LOGO ABAIXO:
-
-C++
 
 #if defined(ENABLE_RAW_INPUT)
 	CInputKeyboard::RegisterRawInputKeyboard(m_hWnd);
 	CInputKeyboard::SetUseRawInput(true);
-	
-	CInputMouse::RegisterRawInputMouse(m_hWnd);
-	CInputMouse::SetUseRawInput(true);
 #endif
-Ficheiro: UserInterface/PythonApplicationProcedure.cpp
-1. Procura por (Dentro da função WindowProcedure, no bloco switch (uiMsg)):
+	//DestroyWindow(ImmGetDefaultIMEWnd(m_hWnd));
 
-C++
+	return true;
+}
 
-		case WM_KEYDOWN:
-Adiciona LOGO ACIMA do case WM_KEYDOWN::
+void CMSWindow::SetVisibleMode(bool isVisible)
+{
+	m_isVisible = isVisible;
 
-C++
+	if (m_isVisible)
+	{
+		ShowWindow(m_hWnd, SW_SHOW);
+	}
+	else
+	{
+		ShowWindow(m_hWnd, SW_HIDE);
+	}
+}
+
+void CMSWindow::Show()
+{
+	m_isVisible = true;
+	ShowWindow(m_hWnd, SW_SHOW);
+}
+
+void CMSWindow::Hide()
+{
+	m_isVisible = false;
+	ShowWindow(m_hWnd, SW_HIDE);
+}
+
+bool CMSWindow::IsVisible()
+{
+	return m_isVisible;
+}
+
+bool CMSWindow::IsActive()
+{
+	return m_isActive;
+}
+
+HINSTANCE CMSWindow::GetInstance()
+{
+	return ms_hInstance;
+}
+
+HWND CMSWindow::GetWindowHandle()
+{
+	return m_hWnd;
+}
+
+int	CMSWindow::GetScreenWidth()
+{
+	return GetSystemMetrics(SM_CXSCREEN);
+}
+
+int	CMSWindow::GetScreenHeight()
+{
+	return GetSystemMetrics(SM_CYSCREEN);
+}
+
+void CMSWindow::GetWindowRect(RECT* prc)
+{
+	::GetWindowRect(m_hWnd, prc);
+}
+
+void CMSWindow::GetClientRect(RECT* prc)
+{
+	::GetClientRect(m_hWnd, prc);
+}
+
+void CMSWindow::GetMousePosition(POINT* ppt)
+{
+	GetCursorPos(ppt);
+	ScreenToClient(m_hWnd, ppt);
+}
+
+void CMSWindow::SetPosition(int x, int y)
+{
+	SetWindowPos(m_hWnd, NULL, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+}
+
+void CMSWindow::SetCenterPosition()
+{
+	RECT rc;
+
+	GetClientRect(&rc);
+
+	int windowWidth = rc.right - rc.left;
+	int windowHeight = rc.bottom - rc.top;
+
+	SetPosition((GetScreenWidth() - windowWidth) / 2, (GetScreenHeight() - windowHeight) / 2);
+}
+
+void CMSWindow::AdjustSize(int width, int height)
+{
+	SetRect(&m_rect, 0, 0, width, height);
+
+	AdjustWindowRectEx(&m_rect,
+		GetWindowStyle(m_hWnd),
+		GetMenu(m_hWnd) != NULL,
+		GetWindowExStyle(m_hWnd));
+
+	MoveWindow
+	(
+		m_hWnd,
+		0,
+		0,
+		m_rect.right - m_rect.left,
+		m_rect.bottom - m_rect.top,
+		false
+	);
+}
+
+void CMSWindow::SetText(const char* c_szText)
+{
+	SetWindowText(m_hWnd, c_szText);
+}
+UserInterface/PythonApplicationProcedure.cpp
+
+(Estou a mostrar só a parte relevante onde entram os includes e o case WM_INPUT; o ficheiro completo está no link.)
+
+#include "StdAfx.h"
+
+#include "PythonApplication.h"
+#include "../EterLib/Camera.h"
+#if defined(ENABLE_BADGE_NOTIFICATION_MANAGER)
+	#include "BadgeNotificationManager.h"
+#endif
+#include "CefWebBrowser.h"
+
+#include <winuser.h>
+
+#if defined(ENABLE_RAW_INPUT)
+	#include <vector>
+	#include "../EterLib/Input.h"
+#endif
+
+// ...
+
+LRESULT CPythonApplication::WindowProcedure(HWND hWnd, UINT uiMsg, WPARAM wParam, LPARAM lParam)
+{
+	// ...
+
+	switch (uiMsg)
+	{
+		// ...
+
+		case WM_CHAR:
+		{
+			// ...
+			return CPythonIME::Instance().WMChar(hWnd, uiMsg, wParam, lParam);
+		}
 
 #if defined(ENABLE_RAW_INPUT)
 		case WM_INPUT:
 		{
 			UINT dwSize = 0;
 			GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
-			
+
 			if (dwSize > 0)
 			{
 				std::vector<BYTE> buffer(dwSize);
 				if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
 				{
 					const RAWINPUT* raw = (const RAWINPUT*)buffer.data();
-					
 					if (raw->header.dwType == RIM_TYPEKEYBOARD)
 						CInputKeyboard::ProcessRawInputKeyboard(raw);
-					else if (raw->header.dwType == RIM_TYPEMOUSE)
-						CInputMouse::ProcessRawInputMouse(raw);
 				}
 			}
-			return DefWindowProc(hWnd, uiMsg, wParam, lParam);
+			return 0;
 		}
 #endif
+
+		case WM_KEYDOWN:
+		{
+			// IME mantém-se via WM_KEYDOWN/WM_CHAR (não uso NOLEGACY no registo)
+			OnIMEKeyDown(LOWORD(wParam));
+		}
+		break;
+
+		// ...
+	}
+	// ...
+}
