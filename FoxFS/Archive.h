@@ -1,12 +1,9 @@
+// Archive.h (REVISADO e ALINHADO)
 #ifndef FOXFS_ARCHIVE_H
 #define FOXFS_ARCHIVE_H
 
-#include <algorithm>
 #include <map>
-#include <cstdlib>
-#include <string>
-
-#include <cryptopp/crc.h>
+#include <cstring>
 
 #if defined(_WIN32) || defined(_WIN64) || defined(WIN32) || defined(WIN64)
 #   pragma warning(disable : 4996)
@@ -30,24 +27,21 @@ namespace FoxFS
         {
             ERROR_OK = 0,
             ERROR_BASE_CODE = 0,
-            ERROR_FILE_WAS_NOT_FOUND   = ERROR_BASE_CODE + 1,
-            ERROR_CORRUPTED_FILE       = ERROR_BASE_CODE + 2,
-            ERROR_MISSING_KEY          = ERROR_BASE_CODE + 3,
-            ERROR_MISSING_IV           = ERROR_BASE_CODE + 4,
-
-            ERROR_DECRYPTION_FAILED    = ERROR_BASE_CODE + 5,
-            ERROR_DECRYPTION_HAS_FAILED = ERROR_DECRYPTION_FAILED, // compat opcional
-
+            ERROR_FILE_WAS_NOT_FOUND = ERROR_BASE_CODE + 1,
+            ERROR_CORRUPTED_FILE = ERROR_BASE_CODE + 2,
+            ERROR_MISSING_KEY = ERROR_BASE_CODE + 3,
+            ERROR_MISSING_IV = ERROR_BASE_CODE + 4,
+            ERROR_DECRYPTION_HAS_FAILED = ERROR_BASE_CODE + 5,
             ERROR_DECOMPRESSION_FAILED = ERROR_BASE_CODE + 6,
-            ERROR_ARCHIVE_NOT_FOUND    = ERROR_BASE_CODE + 7,
+            ERROR_ARCHIVE_NOT_FOUND = ERROR_BASE_CODE + 7,
             ERROR_ARCHIVE_NOT_READABLE = ERROR_BASE_CODE + 8,
-            ERROR_ARCHIVE_INVALID      = ERROR_BASE_CODE + 9,
-            ERROR_ARCHIVE_ACCESS_DENIED= ERROR_BASE_CODE + 10,
-            ERROR_KEYSERVER_SOCKET     = ERROR_BASE_CODE + 11,
+            ERROR_ARCHIVE_INVALID = ERROR_BASE_CODE + 9,
+            ERROR_ARCHIVE_ACCESS_DENIED = ERROR_BASE_CODE + 10,
+            ERROR_KEYSERVER_SOCKET = ERROR_BASE_CODE + 11,
             ERROR_KEYSERVER_CONNECTION = ERROR_BASE_CODE + 12,
-            ERROR_KEYSERVER_RESPONSE   = ERROR_BASE_CODE + 13,
-            ERROR_KEYSERVER_TIMEOUT    = ERROR_BASE_CODE + 14,
-            ERROR_UNKNOWN              = ERROR_BASE_CODE + 15
+            ERROR_KEYSERVER_RESPONSE = ERROR_BASE_CODE + 13,
+            ERROR_KEYSERVER_TIMEOUT = ERROR_BASE_CODE + 14,
+            ERROR_UNKNOWN = ERROR_BASE_CODE + 15
         };
 
         struct FileListEntry
@@ -59,7 +53,6 @@ namespace FoxFS
             unsigned int name;
         };
 
-    public:
         Archive();
         ~Archive();
 
@@ -72,6 +65,7 @@ namespace FoxFS
         int load(const wchar_t* filename, const void* key, const void* iv);
         void unload();
 
+        // IMPLEMENTAÇÃO fica no Archive.cc para garantir normalização única
         static unsigned int generateFilenameIndex(const char* filename);
 
     private:
