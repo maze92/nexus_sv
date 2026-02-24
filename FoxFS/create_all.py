@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 import glob
 import os
-import shutil
 import subprocess
 import time
 
 archiver_exe = "Archiver.exe"
 input_folder = "xml_data"
 output_folder = "xml_output"
-pack_output_folder = "pack_output"  # DESTINO FINAL
+pack_output_folder = "pack_output"  # onde os .ipk ficam (tu moves manualmente depois)
 
 def ensure_dir(p):
     if not os.path.exists(p):
@@ -47,7 +46,7 @@ else:
             try: os.remove(path_output)
             except: pass
 
-        # apaga pack antigo no destino final
+        # apaga pack antigo no destino (pack_output)
         if os.path.exists(ipk_expected):
             try: os.remove(ipk_expected)
             except: pass
@@ -60,7 +59,7 @@ else:
             print "--------------------------------------------------"
             continue
 
-        # Passo 2: compactar (isto vai criar o .ipk no ArchivePath do XML)
+        # Passo 2: compactar (vai criar o .ipk no ArchivePath do XML)
         print "  -> Compactando para .ipk..."
         subprocess.call([archiver_exe, path_output])
 
@@ -70,13 +69,5 @@ else:
             print "  [WARN] Nao encontrei o .ipk em pack_output. Confirma se o teu XML tem ArchivePath='pack_output/%s.ipk'." % base_name
 
         print "--------------------------------------------------"
-
-# se existir pasta pack/, remove (para não te “baralhar”)
-if os.path.isdir("pack"):
-    try:
-        shutil.rmtree("pack")
-        print "\n[INFO] Pasta 'pack/' removida (nao e usada)."
-    except:
-        print "\n[WARN] Nao consegui remover a pasta 'pack/'."
 
 print "\nProcesso concluido!"
