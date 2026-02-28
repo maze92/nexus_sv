@@ -13,6 +13,7 @@ https://forum.turkmmo.com/konu/3935467-skill-aciklamasini-10-a-cikartmak-ve-resi
 https://forum.turkmmo.com/konu/3810474-socket_bind-bind-address-already-in-use-hatasi-cozumu/
 https://forum.turkmmo.com/konu/3930936-c-fix-mini-harita-gorev-iconu/
 https://forum.turkmmo.com/konu/3797038-10lu-statu-verme-sistemi/
+https://forum.turkmmo.com/konu/3893813-sonitex-offline-shop/
 
 
 https://forum.turkmmo.com/kategori/c-c-python/page-12
