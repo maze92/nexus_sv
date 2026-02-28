@@ -10,3 +10,7 @@ https://metin2.dev/topic/29344-leadership-skill-description-bonus-values-display
 https://forum.turkmmo.com/konu/3937667-system-monitoring-cpu-gpu-ram-fps/
 https://forum.turkmmo.com/konu/3732417-ek-envanter-sistemi-k-envanteri/
 https://forum.turkmmo.com/konu/3935467-skill-aciklamasini-10-a-cikartmak-ve-resim-eklemek/
+https://forum.turkmmo.com/konu/3810474-socket_bind-bind-address-already-in-use-hatasi-cozumu/
+
+
+https://forum.turkmmo.com/kategori/c-c-python/page-12
