@@ -8,3 +8,4 @@ https://metin2.dev/topic/32961-fix-hitting-from-the-top-of-the-horse/
 https://metin2.dev/topic/32247-fix-overin-tooltip-with-another-slot-behind/
 https://metin2.dev/topic/29344-leadership-skill-description-bonus-values-display-fix/
 https://forum.turkmmo.com/konu/3937667-system-monitoring-cpu-gpu-ram-fps/
+https://forum.turkmmo.com/konu/3732417-ek-envanter-sistemi-k-envanteri/
