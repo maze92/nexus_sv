@@ -89,3 +89,4 @@ CHANGELOGS - NEXUS OS DEVELOPMENT
 27.02.2026
 [ADD] 079 - Adição definitiva do sistema USE_FOX_FS nos ficheiros de servidor.
 [ADD] 080 - Adição definitiva do sistema ENABLE_RAW_INPUT nos ficheiros do servidor (src-client/Client/GameLib/Input.cpp, src-client/Client/EterLib/Input.h, src-client/Client/UserInterface/PythonApplicationProcedure.cpp (+1)).
+[OPT] 081 - Analise dos ficheiros do servidor e do Python para verificar inconsistências e ficheiros não usados.
