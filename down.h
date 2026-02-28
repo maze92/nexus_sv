@@ -18,6 +18,7 @@ https://forum.turkmmo.com/konu/3923817-kostum-takiliyken-cinsiyet-degistiremezsi
 https://forum.turkmmo.com/konu/3877812-imagebox-memory-leak-fix/
 https://forum.turkmmo.com/konu/3917617-level-yani-gm-ikonu/
 https://forum.turkmmo.com/konu/3913121-c-terrain-bozuklugu-fix/
+https://forum.turkmmo.com/konu/3912251-maintenance-info-system/
 
 
 
