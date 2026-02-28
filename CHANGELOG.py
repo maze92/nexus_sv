@@ -85,3 +85,7 @@ CHANGELOGS - NEXUS OS DEVELOPMENT
 [FIX] 076 - diff_069 - Implementação de validações adicionais de estado para prevenir trocas de itens inválidas.
 #[FIX] 077 - diff_071 - Sistema de limpeza de callbacks e eventos pendentes para prevenir fugas de memória no servidor.
 [FIX] 078 - diff_072 - Higienização de codificação de strings para prevenir encerramentos forçados (freezes) no cliente/servidor.
+
+27.02.2026
+[ADD] 079 - Adição definitiva do sistema USE_FOX_FS nos ficheiros de servidor.
+[ADD] 080 - Adição definitiva do sistema ENABLE_RAW_INPUT nos ficheiros do servidor (src-client/Client/GameLib/Input.cpp, src-client/Client/EterLib/Input.h, src-client/Client/UserInterface/PythonApplicationProcedure.cpp (+1)).
