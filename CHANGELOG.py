@@ -66,21 +66,21 @@ CHANGELOGS - NEXUS OS DEVELOPMENT
 [FIX] 057 - diff_058 - Implementação de guarda contra entidades "ghost" no sectree para prevenir estados de mapeamento inválidos (game/src/sectree.cpp).
 [FIX] 058 - diff_059 - Reforço na integridade de escritas assíncronas para mitigar race conditions no sistema de ranking (game/src/Ranking.cpp).
 [FIX] 059 - diff_060 - Utilização de clock monotonic para prevenir regressões temporais e manipulações de timers no sistema (libthecore/src/utils.c).
-[FIX] 060 - diff_061 - Implementação de guarda na stack Lua para mitigar transbordamentos e crashes no motor de quests (home/metin2/Source/Server/game/src/questmanager.h, server/game/src/questmanager.cpp (+1)).
-[FIX] 061 - diff_062 - Gestão segura de descritores para prevenir o envio de pacotes a sockets encerrados (home/metin2/Source/Server/game/src/desc.cpp, server/game/src/desc_manager.cpp).
+[FIX] 060 - diff_061 - Implementação de guarda na stack Lua para mitigar transbordamentos e crashes no motor de quests (home/server/game/src/questmanager.h, server/game/src/questmanager.cpp (+1)).
+[FIX] 061 - diff_062 - Gestão segura de descritores para prevenir o envio de pacotes a sockets encerrados (home/server/game/src/desc.cpp, server/game/src/desc_manager.cpp).
 [FIX] 062 - diff_064 - Reforço de segurança contra vulnerabilidades de Format String no processamento de personagens e itens (game/src/char_item.cpp, game/src/char_manager.cpp (+3)).
 [FIX] 063 - diff_068 - Sincronização de raio de visão entre cliente e servidor para mitigar o efeito de pop-in de monstros (game/src/config.cpp, UserInterface/PythonApplication.cpp).
 [FIX] 064 - diff_070 - Higienização de buffers no módulo Locale do cliente para prevenir transbordamentos de memória (Client/UserInterface/Locale.cpp).
 [FIX] 065 - diff_073 - Definição de limites estritos de payload no gestor LZO para bloquear abusos de rede (game/src/lzo_manager.h, game/src/lzo_manager.cpp (+1)).
 [FIX] 066 - diff_074 - Melhorias de robustez e estabilidade na integração do Discord Rich Presence (Client/UserInterface/PythonNetworkStreamPhaseGame.cpp).
-[FIX] 067 - diff_075 - Revisão de segurança e robustez em pontos críticos de lógica (DragonSoul/Auth) (server/home/metin2/Source/Server/game/src/DragonSoul.cpp, server/game/src/auth_brazil.cpp (+7)).
-[FIX] 068 - diff_076 - Auditoria e correção de fluxos incompletos em novos sistemas integrados no motor DB (server/server/home/metin2/Source/Server/game/src/db.cpp, server/game/src/auth_brazil.cpp (+7)).
-[FIX] 069 - diff_077 - Implementação de controlo de fluxo no pool de consultas SQL para prevenir sobrecarga de processos (metin2/Source/Server/libsql/AsyncSQL.cpp, server/game/src/log.cpp).
-[FIX] 070 - diff_078 - Bloqueio de manipulação de tipos de janelas via rede para impedir acesso indevido a funções de NPCs (metin2/Source/Server/game/src/char_item.cpp).
+[FIX] 067 - diff_075 - Revisão de segurança e robustez em pontos críticos de lógica (DragonSoul/Auth) (server/home/server/game/src/DragonSoul.cpp, server/game/src/auth_brazil.cpp (+7)).
+[FIX] 068 - diff_076 - Auditoria e correção de fluxos incompletos em novos sistemas integrados no motor DB (server/server/home/server/game/src/db.cpp, server/game/src/auth_brazil.cpp (+7)).
+[FIX] 069 - diff_077 - Implementação de controlo de fluxo no pool de consultas SQL para prevenir sobrecarga de processos (server/libsql/AsyncSQL.cpp, server/game/src/log.cpp).
+[FIX] 070 - diff_078 - Bloqueio de manipulação de tipos de janelas via rede para impedir acesso indevido a funções de NPCs (server/game/src/char_item.cpp).
 #[FIX] 071 - diff_079 - Transição para o sistema Raw Input do Windows e implementação de ponteiros de instância estáticos (src-client/Client/EterLib/Input.h, src-client/Client/EterLib/Input.cpp (+2)).
 #[FIX] 072 - diff_080 - Auditoria de estabilidade no renderizador de atores e controlo de áudio do cliente (src-client/Client/GameLib/ActorInstanceRender.cpp, src-client/Client/UserInterface/UserInterface.cpp (+1)).
-[FIX] 073 - diff_081 - Implementação de guardas contra o fenómeno de Object Slicing em classes base de itens e personagens (metin2/Source/Server/game/src/item.h, server/game/src/char.h).
-[FIX] 074 - diff_082 - Otimização na infraestrutura de sockets para reduzir acumulação de ligações no Auth (metin2/Source/Server/libthecore/src/socket.c).
+[FIX] 073 - diff_081 - Implementação de guardas contra o fenómeno de Object Slicing em classes base de itens e personagens (server/game/src/item.h, server/game/src/char.h).
+[FIX] 074 - diff_082 - Otimização na infraestrutura de sockets para reduzir acumulação de ligações no Auth (server/libthecore/src/socket.c).
 #[FIX] 075 - diff_067 - Validação rigorosa de timing e pacotes de voo para bloqueio de wait-hacks e speed-hacks.
 [FIX] 076 - diff_069 - Implementação de validações adicionais de estado para prevenir trocas de itens inválidas.
 #[FIX] 077 - diff_071 - Sistema de limpeza de callbacks e eventos pendentes para prevenir fugas de memória no servidor.
@@ -90,3 +90,11 @@ CHANGELOGS - NEXUS OS DEVELOPMENT
 [ADD] 079 - Adição definitiva do sistema USE_FOX_FS nos ficheiros de servidor.
 [ADD] 080 - Adição definitiva do sistema ENABLE_RAW_INPUT nos ficheiros do servidor (src-client/Client/GameLib/Input.cpp, src-client/Client/EterLib/Input.h, src-client/Client/UserInterface/PythonApplicationProcedure.cpp (+1)).
 [OPT] 081 - Analise dos ficheiros do servidor e do Python para verificar inconsistências e ficheiros não usados.
+
+28.02.2026
+[OPT] 082 - Otimizações de render e culling no cliente (src-client/Client/GameLib/MapOutdoorRender.cpp, src-client/Client/GameLib/MapOutdoor.h, MapOutdoorUpdate.cpp, src-client/Client/EterLib/CullingManager.cpp).
+[FIX] 083 - Prevenções de buffer overflow (server/game/src/char.h, server/libthecore/src/log.c).
+[FIX] 084 - Prevenções de SQL injection em logs e queries (server/game/src/log.cpp, server/game/src/input_login.cpp, server/game/src/db.cpp, server/game/src/char.cpp, server/game/src/guild.cpp, server/game/src/messenger_manager.cpp, server/game/src/minigame_catchking.cpp).
+[FIX] 085 - Correção de crash no arranque do game quando a BD ainda não está ligada (server/game/src/log.cpp, server/libsql/AsyncSQL.cpp).
+[FIX] 086 - Limitação de leitura em sscanf (server/db/src/Main.cpp).
+[FIX] 087 - Prevenção de path traversal e substituição de pickle por JSON (archiver/pack_data/root/uilootingsystem.py).
