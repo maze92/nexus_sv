@@ -98,3 +98,4 @@ CHANGELOGS - NEXUS OS DEVELOPMENT
 [FIX] 085 - Correção de crash no arranque do game quando a BD ainda não está ligada (server/game/src/log.cpp, server/libsql/AsyncSQL.cpp).
 [FIX] 086 - Limitação de leitura em sscanf (server/db/src/Main.cpp).
 [FIX] 087 - Prevenção de path traversal e substituição de pickle por JSON (archiver/pack_data/root/uilootingsystem.py).
+[OPT] 088 - Remoção completa do suporte a ecrãs de 16-bits (src-client/Client/EterLib/GrpDetector.h, src-client/Client/EterLib/GrpDetector.cpp, src-client/Client/EterLib/GrpDevice.h, src-client/Client/EterLib/GrpDevice.cpp (+3)).
