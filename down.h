@@ -17,7 +17,9 @@ https://forum.turkmmo.com/konu/3893813-sonitex-offline-shop/
 https://forum.turkmmo.com/konu/3923817-kostum-takiliyken-cinsiyet-degistiremezsin/
 https://forum.turkmmo.com/konu/3877812-imagebox-memory-leak-fix/
 https://forum.turkmmo.com/konu/3917617-level-yani-gm-ikonu/
+https://forum.turkmmo.com/konu/3913121-c-terrain-bozuklugu-fix/
 
 
 
-https://forum.turkmmo.com/kategori/c-c-python/page-12
+
+https://forum.turkmmo.com/kategori/c-c-python/page-54
