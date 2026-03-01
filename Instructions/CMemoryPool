@@ -1,3 +1,7 @@
+Instalar a biblioteca: No teu servidor (Putty/Terminal), instalas o pacote. Exemplo no FreeBSD: pkg install jemalloc.
+Alterar o Makefile: Vais à pasta da tua source do server (game/src/Makefile) e procuras a linha das bibliotecas (LIBS = ...).
+Adicionar a flag: Adicionas -ljemalloc ao final dessa linha.
+
 Fase 1: Desligar o CMemoryPool (A Ponte)
 Contexto: Vamos desativar o gestor de memória antigo (CMemoryPool) do Metin2, pois vamos usar um alocador externo mais eficiente (jemalloc) e modernizar o código.
 Tarefa:
