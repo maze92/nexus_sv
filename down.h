@@ -8,4 +8,5 @@ https://metin2.dev/topic/33967-fix-questbuttons-out-of-questwindow-when-multiple
 https://metin2.dev/topic/31778-remaining-book-count-in-skill-tooltip/
 https://metin2.dev/topic/33198-minimap-smooth-zoom/
 https://metin2.dev/topic/25874-offline-shop-premium-private-shop/
+https://metin2.dev/topic/6314-ingame-wiki-system/
 
