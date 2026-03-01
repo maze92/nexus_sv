@@ -1,1 +1,6 @@
-.
+https://metin2.dev/topic/34347-query_boot-ub-fix/
+https://metin2.dev/topic/34299-c-gf-__loadatlasmarkinfo-whitemark-pixel-shift-fix/
+https://metin2.dev/topic/34261-c-metin2-client-window-centering-bug-win1011-%E2%80%93-real-cause-and-permanent-solution/
+https://metin2.dev/topic/34280-map-preview-scroll/
+https://metin2.dev/topic/34263-system-monitoring-cpu-gpu-ram-fps/
+
