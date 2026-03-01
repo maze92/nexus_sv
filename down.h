@@ -6,4 +6,4 @@ https://metin2.dev/topic/34263-system-monitoring-cpu-gpu-ram-fps/
 https://metin2.dev/topic/34006-remove-16bit-color-support-unused/
 https://metin2.dev/topic/33967-fix-questbuttons-out-of-questwindow-when-multiple-images-are-present/
 https://metin2.dev/topic/31778-remaining-book-count-in-skill-tooltip/
-
+https://metin2.dev/topic/33198-minimap-smooth-zoom/
