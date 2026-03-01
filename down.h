@@ -4,4 +4,5 @@ https://metin2.dev/topic/34261-c-metin2-client-window-centering-bug-win1011-%E2%
 https://metin2.dev/topic/34280-map-preview-scroll/
 https://metin2.dev/topic/34263-system-monitoring-cpu-gpu-ram-fps/
 https://metin2.dev/topic/34006-remove-16bit-color-support-unused/
+https://metin2.dev/topic/33967-fix-questbuttons-out-of-questwindow-when-multiple-images-are-present/
 
