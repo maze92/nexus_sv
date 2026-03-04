@@ -1,0 +1,15 @@
+Staggering no AI Aggro Check (Distribuição de Picos de CPU)
+Contexto: O sistema de Inteligência Artificial dos monstros (char_state.cpp) faz com que os monstros em Idle procurem alvos (FindValidTarget) a cada X segundos. O problema é que, quando o servidor faz um respawn de 1000 monstros ou um GM usa o comando /p, todos esses 1000 monstros nascem no mesmo milissegundo. O timer de busca de alvo deles vai coincidir perfeitamente. Resultado: a cada 2 segundos, a Main Thread bloqueia porque 1000 monstros chamam o FindValidTarget e varrem o SECTREE no mesmo frame de 16ms.
+Tarefa:
+
+Analisa o ficheiro char_state.cpp e as funções associadas à IA dos monstros, como StateIdle e StateMove.
+
+Procura pela lógica que define o momento do próximo scan de alvos. Normalmente há uma verificação de tempo usando get_dword_time() + atraso_em_milissegundos.
+
+Implementa a técnica de "Staggering" (Desfasamento) baseada no VID (Virtual ID) único do monstro.
+
+O Cursor deve alterar o cálculo do atraso para incluir um offset dinâmico, por exemplo: next_search_time = get_dword_time() + 2000 + (GetVID() % 1000);.
+
+Isto significa que um monstro verificará os alvos aos 2005ms, outro aos 2150ms, outro aos 2890ms. O CPU processará 5 a 10 procuras de IA por frame, em vez de 1000 procuras simultâneas num único frame.
+
+Mostra-me a refatoração do cálculo de tempo de espera no estado StateIdle do monstro com este algoritmo de desfasamento matemático.

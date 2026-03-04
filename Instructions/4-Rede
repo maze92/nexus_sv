@@ -1,0 +1,17 @@
+Fase 1: O Transplante de Rede (select() para epoll ou kqueue)
+Contexto: O servidor de Metin2 (C++) usa a função obsoleta select() (ou poll()) com fd_set para gerir as ligações de rede, o que causa um estrangulamento de CPU quando há milhares de jogadores online (C10k problem).
+Tarefa:
+Analisa a classe CDescManager e o loop principal da rede (onde os sockets são verificados para leitura/escrita).
+Substitui o modelo baseado em select() por um modelo orientado a eventos de alta performance: usa kqueue (FreeBSD).
+Refatora a inicialização do socket para criar o file descriptor do epoll/kqueue e adiciona as funções para registar/modificar os descritores dos jogadores (EPOLLIN / EPOLLOUT).
+Altera o loop de polling para usar epoll_wait (ou kevent), processando apenas os sockets que realmente têm eventos ativos, eliminando a iteração sobre sockets inativos.
+Garante que a desconexão de um socket o remove corretamente da fila de eventos para evitar Segmentation Faults. Mostra-me o código refatorado do DescManager.
+
+Fase 2: Blindagem Total (Substituir TEA por ChaCha20/AES)
+Contexto: A comunicação de rede entre o Cliente e o Servidor usa o algoritmo XTEA ou TEA desatualizado. Queremos atualizar a camada de criptografia de pacotes para um standard moderno e seguro para evitar Packet Sniffing e injeção por Bots.
+Tarefa:
+Analisa a classe Cipher que gere o setup da chave (Key Setup) e o Process (Encrypt/Decrypt) dos pacotes de rede.
+Substitui o algoritmo TEA existente por ChaCha20 (ou AES-256-CTR/GCM) utilizando a biblioteca genérica C++ do OpenSSL (incluindo <openssl/evp.h>).
+Modifica a geração de chaves trocadas durante a fase de Handshake (TPacketCGKeyAgreement / TPacketGCKeyAgreement) para acomodar o tamanho de chave exigido pelo novo algoritmo (ex: 256 bits / 32 bytes para a chave e 12 bytes para o IV/Nonce).
+Refatora as funções Encrypt e Decrypt para processarem o buffer de dados usando o contexto do OpenSSL (EVP_CIPHER_CTX), substituindo os antigos blocos de bit-shifting do XTEA.
+Garante que a gestão de memória do contexto EVP seja limpa corretamente no destrutor da classe Cipher para evitar fugas de memória.

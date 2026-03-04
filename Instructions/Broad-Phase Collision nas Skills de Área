@@ -1,0 +1,15 @@
+Broad-Phase Collision nas Skills de Área (Trigonometria Otimizada)
+Contexto: As skills de área do Metin2 (ex: Moinho de Espada, Rugido, Ataque do Dragão) calculam a área de efeito (AoE) usando ângulos. O código usa funções como atan2, cos, sin e GetDegreeFromPosition para descobrir se um alvo está no cone de dano. A matemática flutuante trigonométrica é a operação mais lenta do CPU. Calcular isto para dezenas de alvos no frame do ataque congela a Main Thread.
+Tarefa:
+
+Analisa o ficheiro battle.cpp e skill.cpp. Procura por funções de cálculo de dano em área (geralmente ComputeSkill ou funções que contenham GetDegreeFromPosition e GetDistance).
+
+Implementa um pré-filtro (Broad-Phase) baseado na Distância Euclidiana ao Quadrado (Squared Distance) ANTES de qualquer cálculo trigonométrico.
+
+Regra lógica para o Cursor: Antes de invocar atan2 ou calcular ângulos, calcula a distância bruta entre o atacante e a vítima: int distSq = (x2-x1)(x2-x1) + (y2-y1)(y2-y1);.
+
+Se distSq for maior que o raio máximo da skill ao quadrado (max_radius * max_radius), faz continue; imediatamente no loop, descartando o alvo.
+
+Adiciona um segundo pré-filtro simples (Bounding Box): Se a diferença absoluta em X ou Y entre as coordenadas ultrapassar o alcance máximo da skill, ignora o alvo antes de tentar calcular a distância circular.
+
+Mostra-me o trecho refatorado do loop de colisão do ComputeSkill com estas condições de saída antecipada.
