@@ -1,9 +1,0 @@
-Desfasamento do Motor de Inteligência Artificial (Staggering)
-Contexto: Quando milhares de monstros nascem ao mesmo tempo num mapa (respawn ou comandos de GM), os seus temporizadores de IA começam todos no mesmo exato milissegundo. Isto causa um pico de lag gigante a cada 2 ou 3 segundos, pois a Main Thread é forçada a calcular o FindValidTarget e o Pathfinding no SECTREE para todos os monstros num único frame. Vamos resolver isto injetando um desfasamento matemático (Staggering) baseado no ID da entidade, espalhando os cálculos pesados de IA de forma invisível por múltiplos frames.
-Tarefa:
-Analisa o ficheiro char_state.cpp, focando-te nas funções onde os monstros planeiam a próxima verificação de inimigos (estado StateIdle e StateMove).
-Localiza a linha onde o atraso do próximo Tick é calculado usando get_dword_time() ou get_global_time() mais um valor estático de milissegundos.
-Modifica essa fórmula para adicionar um atraso dinâmico baseado no Virtual ID da entidade. Exemplo: next_check_time = get_dword_time() + atraso_base + (GetVID() % 1000).
-Verifica se esta lógica está protegida por um if (IsMonster()), para garantir que Pets, NPCs e montadas não são afetados por este desfasamento aleatório.
-Garante que se o monstro for atacado fisicamente (na função OnAttacked do char_battle.cpp), ele ignora este tempo de espera e desperta imediatamente para retaliar.
-Mostra-me o código da função de estado da IA refatorada com a fórmula de desfasamento para o Cursor verificar a matemática.
