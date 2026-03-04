@@ -1,0 +1,38 @@
+Fase 5: Refatoração da IA para Behavior Trees (Data-Oriented AI)
+Contexto: A IA dos monstros no Metin2 usa uma Finite State Machine (FSM) pesada (StateMove, StateBattle, StateIdle) que corre a cada tick para cada monstro, poluindo o CPU com milhares de instruções condicionais "if/switch". Vamos modernizar para um sistema de "Behavior Tree" (Árvore de Comportamentos) orientado a dados, que é o standard da indústria atual, processando as decisões de forma hierárquica e muito mais barata.
+Tarefa:
+Abre o ficheiro game/src/char_state.cpp e game/src/char.h.
+Cria uma estrutura base de Behavior Tree (Nós: Selector, Sequence, Action, Condition).
+Substitui a lógica monolítica da função CHARACTER::UpdateState() por uma avaliação de nós. Exemplo: um nó raiz "Selector" avalia primeiro um "Condition: HasTarget?", se sim, corre "Action: Attack", se não, corre "Sequence: Patrol".
+Em vez de cada monstro instanciar a sua própria árvore, cria instâncias estáticas (Templates) das árvores de comportamento no arranque do servidor com base na flag do monstro (AGGR, COWARD, STONE). Os monstros apenas guardam um ponteiro para o nó atual que estão a executar (Blackboard state).
+Cuidado Extremo: A transição para Behavior Trees não pode alterar a agressividade ou a mecânica de fuga dos Bosses e monstros normais. O Cursor DEVE mapear 1:1 o comportamento antigo (ex: procurar alvo a cada 3 segundos, chamar aliados) para os novos nós da árvore. A árvore deve retornar estados como "RUNNING", "SUCCESS" ou "FAILURE" para gerir ações contínuas (como caminhar até ao alvo).
+Mostra-me a implementação das classes base da Behavior Tree e como a antiga FSM do StateBattle foi convertida num nó de ação (Action Node).
+
+Fase 6: Otimização do Sistema de Eventos (Hashed Timing Wheel O(1))
+Contexto: O Metin2 usa uma fila de prioridade ou lista ligada (CEvent / event_manager) para gerir venenos, buffs, tempo de itens e respawns. Inserir ou remover eventos nesta fila custa O(log n) ou O(n). Num servidor com 50.000 eventos ativos, isto cria micro-stutters constantes. Vamos substituir por uma "Hashed Timing Wheel" (Roda de Tempo), usada no kernel do Linux, que gere timers em tempo constante O(1).
+Tarefa:
+Analisa os ficheiros game/src/event.cpp e game/src/event_manager.cpp.
+Substitui o contentor principal de eventos por um array circular (std::vector) representando os "ticks" futuros (ex: 2048 slots/ticks).
+Quando um evento é criado para daqui a 50 ticks, ele é inserido com complexidade O(1) na slot (TickAtual + 50) % 2048.
+O processador de eventos do heartbeat do servidor avança a roda 1 slot por tick e processa apenas os eventos daquela slot específica, ignorando o resto.
+Cuidado Extremo: Eventos Cancelados (event_cancel). Na roda de tempo, não removas o evento fisicamente da slot para poupar CPU. Em vez disso, define uma flag no evento: bool is_cancelled = true. Quando a roda chegar a essa slot e for executar o evento, verifica a flag; se for true, apenas liberta a memória (unique_ptr) e salta para o próximo. O Cursor DEVE garantir que a memória dos dados do evento (event_info_data) nunca é acedida após o cancelamento.
+Mostra-me a nova classe do EventManager usando a lógica da Timing Wheel e a função otimizada de processamento por slot.
+
+Fase 7: Memory Mapped Files (mmap) para Protótipos (Zero-RAM P2P)
+Contexto: Atualmente, se abrires 4 canais (Cores/CHs) no teu servidor, cada canal carrega a totalidade do `item_proto` e `mob_proto` para a RAM de forma independente. Isto gasta gigabytes de RAM desnecessariamente e atrasa o boot do servidor. Vamos usar `mmap` (Memória Partilhada do Sistema Operativo) para que todos os canais partilhem exatamente a mesma zona de RAM em modo read-only.
+Tarefa:
+Analisa a função de leitura de tabelas no ficheiro db/src/ClientManagerBoot.cpp (ou ClientManager.cpp) e a forma como o game carrega os arrays de TItemTable e TMobTable.
+Altera a criação destas tabelas em cache: em vez de usar `new TItemTable[size]`, instrui o `db` (Cache) a criar um ficheiro em disco/memória partilhada temporária e usar a chamada de sistema `mmap` (no Linux/FreeBSD) para mapear os protótipos na memória.
+Os processos `game` (Canais) ligam-se a esse segmento de memória mapeada em modo PROT_READ.
+Cuidado Extremo: A memória tem de ser estritamente Read-Only nos processos do jogo (Canais). O Cursor deve garantir que os ponteiros `CItem::GetTable()` retornam objetos `const TItemTable*`. Nenhuma função no jogo pode alterar os atributos base do protótipo em tempo de execução, caso contrário, causará um Segmentation Fault ao tentar escrever numa página de memória read-only do mmap.
+Mostra-me a refatoração do carregamento do item_proto usando mmap e a adaptação dos ponteiros para `const` no item_manager.
+
+Fase 8: Data-Oriented Design para Processamento de Veneno/DoT (ECS Parcial)
+Contexto: O dano contínuo (Veneno, Sangramento, Fogo) obriga o servidor a saltar aleatoriamente pela memória para processar os HP de diferentes personagens dispersas na RAM (Cache Misses massivos). Vamos aplicar princípios de Entity Component System (ECS) apenas para os modificadores de dano ao longo do tempo (DoT).
+Tarefa:
+Analisa o ficheiro game/src/affect.cpp e a lógica de processamento do veneno (AFFECT_POISON).
+Cria um manager global compacto estático: struct PoisonComponent { DWORD vid; int damage; int ticks_left; };
+Aloca um std::vector<PoisonComponent> contíguo no CHARACTER_MANAGER. Quando uma entidade é envenenada, regista-a apenas neste vetor.
+Em vez de cada monstro/jogador gerir o seu próprio timer de veneno de forma isolada, cria uma função única que itere sobre este array contíguo uma vez por segundo, calculando o dano de veneno de TODOS os afetados de uma só vez (Batch Processing).
+Cuidado Extremo: Sincronização. Se um monstro morrer ou o veneno for curado prematuramente, o seu `vid` deve ser rapidamente removido do vetor (usando o método Swap-and-Pop referenciado em fases anteriores). O Cursor DEVE garantir que a função global em batch aplica o dano de forma segura invocando a função de dano do alvo, validando sempre se a entidade (VID) ainda existe no mapa antes de aplicar o golpe.
+Mostra-me o manager centralizado de DoT (Damage over Time) e o loop de batch processing contíguo que substitui os eventos individuais de veneno.

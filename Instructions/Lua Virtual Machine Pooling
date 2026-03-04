@@ -1,9 +1,0 @@
-Lua Virtual Machine Pooling (Eliminação de GC Spikes)
-Contexto: Atualmente, a cada interação complexa com um NPC ou fim de missão, o C++ cria e/ou destrói instâncias do estado Lua para prevenir vazamento de variáveis, o que invoca o Garbage Collector (GC) da linguagem Lua, causando um pico de lag (GC Spike) que trava o servidor por dezenas de milissegundos.
-Tarefa:
-Abre o ficheiro game/src/questlua.cpp e game/src/questmanager.cpp.
-Implementa uma "Lua State Pool". No arranque do servidor, aloca um std::vector pré-definido com 20 ambientes/estados Lua independentes (lua_State*).
-Quando o jogo precisa de executar uma quest, retira um lua_State livre desta pool em vez de o instanciar do zero.
-No fim da execução da quest, em vez de fechar o estado (lua_close), limpa apenas a "stack" e a tabela global de variáveis temporárias desse estado, devolvendo-o à pool.
-Cuidado Extremo: Isolamento de Estado (State Bleed). O Cursor tem de implementar uma função rigorosa de "reset" (ex: usando lua_settop(L, 0) e limpando tabelas) antes de devolver o estado à pool. Se isto falhar, a variável que o Jogador A usou na sua quest vai aparecer magicamente na quest do Jogador B, destruindo a lógica do jogo.
-Mostra-me o gestor do Lua Pool e a função de limpeza e reciclagem do lua_State.
