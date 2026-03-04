@@ -1,0 +1,8 @@
+Fase 1: Otimização dos Loops de Inventário (Cache de Posições O(1))
+Contexto: O Metin2 usa arrays estáticos para o inventário (m_pItems) e, sempre que precisa de encontrar um slot vazio ou um item específico (ex: Vnum), itera sobre todos os slots num loop. Isso consome muito CPU na Main Thread quando feito milhares de vezes por segundo.
+Tarefa:
+Analisa a classe CHARACTER (char_item.cpp e char.h) e os métodos de busca como GetEmptyInventory, CountSpecifyItem, e FindSpecifyItem.
+Cria estruturas auxiliares de indexação rápida na classe: um std::unordered_map<DWORD, std::vector<WORD>> m_mapItemVnumToCell (mapeia o Vnum do item para as suas posições) e um std::set<WORD> m_setEmptyCells (mantém as posições vazias).
+Atualiza estas estruturas instantaneamente sempre que um item for adicionado, movido ou removido (nas funções SetItem e RemoveItem).
+Refatora as funções de busca para usarem estas estruturas (permitindo pesquisas O(1) ou O(log N)) em vez de iterarem o array completo do inventário.
+Mostra-me as alterações no header char.h e as funções refatoradas no char_item.cpp.
