@@ -1,0 +1,9 @@
+Broadcasting Zero-Copy (Otimização Massiva de Rede em Guerras)
+Contexto: Quando um jogador se move no meio de 200 pessoas (ex: Cidade 1 ou Guerra de Guilds), o servidor cria o mesmo pacote de atualização visual (TPacketGCCharacterUpdate) 200 vezes seguidas na memória, encripta-o 200 vezes e envia-o. Isto esmaga o CPU e a RAM instantaneamente. Precisamos de uma arquitetura "Zero-Copy".
+Tarefa:
+Analisa a função de envio em massa em game/src/sectree.cpp (geralmente ligada ao ForEachNear ou SendToDesc) e a classe CDesc / CDescManager.
+Refatora a lógica de construção de pacotes de broadcast. O pacote original (a struct raw) deve ser alocado e serializado apenas UMA vez na memória (usando um std::shared_ptr<const std::vector<uint8_t>>).
+A função de broadcast deve passar este shared_ptr para a fila de envio de cada socket (CDesc) dos jogadores que estão na área, em vez de passar uma cópia dos dados.
+A encriptação (ChaCha20/TEA) deve ocorrer na própria thread de I/O de cada cliente de forma isolada, lendo do buffer partilhado.
+Cuidado Extremo: O Cursor deve garantir a imutabilidade do pacote após a sua criação (const correctness). Nenhuma thread de cliente pode ser capaz de modificar o conteúdo do pacote partilhado enquanto o encripta para si mesmo.
+Mostra-me a estrutura da nova função de broadcast partilhado e como a classe CDesc gere a leitura deste shared_ptr na sua fila de output.
