@@ -1,7 +1,38 @@
-Culling de Distância para Sombras Dinâmicas (Shadow Distance Culling)
+Fase 1: Culling de Distância para Sombras Dinâmicas (Shadow Distance Culling)
 Contexto: No cliente de Metin2, o motor gráfico (Granny 3D) calcula e renderiza as sombras dinâmicas para todas as entidades visíveis no ecrã a cada frame. Se o jogador juntar 200 monstros, o CPU e a GPU colapsam ao tentar processar a geometria da sombra para todos eles, causando quebras massivas de FPS (FPS drops) no lado do cliente. A melhoria consiste em implementar um limite de distância visual (Distance Culling): monstros ou jogadores demasiado longe da câmara deixarão de projetar sombra, poupando ciclos de renderização drásticos sem impacto visual percetível, pois essas sombras seriam minúsculas e difusas de qualquer forma.
 Tarefa:
 Faz uma análise detalhada à source do cliente (Client Source), especificamente aos ficheiros InstanceBase.cpp e ActorInstance.cpp (ou ActorInstanceGraphics.cpp dependendo da versão).
 Localiza a rotina gráfica onde a sombra é instanciada, atualizada ou enviada para a placa gráfica (geralmente nas funções Update(), Render() ou RenderShadow()).
 Calcula a distância euclidiana ao quadrado entre a posição atual da câmara (Camera) e a posição da entidade (m_v3Position). O uso da distância ao quadrado evita o peso matemático da função sqrt().
-Implementa uma condição de corte seguro (Early Out): se a distância ao quadrado for superior a um limite definido visualmente coerente (ex: 2500.0f * 2500.0f), faz return; imediatamente.
+Implementa uma condição de corte seguro (Early Out): se a distância ao quadrado for superior a um limite definido visualmente coerente (ex: 2500.0f * 2500.0f), faz return; imediatamente. Isto faz com que o Cursor force o motor a ignorar o recálculo da matriz da sombra e a submissão do Draw Call do DirectX para essa entidade específica.
+Mostra-me a função de renderização de sombras da classe ActorInstance refatorada com o bloqueio de distância matemática aplicado.
+
+Fase 2: Throttling na Atualização da Malha da Sombra (Shadow Update Rate)
+Contexto: O cliente atualiza a malha (mesh) da sombra a cada frame para acompanhar milimetricamente a animação de corrida ou ataque do personagem. Para centenas de entidades no ecrã, esta deformação contínua da malha esmaga a Main Thread do cliente. A melhoria passará por reduzir a taxa de atualização (Update Rate) das sombras de entidades periféricas. Em vez de calcular a sombra 60 vezes por segundo, o motor atualizará a sombra de monstros a cada 2 ou 3 frames, reciclando o frame gráfico anterior, mantendo a performance fluida.
+Tarefa:
+Analisa os ficheiros GrannyModelInstance.cpp ou ActorInstance.cpp onde a animação dos ossos (Bones) e a matriz de mundo são passadas para o gerador de sombras dinâmico.
+Cria uma variável membro DWORD m_dwLastShadowUpdateTime; na classe da entidade (como CActorInstance), inicializada a 0.
+Na função que executa o Update da matriz da sombra, introduz um limitador de tempo baseado em prioridades: se for a própria personagem do jogador (Main Character), atualiza sempre a cada frame para garantir fluidez extrema.
+Se for um monstro ou outro jogador, introduz a validação: se o tempo atual do motor gráfico menos o m_dwLastShadowUpdateTime for inferior a 33 milissegundos (aproximadamente 30 FPS para as sombras periféricas), ignora o recálculo e submete a malha do frame anterior. Caso contrário, atualiza a malha e guarda o novo tempo.
+Garante que esta otimização não gera falhas visuais (flickering) ao garantir que a matriz do frame anterior não é limpa acidentalmente da memória RAM.
+Mostra-me o bloco lógico de atualização da geometria da sombra com o limitador orçamental de frames introduzido.
+
+Fase 3: Remoção Definitiva de Sombras em Entidades Irrelevantes
+Contexto: O motor do Metin2 projeta sombras individualmente para pequenos itens caídos no chão (Yangs, poções, espadas) e, muitas vezes, para lojas privadas (Private Shops) ou NPCs puramente decorativos. Isto gera milhares de "Draw Calls" e cálculos de matrizes inúteis para a placa gráfica, enchendo a pipeline de renderização com lixo visual impercetível. A otimização consiste em criar uma regra arquitetural estrita, garantindo que apenas entidades volumosas e dinâmicas (personagens e monstros) esgotam recursos a projetar sombras.
+Tarefa:
+Analisa a classe CInstanceBase na source do cliente, procurando especificamente a rotina de inicialização e propriedades gráficas (Create, SetRace, SetVirtualID ou SetShape).
+Identifica o local exato onde o motor ordena a criação ou a anexação do objeto da sombra à entidade.
+Adiciona uma camada estrutural de exclusão baseada no tipo da entidade (GetType() ou leitura das flags de corrida/race).
+Cria um bloqueio para que o Cursor desative forçadamente a alocação do recetor de sombra caso a entidade seja detetada como um item caído no chão (AFFECT_DROP_ITEM, moedas), uma Loja Privada estática, ou um efeito visual secundário.
+Analisa possíveis fugas de memória associadas e garante que, ao negar a criação da sombra, o destrutor da classe (~CInstanceBase) não tenta apagar um ponteiro de sombra inexistente (verificando sempre if (m_pShadowRender) antes do delete).
+Mostra-me a função de inicialização da entidade refatorada com as exclusões críticas de alocação de sombra garantidas.
+
+Fase 4: Cache de Matriz (Baking) para Sombras do Ambiente (SpeedTree/Objetos Estáticos)
+Contexto: As sombras de elementos do cenário, como muros, pedras e árvores (SpeedTree), são recalculadas frame a frame. Visto que o ambiente do Metin2 tem uma fonte de luz estática (o sol não se move dinamicamente com o tempo) e os objetos são fixos, o recálculo contínuo destas matrizes de projeção consome demasiado CPU do cliente de forma redundante. A solução é fazer "Baking" em tempo de execução, processando a matemática da matriz apenas uma única vez durante o carregamento do mapa.
+Tarefa:
+Efetua uma análise global aos ficheiros responsáveis por renderizar o ambiente do jogo (MapOutdoor.cpp, SpeedTreeWrapper.cpp ou gestores de Property).
+Localiza a função de renderização onde as matrizes matemáticas de projeção de sombra são geradas para objetos do tipo PRT_BUILDING (edifícios) ou PRT_TREE (árvores).
+Na classe correspondente do objeto estático, adiciona uma flag booleana m_bShadowMatrixCached (falsa por defeito) e uma variável D3D dedicada D3DXMATRIX m_matCachedShadow;.
+Modifica o fluxo da função de renderização: no primeiro frame em que o objeto fica visível no ecrã, o motor executa o cálculo completo da sombra, guarda o resultado definitivo na variável m_matCachedShadow e altera a flag para true.
+Nos frames consecutivos, adiciona um ramo if que verifica a flag. Se for verdadeira, o Cursor deve forçar o motor a contornar toda a matemática de ângulos e projetar diretamente a matriz cacheada (SetTransform), aliviando brutalmente o CPU de cálculos trigonométricos irrelevantes.
+Mostra-me o código de renderização do mapa de objetos estáticos completamente refatorado utilizando a nova cache da matriz matemática.
