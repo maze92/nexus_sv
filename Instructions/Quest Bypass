@@ -1,0 +1,9 @@
+Fase 3: Interceção Otimizada da Lua Virtual Machine (Quest Bypass)
+Contexto: A Virtual Machine do Lua (usada nas Quests) é muito pesada. Sempre que matas um monstro, o C++ chama a função Lua "when kill" para ver se há alguma quest ativa. Isto cria um gargalo constante entre C++ e Lua na Main Thread.
+Tarefa:
+Analisa os ficheiros game/src/questmanager.cpp e game/src/char.cpp nas secções que disparam triggers de kill.
+Cria um filtro rápido nativo em C++ na classe do jogador: std::unordered_set<DWORD> m_activeQuestTriggers.
+Quando o jogador faz login ou aceita uma missão nova, o C++ deve registar os IDs de monstros/itens pedidos pelas quests ativas e guardá-los nesse set.
+Quando um monstro morre, antes de chamar quest::CQuestManager::instance().Kill, o C++ deve verificar se o GetMobVnum() do monstro está no m_activeQuestTriggers. Se não estiver, faz return imediatamente e ignora a Lua completamente.
+Cuidado Extremo: Garante que quests globais (ex: eventos de drop geral que ativam com qualquer monstro) registem um ID especial (como 0 ou 99999) no set, indicando que TODAS as mortes devem passar pelo filtro Lua enquanto esse evento durar.
+Mostra-me a função de morte refatorada com o bypass da Lua e a lógica de registo de IDs no set.
