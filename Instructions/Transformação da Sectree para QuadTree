@@ -1,0 +1,8 @@
+Transformação da Sectree para QuadTree (Spatial Partitioning O(log n))
+Contexto: O Metin2 usa uma grelha estática "Sectree" baseada em blocos. Procurar entidades em áreas adjacentes envolve matemática de colisão baseada em quadrados fixos. Em mapas massivos, isto é ineficiente. A mudança para um sistema de QuadTree dinâmico reduz exponencialmente as comparações de distância.
+Tarefa:
+Analisa o ficheiro game/src/sectree.cpp, game/src/sectree_manager.cpp e a forma como o mapa é subdividido.
+Substitui a lógica de grelha plana por uma árvore de quatro ramos (QuadTree). O mapa raiz é dividido em 4 quadrantes, e cada quadrante divide-se em mais 4 se o limite de entidades (ex: 50 monstros por quadrante) for excedido.
+Refatora a função de procura (FindCharacterInView ou get_entities_in_range) para atravessar a QuadTree. Se uma área de efeito (dano em área) não intersetar as bordas geométricas de um quadrante, a árvore ignora esse ramo inteiro instantaneamente, ignorando centenas de entidades de uma só vez.
+Cuidado Extremo: Como os jogadores e monstros estão constantemente a mover-se, a atualização contínua da QuadTree (remover e reinserir nós) pode ser mais lenta do que o sistema antigo se não for bem implementada. O Cursor deve implementar nós estáticos para a topologia do mapa e nós dinâmicos para as entidades, minimizando alocações de memória ao usar Object Pooling para os nós da árvore.
+Mostra-me a classe da nova estrutura QuadTree e a lógica de atualização (UpdateEntityPosition) que move um jogador entre nós.
