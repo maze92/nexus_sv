@@ -1,8 +1,0 @@
-Fase 3: Otimizar o Núcleo de Eventos (Event Timer com Min-Heap)
-Contexto: O sistema principal de eventos do Metin2 (event.cpp e event_queue.cpp) controla a regeneração de HP, o spawn de monstros e a duração de feitiços. A estrutura de dados nativa por vezes cria estrangulamentos na iteração. Vamos garantir que a fila usa uma Priority Queue (Min-Heap) pura para acessos em $O(\log n)$.
-Tarefa:
-Analisa a classe CEventQueue nos ficheiros event_queue.h e event_queue.cpp.
-Substitui a estrutura subjacente antiga por um contentor C++ moderno std::priority_queue com um comparador customizado focado no execution_time do evento.
-Refatora os métodos Push() e Pop() para empurrar e retirar os eventos do topo da Min-Heap.
-Implementa "Lazy Deletion" (Inativação Preguiçosa) para o método Cancel(): em vez de procurar e remover um evento no meio da heap (o que quebra a performance), apenas marca o evento como "inativo" (m_isCanceled = true). O método Pop() descarta os eventos cancelados automaticamente quando chegarem ao topo.
-Mostra-me a nova estrutura do event_queue.h e a lógica reconstruída do método Pop().
