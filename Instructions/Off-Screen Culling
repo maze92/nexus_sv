@@ -1,0 +1,9 @@
+Hibernação de IA Fora de Ecrã (Off-Screen Culling)
+Contexto: O servidor processa a inteligência artificial (IA) de monstros a patrulhar ou a procurar alvos mesmo em áreas do mapa (Sectrees) onde não há nenhum jogador online. Se houver milhares de monstros em mapas vazios, o CPU é desperdiçado a calcular movimentos invisíveis.
+Tarefa:
+Abre o ficheiro game/src/sectree.cpp e game/src/char_state.cpp.
+Implementa um contador de jogadores ativos por SECTREE (setor do mapa). Sempre que um jogador real (PC) entra num setor, o contador desse setor e dos setores adjacentes sobe. Quando sai, desce.
+Na função CHARACTER::UpdateState ou CHARACTER::UpdateCharacter dos monstros (NPC/MOB), insere um Early Exit no início da função: se o contador de jogadores no setor do monstro for 0, altera o estado do monstro para STATE_HIBERNATE e faz return.
+Quando o contador do setor passar de 0 para 1, o SECTREE deve iterar sobre todos os monstros no seu interior e alterar o estado deles de volta para STATE_IDLE (acordá-los).
+Cuidado Extremo: Adiciona uma exceção obrigatória (bool bIgnoreHibernation) para Monstros Chefes (Bosses), NPCs de Lojas e Pedras Metin. Estes NÃO PODEM hibernar para não quebrarem a lógica global de respawn e eventos do servidor.
+Mostra-me como implementaste o contador de players no Sectree e o filtro de hibernação na atualização do monstro.
