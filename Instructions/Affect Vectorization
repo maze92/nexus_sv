@@ -1,9 +1,0 @@
-Otimização O(1) e Data Locality nas Afetações (Affect Vectorization)
-Contexto: No sistema de combate, para calcular o dano real sofrido ou infligido, funções como GetPoint ou ComputePoints varrem a lista de "Affects" (Afetações) do personagem para procurar buffs de grupo, veneno, escudos ou auras. O erro arquitetural é que a source original utiliza uma std::list<CAffect*> (lista ligada). As listas ligadas têm uma péssima taxa de acerto na memória Cache do CPU (Cache Misses constantes devido a ponteiros fragmentados). Iterar esta lista dezenas de vezes por milissegundo num combate destrói a performance global. A melhoria vai converter isto num vetor contíguo (Data Locality), acelerando a leitura das habilidades ativas a nível do hardware em mais de 10x.
-Tarefa:
-Analisa o ficheiro char_affect.cpp e o cabeçalho char.h. Encontra a declaração da variável m_list_pkAffect.
-Substitui essa estrutura de lista ligada por um vetor do C++ padrão: std::vector<CAffect*> m_vec_pkAffect;.
-No construtor da classe CHARACTER, o Cursor deve adicionar m_vec_pkAffect.reserve(32); para pré-alocar a memória, garantindo que o servidor não perde tempo a realocar vetores em tempo de jogo (um jogador raramente excede 32 buffs simultâneos).
-Refatora rigorosamente os métodos que manipulam esta estrutura: AddAffect (push_back), RemoveAffect e o iterador de decremento de tempo UpdateAffect.
-Regra anti-falha (Crítica): Como eliminar elementos no meio de um std::vector exige deslocar a memória e consome CPU, a instrução RemoveAffect nunca deve invocar o método .erase() em tempo real durante um combate. Em vez disso, o Cursor deve anular a afetação logicamente (ex: affect->bType = 0;), e implementar uma purga limpa (std::remove_if) apenas uma única vez na função genérica de encerramento/cleanup do char.
-Mostra-me as alterações na classe e os ciclos iteradores perfeitamente adaptados a "Cache-Friendly".
