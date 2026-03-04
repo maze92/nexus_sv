@@ -1,0 +1,11 @@
+Otimização de Drops de Yang (Yang Grouping)
+Contexto: Quando um jogador mata um grupo grande de monstros, o servidor gera dezenas de pequenas quantias de Yang (moedas) no chão em instantes. Cada montinho de Yang é uma entidade no SECTREE que consome memória e envia pacotes HEADER_GC_ITEM_OWNERSHIP para todos ao redor. Isto causa microstutters imediatos. A solução segura é agrupar o Yang num único drop.
+Tarefa:
+
+Analisa o ficheiro char_battle.cpp e a função onde o Yang é gerado (geralmente CreateDropItem ou perto da lógica de ITEM_MANAGER::instance().CreateItem para o VNUM do Yang).
+
+Modifica o loop de drop de Yang. Em vez de chamar a função de criação de item várias vezes no mesmo frame, acumula o valor total de Yang que o monstro deve largar numa variável inteira local (ex: total_yang).
+
+Após calcular o total no loop, faz apenas uma única chamada a ITEM_MANAGER::instance().CreateItem passando o total_yang como a quantidade do item (count).
+
+Esta alteração é 100% segura, não afeta a economia e elimina a criação de dezenas de entidades supérfluas no mapa a cada monstro morto. Mostra-me a secção do código refatorada no char_battle.cpp.
