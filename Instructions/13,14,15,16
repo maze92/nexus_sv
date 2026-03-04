@@ -1,0 +1,38 @@
+Fase 13: Otimização do Inventário e Trocas (Anti-Dupe & Swap-Lag)
+Contexto: Quando um jogador move itens rapidamente, os divide (split) ou faz spam na janela de trocas (Exchange), o servidor tenta validar as posições da grelha (Grid) e notificar a DB repetidamente. Jogadores maliciosos usam macros para mover itens milhares de vezes por segundo, o que causa um pico de lag no CH e frequentemente resulta em bugs de duplicação (dupes) se as threads se cruzarem.
+Tarefa:
+Analisa os ficheiros game/src/char_item.cpp (funções MoveItem, EquipItem) e game/src/exchange.cpp.
+Implementa um "Action Cooldown" nativo no C++: adiciona um std::atomic<uint64_t> m_lastItemMoveTime na classe CHARACTER. Se a diferença entre o tempo atual e o último movimento for inferior a 50ms, o servidor deve ignorar o pacote e fazer return false silenciosamente, cortando o spam na raiz.
+Refatora a validação da grelha de inventário (CGrid). Em vez de o servidor iterar sobre todo o inventário a cada movimento para verificar se há espaço, o CGrid deve usar manipulação de bits (Bitsets - std::bitset) para validações de espaço O(1).
+Cuidado Extremo: A lógica de Troca (Exchange) é o ponto mais sensível do jogo. O Cursor DEVE garantir que, ao usar locks (std::mutex) nas operações de troca entre dois jogadores, os locks sejam sempre adquiridos na mesma ordem (ex: lock no jogador com o VID menor primeiro, e depois no maior). Se isto não for feito, ocorrerá um Deadlock se ambos os jogadores tentarem fechar a troca exatamente no mesmo milissegundo.
+Mostra-me a proteção anti-spam no char_item.cpp e a lógica de lock ordenado na classe CExchange.
+
+Fase 14: Supressão de Broadcasts de Guilda (Guild Packet Storms)
+Contexto: O sistema de Guildas do Metin2 é extremamente ineficiente. Sempre que um membro ganha 1 ponto de experiência (EXP), o servidor envia um pacote de atualização para TODOS os membros da guilda que estão online, em todos os canais (via P2P). Numa guilda com 70 pessoas a farmar na V2, isto gera uma tempestade de dezenas de milhares de pacotes por segundo, causando stutters severos de rede.
+Tarefa:
+Abre o ficheiro game/src/guild.cpp e game/src/guild_manager.cpp.
+Localiza a função CGuild::ComputeGuildPoints() ou locais onde SendGuildInfoPacket é chamado em resposta a ganhos de EXP ou pequenas alterações de estado.
+Implementa um sistema de "Batch Update" (Atualização em Lote). Em vez de fazer broadcast imediato, acumula a EXP e outras pequenas alterações nas variáveis da Guilda.
+Cria um temporizador (ou usa o heartbeat do servidor) para que a guilda envie a atualização agregada para os membros apenas UMA vez a cada 5 segundos.
+Cuidado Extremo: Eventos críticos (como um membro entrar/sair da guilda, ou a guilda subir de nível) não podem ser atrasados e DEVEM continuar a fazer broadcast imediato para evitar dessincronização visual no cliente. O Cursor deve isolar apenas os ganhos de EXP/Yang para o envio em lote.
+Mostra-me a lógica de acumulação de EXP na guilda e o temporizador de envio em lote.
+
+Fase 15: Substituição do sprintf Legacy (Memory Corruption & Lag)
+Contexto: O Metin2 usa exaustivamente `sprintf` e `snprintf` para formatar strings de chat, comandos e queries SQL. Estas funções do C antigo são lentas (precisam de interpretar o formato em tempo de execução) e altamente propensas a Buffer Overflows (Memory Corruption) se o texto do jogador exceder o tamanho do array.
+Tarefa:
+Analisa a source procurando por usos frequentes de sprintf, snprintf, e vsnprintf (especialmente em ficheiros muito chamados como game/src/cmd_general.cpp, game/src/char.cpp).
+Substitui o uso destas funções antigas pela biblioteca <fmt/format.h> (fmtlib, que a partir do C++20 faz parte da std::format).
+Exemplo: char buf[256]; sprintf(buf, "O jogador %s matou o boss", name); passa a ser std::string buf = fmt::format("O jogador {} matou o boss", name);.
+Cuidado Extremo: O Cursor não precisa (e não deve) alterar todos os ficheiros do jogo de uma vez. Deve focar-se apenas no caminho crítico: Geração de Queries SQL assíncronas, formatação de logs de combate e mensagens de chat globais (Shout/Notice). Deve também garantir que ficheiros incluam o header correto.
+Mostra-me exemplos de refatoração no comando de Shout e na formatação de uma query SQL.
+
+Fase 16: Deadlock Watchdog (Monitor de Sobrevivência do Servidor)
+Contexto: Como introduziste o teu próprio ThreadPool (para Pathfinding, DB e Heartbeat), aumentaste drasticamente o risco de "Deadlocks" (duas threads à espera uma da outra para sempre). Quando um Deadlock ocorre num CH do Metin2, o processo não cai (não gera Core Dump), simplesmente congela, e os jogadores ficam com o ecrã bloqueado sem se conseguirem desligar.
+Tarefa:
+Cria um novo ficheiro game/src/watchdog.cpp e watchdog.h.
+Implementa uma Thread Sentinela (Watchdog) que corre em background de forma independente.
+Cada Worker Thread do teu ThreadPool (e a Main Thread) deve atualizar uma variável atómica std::atomic<time_t> m_lastHeartbeat com o timestamp atual a cada ciclo.
+O Watchdog acorda a cada 10 segundos e verifica os timestamps de todas as threads. Se alguma thread estiver sem atualizar o seu heartbeat há mais de 30 segundos, significa que congelou (Deadlock ou Infinite Loop).
+Se detetar um bloqueio crónico, o Watchdog deve imprimir um Backtrace forçado (se possível no SO) para o ficheiro de erro, gerar um log fatal com o ID da thread afetada e executar exit(1) ou abort() para forçar o reinício do canal (Auto-Core) e libertar os jogadores presos.
+Cuidado Extremo: O Watchdog não pode partilhar absolutamente NENHUM mutex com as threads que está a monitorizar, senão o próprio Watchdog sofrerá um deadlock e falhará o seu propósito. A comunicação de heartbeats deve ser estritamente via std::atomic.
+Mostra-me o código da classe Watchdog e como as threads reportam o seu estado de vida.
