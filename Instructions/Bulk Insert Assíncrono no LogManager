@@ -1,0 +1,13 @@
+Bulk Insert Assíncrono no LogManager (Evitar I/O Stutter)
+Contexto: O LogManager gera chamadas Query individuais usando snprintf na Main Thread para cada ação de jogo (ItemLog, MoneyLog). Em cenários de invasões ou farm intenso, milhares de formatações de strings e chamadas de rede à base de dados no mesmo frame bloqueiam a Main Thread.
+Tarefa:
+
+Analisa os ficheiros log.h e log.cpp. Identifica a classe LogManager.
+
+Adiciona à classe LogManager três novos membros: std::vector<std::string> m_vLogBatch;, um std::mutex m_LogMutex; para garantir segurança entre threads (Thread-Safety), e uma variável DWORD m_dwLastLogFlushTime;.
+
+Altera métodos de alto volume, estritamente ItemLog, MoneyLog e RefineLog. Em vez de executarem a query imediatamente via Query(query), devem construir a string dos valores (apenas os VALUES) e guardá-la em segurança: std::lock_guard<std::mutex> lock(m_LogMutex); m_vLogBatch.push_back(formatted_values);.
+
+Cria o método LogManager::FlushBulkLogs(). Este método bloqueia o mutex, copia o vetor para um vetor temporário local, limpa o original (m_vLogBatch.clear()) e liberta o mutex imediatamente para não prender a Main Thread. Em seguida, constrói uma mega-query INSERT INTO log_table VALUES ... concatenando o vetor temporário e executa-a numa thread assíncrona.
+
+Regra de Segurança para o Cursor: O FlushBulkLogs() deve ser chamado na rotina de Update() principal do servidor apenas a cada 3 segundos (get_dword_time() > m_dwLastLogFlushTime + 3000), ou forçado no destrutor (~LogManager) para não perder logs no encerramento. Mostra-me os ficheiros atualizados.
