@@ -1,9 +1,13 @@
-1-Segregação de Entidades no SECTREE (Filtro de Iteração)
-Contexto: A estrutura SECTREE do Metin2 armazena tudo (Jogadores, Monstros, NPCs, Pets e Itens no chão) numa única lista genérica (m_set_pkEnt). Quando um jogador fala no Chat Normal, o servidor itera por todas as entidades ao seu redor para ver quem recebe a mensagem. Se houver 500 itens de drops no chão e 3 jogadores, o servidor gasta processador a verificar as colisões e os tipos de 500 Yangs/Espadas inúteis. Em Mass Kills, isto gera um stutter massivo nas atualizações.
+Avaliação Preguiçosa Segura do ComputePoints (Lazy Evaluation)
+Contexto: A função ComputePoints é um gargalo de CPU extremo. A tentativa de a mitigar muitas vezes gera bugs visuais (o cliente mostra o HP errado) ou exploits (imortalidade temporária) se não for feita garantindo a sincronização final do pacote de atributos.
 Tarefa:
-Analisa os ficheiros sectree.h e sectree.cpp.
-Identifica a variável membro que guarda as entidades, tipicamente ENTITY_SET m_set_pkEnt;.
-Separa esta estrutura num formato classificado. Cria três listas distintas no SECTREE: ENTITY_SET m_set_pkPC; (apenas jogadores), ENTITY_SET m_set_pkMob; (Monstros e NPCs), e ENTITY_SET m_set_pkItem; (Drops no chão).
-Modifica a função SECTREE::InsertEntity e SECTREE::RemoveEntity. O Cursor deve ler o tipo da entidade (pkEnt->GetType()) e inseri-la/removê-la na lista correspondente em vez da lista genérica.
-O passo de ouro: Analisa functors de alto tráfego no sectree_manager.cpp, especificamente SendPacketToPosition e FuncSendChatPacket. Altera os loops destes functors para iterarem APENAS sobre o sector->m_set_pkPC (lista de jogadores). Isto reduz as iterações de visão em mais de 90% em zonas de farm.
-Mostra-me as alterações na classe SECTREE e a atualização do functor FuncSendChatPacket para usar a nova lista filtrada.
+
+Analisa a classe CHARACTER (char.h e char.cpp). Adiciona a variável privada bool m_bNeedsComputePoints; inicializada a false.
+
+Cria o método público void SetComputePointsDirty() { m_bNeedsComputePoints = true; }.
+
+Interceta apenas chamadas seguras não-críticas: Procura pelas funções EquipItem, UnequipItem, AddAffect, RemoveAffect. Onde houver ComputePoints();, substitui por SetComputePointsDirty();.
+
+Regra de Omissão Crítica: Não alteres as chamadas a ComputePoints dentro do CHARACTER::Initialize(), do processo de ressurreição (DeadClean ou Revive) e do próprio UpdatePacket(). Estas devem continuar a ser síncronas.
+
+Injeção da execução adiada: No início da função CHARACTER::Update() (que corre a cada tick), adiciona a condição: if (m_bNeedsComputePoints) { ComputePoints(); m_bNeedsComputePoints = false; UpdatePacket(); }. A inclusão obrigatória do UpdatePacket() após o cálculo garante que o cliente (jogador) recebe o novo pacote de HP/Status imediatamente no mesmo frame, prevenindo falhas de sincronização no ecrã.
