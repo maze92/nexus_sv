@@ -1,9 +1,0 @@
-Zero-Copy Packet Broadcasting no Loop de Visão
-Contexto: O estrangulamento de rede (microstutter) em zonas cheias acontece porque o servidor reconstrói e codifica o mesmo pacote de atualização de movimento (TPacketGCCharacterUpdate) individualmente para cada jogador que estiver ao redor no SECTREE. A melhoria é compilar o pacote final binário apenas uma vez numa memória partilhada antes de iniciar o loop de visão, enviando esse mesmo bloco de bytes repetidamente para todos os sockets, cortando o esforço do CPU e da RAM em mais de 70%.
-Tarefa:
-Analisa as rotinas de I/O no desc.h, desc.cpp e packet.h, e o functor de rede no sectree_manager.cpp e char.cpp (especificamente a lógica subjacente do EncodeInsertPacket e SendPacketToPosition).
-Modifica o functor que itera pelas entidades no raio de visão do jogador.
-Antes de o iterador começar a percorrer a lista de jogadores próximos, cria a estrutura do pacote e codifica-o integralmente para um buffer estático (char buffer[1024]).
-No interior do loop, em vez de instanciares os métodos de construção complexa do pacote para cada LPDESC vizinho, usa os métodos de baixo nível da classe CDesc (como Packet ou a função de push do socket) para despejar diretamente os bytes do buffer para o cliente.
-Certifica-te que os dados dinâmicos do protocolo de rede não são quebrados com esta partilha de bloco de memória e que não há perdas de encriptação.
-Mostra-me a arquitetura deste novo loop de Broadcast refatorado sem alocações dinâmicas redundantes.
