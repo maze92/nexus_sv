@@ -1,0 +1,38 @@
+Fase 17: Isolamento do P2P IPC (Prevenção de Lag em Cascata)
+Contexto: O Metin2 usa ligações P2P (Peer-to-Peer) entre os vários canais (CH1, CH2, CH99/Core de Guerra) para sincronizar mensagens privadas, guildas e estados. Atualmente, se o CH1 estiver sob ataque DDoS ou a processar demasiados monstros, ele atrasa a leitura dos pacotes P2P. Como os sockets P2P partilham recursos com a thread principal, o CH2 tenta enviar dados para o CH1, bloqueia à espera de resposta, e subitamente TODOS os canais ficam com lag.
+Tarefa:
+Abre os ficheiros game/src/p2p_manager.cpp e game/src/desc_p2p.cpp.
+Desacopla o envio e receção P2P da Main Thread. O Cursor DEVE utilizar uma Lock-Free Queue (como o std::atomic ou filas desenhadas para concorrência) onde a Main Thread apenas deposita as mensagens a enviar.
+Cria uma Thread dedicada estritamente ao P2P (P2P Worker) que lê dessa fila e faz o flush para os sockets (usando I/O não bloqueante com epoll/kqueue).
+Cuidado Extremo: A ordem das mensagens P2P é vital. Se uma mensagem de "Jogador Entrou na Guilda" chegar depois de "Jogador Saiu da Guilda" por erro da fila assíncrona, a DB corrompe. A Lock-Free Queue TEM de ser estritamente FIFO (First-In, First-Out).
+Mostra-me a arquitetura da thread de P2P e o buffer não bloqueante do P2PManager.
+
+Fase 18: Correção do Rubberbanding e Anti-Speedhack (Coyote Time)
+Contexto: A validação de movimento do Metin2 (CInputMain::Move) compara o tempo do cliente com o tempo do servidor para detetar Speedhack. Se o cliente tiver uma quebra de FPS ou um pequeno atraso de rede (ping spike), o servidor acha que é hack e "puxa" o jogador para trás (Rubberbanding/Stutter visual de posição).
+Tarefa:
+Analisa o ficheiro game/src/input_main.cpp na função CInputMain::Move.
+Refatora a fórmula estática de validação de tempo e distância. Implementa um sistema de "Token Bucket" ou "Accumulator".
+Permite uma tolerância de milissegundos (Coyote Time) baseada no ping dinâmico do jogador (guardado na classe CDesc). Se a dessincronização de tempo for inferior a 400ms e a distância percorrida for fisicamente possível, o servidor aceita o movimento e ajusta o relógio interno suavemente, em vez de forçar um rollback brutal da posição.
+Cuidado Extremo: Explorers de Speedhack vão tentar abusar desta tolerância. O Cursor DEVE garantir que o "Token Bucket" drena com o tempo. Um jogador pode ter um pico de lag e mover-se um pouco mais rápido durante meio segundo, mas não pode acumular essa tolerância para correr o mapa inteiro a dobrar a velocidade.
+Mostra-me a nova fórmula matemática de validação de movimento e a implementação da tolerância elástica no CInputMain.
+
+Fase 19: Batching de "Loot Explosions" (Otimização de Drops Massivos)
+Contexto: Quando uma Pedra Metin ou um Boss morre em eventos com "Rates" altos, podem cair 50 itens de uma vez. O servidor instancia 50 objetos CItem, faz 50 cálculos de colisão no chão, 50 inserções na Sectree e envia 50 pacotes separados aos jogadores próximos, causando um engasgo monstruoso no servidor.
+Tarefa:
+Abre o ficheiro game/src/char_item.cpp, game/src/item.cpp e game/src/item_manager.cpp.
+Localiza as rotinas de morte que geram múltiplos itens (ex: CreateItemDrop).
+Cria um Contentor Temporário de Drops (std::vector<LPITEM>). Quando um Boss morre, em vez de instanciar fisicamente os itens no mapa um a um, adiciona-os a este vetor.
+No final do cálculo da tabela de drop, empacota os dados visuais (IDs, posições espalhadas) num ÚNICO pacote novo da rede (ex: TPacketGCDropList) e envia para os jogadores.
+Apenas processa a inserção física dos itens na Sectree de forma gradual (ex: 10 itens por frame) para suavizar a carga na Main Thread.
+Cuidado Extremo: A propriedade dos itens (Ownership). O sistema que atribui quem tem o direito de apanhar o item durante os primeiros X segundos (PK_DROP, PARTY_DROP) não pode ser corrompido. O Cursor deve garantir que a lógica de "item protection" continua a funcionar perfeitamente com o Batching.
+Mostra-me a lógica de agregação dos drops e como o envio de rede foi fundido para reduzir o packet spam.
+
+Fase 20: Object Pooling Global para Entidades (Prevenção de Fragmentação de RAM)
+Contexto: Ao longo de 24 horas, os jogadores matam milhões de monstros e apanham milhões de itens. O Metin2 usa new CItem e new CHARACTER (via M2_NEW) para cada um deles, e depois delete. Estas invocações diretas ao Sistema Operativo causam fragmentação extrema da RAM. Quando o CH chega a 2GB de RAM, o servidor torna-se instável.
+Tarefa:
+Analisa game/src/char_manager.cpp e game/src/item_manager.cpp.
+Implementa um Object Pool estático robusto (ex: Boost.Pool ou uma array C++ pré-alocada) para as instâncias de CItem e CHARACTER.
+No Boot do servidor, aloca de forma contígua 20.000 instâncias genéricas de CHARACTER e 50.000 de CItem em memória.
+Quando um monstro faz respawn ou um item é criado, o sistema pede um objeto livre da Pool em vez de chamar 'new'. Quando morre/expira, é devolvido à Pool em vez de chamar 'delete'.
+Cuidado Extremo: Object Contamination (Contaminação de Objetos Reciclados). O Cursor TEM de reescrever ou garantir que a função de inicialização (Initialize / Reset) de CHARACTER e CItem limpa a 100% todas as variáveis, arrays e std::strings do objeto antes de o devolver à Pool. Se um monstro reciclado mantiver o HP ou o Nome do monstro anterior, o jogo sofre corrupção lógica irreversível.
+Mostra-me a implementação das classes de Pool no CharManager e ItemManager e, crucialmente, as funções de Memory Wipe (Limpeza) executadas durante a reciclagem.
