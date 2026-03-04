@@ -1,8 +1,0 @@
-Caching de Danos de Combate (Memoization)
-Contexto: O Metin2 recalcula os bónus de dano (resistências, força contra monstros, perfuração) a cada golpe individual. Quando um Guerreiro usa uma habilidade em área contra 50 monstros, o servidor faz cálculos matemáticos pesados 50 vezes no mesmo milissegundo. Isto causa picos de lag no combate.
-Tarefa:
-Analisa os ficheiros game/src/char_battle.cpp e game/src/battle.cpp, focando-te nas funções CalcAttBonus, CalcMeleeDamage e CalcMagicDamage.
-Cria uma estrutura na classe CHARACTER chamada m_BattleStatsCache que armazena os atributos ofensivos globais do jogador pré-calculados (Dano Base, Crítico, Furar, Bónus Elementais).
-Em vez de percorrer os itens e bónus do jogador a cada ataque, o código do ataque deve ler diretamente desta struct para poupar processamento.
-Cuidado Extremo: Implementa uma "Dirty Flag" (ex: bool m_bBattleStatsDirty = true;). Esta flag tem de ser ativada SEMPRE que o jogador muda de equipamento, recebe um buff (ex: Aura da Espada), ativa alquimia ou usa uma poção. Se a flag for verdadeira, o cache é recalculado no próximo ataque e a flag volta a falso. Se falhares a ativação da flag nas trocas de itens, o dano ficará bloqueado em valores antigos (exploit grave).
-Mostra-me o código da implementação da Dirty Flag nas funções de equipamento e o novo fluxo de cálculo de dano na battle.cpp.
