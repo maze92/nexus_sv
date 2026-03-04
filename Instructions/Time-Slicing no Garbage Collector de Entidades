@@ -1,9 +1,0 @@
-Time-Slicing no Garbage Collector de Entidades
-Contexto: Durante uma morte em massa de monstros (Mass Kill) ou purga de itens no chão, a lista de objetos pendentes para destruição (m_map_pkChrDestroy) enche instantaneamente. O servidor tenta eliminar tudo e libertar centenas de ponteiros C++ da memória num único frame na função Update(), causando um soluço severo de hardware. A otimização consiste em criar um limite orçamental por frame (Time-Slicing), limpando apenas uma pequena fração da lista por Tick, distribuindo a libertação de RAM de forma fluida.
-Tarefa:
-Analisa os ficheiros char_manager.cpp e item_manager.cpp, focando no ciclo de destruição de entidades nas funções Update(), Destroy() ou Flush().
-Encontra o loop que itera sobre a lista de destruição de entidades e remove a mecânica que o faz varrer o mapa inteiro de uma só vez.
-Insere um contador numérico dentro desse loop (ex: int destroyed_count = 0) e uma condição de paragem: se destroyed_count >= 20, faz break ao loop, permitindo que o resto das entidades aguarde pacificamente pelo próximo frame do servidor.
-Assegura que quando um monstro ou item é marcado para entrar nesta lista de destruição adiada, ele perde imediatamente a sua flag de colisão no jogo, sai do mapeamento do SECTREE e tem os seus timers (CEvent) cancelados. Isto impede que os jogadores consigam interagir com entidades fantasma.
-Verifica a função de encerramento do servidor (Shutdown) e garante que este limite orçamental é ignorado quando o motor de jogo está a fechar definitivamente.
-Mostra-me o bloco do loop de destruição refatorado garantindo estabilidade aos iteradores da memória.
