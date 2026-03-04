@@ -1,0 +1,35 @@
+Fase 9: Otimização do Motor de Colisões (Cylinder/Sphere Hitboxes)
+Contexto: O Metin2 usa verificações de distância ponto a ponto (DISTANCE_APPROX) para calcular danos em área (AoE). Para habilidades cónicas ou em linha reta (ex: Ataque Espiritual, Rugido do Dragão), o servidor faz matemática complexa usando ângulos e trigonometria (cos/sin) para todos os alvos num raio abrangente. Isto é computacionalmente caríssimo.
+Tarefa:
+Abre o ficheiro game/src/char_skill.cpp e game/src/battle.cpp.
+Substitui a lógica de colisão angular baseada em trigonometria por verificações de "Bounding Volumes" simples (Esferas para explosões radiais, e OBB - Oriented Bounding Box para ataques em linha reta).
+Refatora a procura de alvos usando a QuadTree (implementada anteriormente). Primeiro, a árvore filtra apenas os alvos que estão dentro da Bounding Box do ataque. Só depois é que o servidor testa a colisão fina.
+Cuidado Extremo: A sensação de combate (Hitbox Feel) não pode mudar. Se o Ataque Espiritual acertava a 3 metros de distância e 45 graus de arco, a nova OBB/Cylinder Box TEM de representar exatamente essa mesma área geométrica. O Cursor deve gerar uma função matemática que converta os valores antigos de "Raio e Ângulo" da skill para as dimensões da nova Bounding Box.
+Mostra-me a nova estrutura de dados para as Hitboxes e a função otimizada de interceção em área (AoE) sem uso de trigonometria pesada.
+
+Fase 10: Object Pooling para Tráfego da Base de Dados (DB Cache)
+Contexto: O processo "db" (DB Cache) recebe milhares de pacotes por segundo do processo "game" (ex: mover um item no inventário gera uma query de update). Atualmente, a classe CClientManager e o CPacketInfo alocam memória dinamicamente para cada pacote recebido e enviado. Quando muitos jogadores organizam o inventário ou apanham drops, o "db" engasga e faz o "game" travar à espera.
+Tarefa:
+Analisa os ficheiros db/src/ClientManager.cpp, db/src/Peer.cpp e common/peer.h.
+Implementa um Memory Pool estático (std::vector de arrays de bytes pré-alocados) especificamente para o processamento de pacotes SQL entre o "game" e o "db".
+Sempre que o "game" enviar um pacote para o "db", o "db" retira um buffer livre da Pool, processa a query de forma assíncrona, e devolve o buffer à Pool.
+Cuidado Extremo: Tamanho Dinâmico vs Estático. Algumas queries (ex: guardar o estado de uma Guild com muitos membros) podem ser maiores que o buffer padrão da Pool. O Cursor DEVE implementar uma salvaguarda: se o pacote exceder o tamanho do bloco da Pool (ex: > 4096 bytes), o sistema deve recorrer à alocação dinâmica (fallback dinâmico) apenas para esse pacote gigante, evitando Buffer Overflows.
+Mostra-me a arquitetura do DB Packet Pool e a lógica de fallback para pacotes massivos.
+
+Fase 11: String Interning e Hashing no Motor de Quests (Lua)
+Contexto: O sistema de quests do Lua comunica constantemente com o C++ enviando e recebendo Strings (ex: nomes de variáveis de estado, nomes de monstros, flags de guild). O C++ gasta imenso CPU a fazer `std::strcmp` ou `std::string::operator==` O(n) para descobrir o que a Lua quer.
+Tarefa:
+Abre game/src/questmanager.cpp, game/src/questlua.cpp e game/src/questnpc.cpp.
+Implementa a técnica de "String Interning" baseada em Hashing. Sempre que a quest é compilada ou carregada, converte as chaves de estado (State Names) e variáveis (Flags) para um Hash Inteiro de 32-bits (ex: usando o algoritmo FNV-1a avaliado em tempo de compilação com `constexpr`).
+Nas funções de procura de estado da quest, o C++ deve comparar Hashes (DWORD) em vez de comparar `std::string`.
+Cuidado Extremo: Colisões de Hash. O Cursor DEVE implementar uma tabela de resolução de colisões ou usar um algoritmo robusto o suficiente (como MurmurHash2 ou FNV-1a) para garantir que duas strings de quests diferentes nunca geram o mesmo Hash. Adiciona uma validação no arranque do servidor que emita um sys_err fatal se detetar uma colisão ao carregar a pasta `object`.
+Mostra-me a função de Hashing implementada e como o CQuestManager procura agora os estados usando inteiros em vez de strings.
+
+Fase 12: Paralelização do Carregamento de Mapas (Boot Rápido e Crash Recovery)
+Contexto: Quando inicias o servidor ou quando um CH cai e reinicia (Auto-Core), o SECTREE_MANAGER carrega mapa a mapa de forma sequencial na Main Thread. Carregar mapas grandes (ex: Cidade 1, V2, Gruta) demora dezenas de segundos, tempo em que os jogadores não se conseguem ligar.
+Tarefa:
+Abre o ficheiro game/src/sectree_manager.cpp e localiza a rotina de inicialização (Boot/Build).
+Utiliza a biblioteca <future> (std::async) ou o ThreadPool existente para carregar ficheiros `attr`, `water` e processar a geometria de vários mapas em simultâneo.
+Cada Worker Thread fica responsável por construir a estrutura de um mapa independente na memória.
+Cuidado Extremo: A inserção do mapa finalizado no mapa global `m_map_pkSectree` ou `m_map_pkMapRegion` tem de ser protegida por um std::mutex na Main Thread, pois o std::unordered_map/std::map não é thread-safe para escritas concorrentes. A Thread apenas constrói os dados, mas a "ligação" do mapa ao servidor é feita sincronizadamente no fim.
+Mostra-me o código de carregamento assíncrono dos mapas e a proteção de lock usada na inserção global.
