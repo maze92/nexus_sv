@@ -1,0 +1,9 @@
+Data-Oriented Design para Processamento de Veneno/DoT (ECS Parcial)
+Contexto: O dano contínuo (Veneno, Sangramento, Fogo) obriga o servidor a saltar aleatoriamente pela memória para processar os HP de diferentes personagens dispersas na RAM (Cache Misses massivos). Vamos aplicar princípios de Entity Component System (ECS) apenas para os modificadores de dano ao longo do tempo (DoT).
+Tarefa:
+Analisa o ficheiro game/src/affect.cpp e a lógica de processamento do veneno (AFFECT_POISON).
+Cria um manager global compacto estático: struct PoisonComponent { DWORD vid; int damage; int ticks_left; };
+Aloca um std::vector<PoisonComponent> contíguo no CHARACTER_MANAGER. Quando uma entidade é envenenada, regista-a apenas neste vetor.
+Em vez de cada monstro/jogador gerir o seu próprio timer de veneno de forma isolada, cria uma função única que itere sobre este array contíguo uma vez por segundo, calculando o dano de veneno de TODOS os afetados de uma só vez (Batch Processing).
+Cuidado Extremo: Sincronização. Se um monstro morrer ou o veneno for curado prematuramente, o seu `vid` deve ser rapidamente removido do vetor (usando o método Swap-and-Pop referenciado em fases anteriores). O Cursor DEVE garantir que a função global em batch aplica o dano de forma segura invocando a função de dano do alvo, validando sempre se a entidade (VID) ainda existe no mapa antes de aplicar o golpe.
+Mostra-me o manager centralizado de DoT (Damage over Time) e o loop de batch processing contíguo que substitui os eventos individuais de veneno.
