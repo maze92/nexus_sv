@@ -1,8 +1,0 @@
-Fase 2: Modernizar a Formatação de Strings (Substituir snprintf por fmtlib)
-Contexto: A source do Metin2 abusa das funções de C antigas (sprintf e snprintf) para construir mensagens de chat, system logs e packets. Estas funções são pesadas, lentas e propensas a falhas de segurança (buffer overflows). Vamos substituí-las pela biblioteca moderna e ultra-rápida fmt (ou std::format do C++20).
-Tarefa:
-Instalar a biblioteca: Adiciona a biblioteca header-only fmt ao teu projeto (se não usares C++20), ou usa a flag -std=c++20 no Makefile.
-Analisa os ficheiros chat.cpp e log.cpp onde existam construtos do género: char buf[256]; snprintf(buf, sizeof(buf), "O jogador %s morreu", name);.
-Substitui esses blocos de código por alocações modernas: std::string buf = fmt::format("O jogador {} morreu", name);.
-Quando a função destino (como sys_log ou Packet) exigir um ponteiro clássico, passa os dados usando buf.c_str().
-Mostra-me as funções refatoradas do chat.cpp utilizando a nova formatação, sem arrays de chars estáticos locais.
