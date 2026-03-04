@@ -1,0 +1,10 @@
+Throttling de I/O de Visão no SECTREE_MANAGER (Spatial Partitioning Load Balancer)
+Contexto: O Metin2 divide o mapa em quadrados chamados "Sectores" (SECTREE). A função SECTREE_MANAGER::Update() é chamada em cada frame para iterar sobre todas as entidades que se moveram e verificar quem entrou ou saiu do seu raio de visão, gerando pacotes HEADER_GC_CHARACTER_UPDATE (pacotes de movimento e spawn). Se estiverem 300 pessoas no Map1, o servidor faz (300*300) cálculos de intersecção por frame. Isto esmaga o CPU. Vamos implementar um "Load Balancer" (Balanceador de Carga) iterativo.
+
+Tarefa:
+Analisa o ficheiro sectree_manager.cpp, focando-te no loop principal do SECTREE_MANAGER::Update() que itera sobre o mapa de sectrees (m_map_pkSectree).
+Em vez de processar todos os sectores a cada frame com um iterador local, altera o iterador para ser um membro estático da classe ou do método (ex: static auto it = m_map_pkSectree.begin();).
+Define um limite orçamental de processamento (ex: int max_sectors_per_tick = 50;).
+O loop deve avançar processando até max_sectors_per_tick. Quando atingir o limite, o loop guarda a posição atual do iterador e termina. No frame (Tick) seguinte, ele retoma a verificação a partir de onde ficou. Se chegar ao fim do .end(), volta ao .begin().
+Analisa a função de colisão e visão: Como os updates agora são "suavizados", o Cursor deve garantir que movimentos críticos de combate (ex: um guerreiro a usar Investida) forçam um update imediato daquele sector específico, ignorando a fila.
+Mostra-me o código do loop refatorado no SECTREE_MANAGER::Update mantendo o estado do iterador entre frames.
