@@ -1,0 +1,40 @@
+Fase 33: Inicialização do Dispositivo DirectX 11 (SwapChain e Contexto)
+Contexto: O Metin2 usa as interfaces obsoletas IDirect3D9 e IDirect3DDevice9. O DirectX 11 separa a criação de recursos (ID3D11Device) dos comandos de desenho (ID3D11DeviceContext), permitindo multithreading na renderização. A transição inicial envolve reescrever a base do motor gráfico para inicializar a nova API.
+
+Tarefa:
+Abre os ficheiros UserInterface/PythonApplication.cpp, GameLib/MapOutdoor.cpp, e a classe base CGraphicDevice (normalmente em EterLib/GrpDevice.cpp).
+Substitui a criação do dispositivo D3D9 pela criação do dispositivo D3D11 e da IDXGISwapChain usando D3D11CreateDeviceAndSwapChain.
+Remove todas as referências ao header <d3d9.h> e <d3dx9.h> do stdafx.h do projeto e adiciona <d3d11.h>, <dxgi.h> e <DirectXMath.h>.
+Atualiza as estruturas de apresentação (D3DPRESENT_PARAMETERS passa a DXGI_SWAP_CHAIN_DESC) para suportar MSAA (Anti-Aliasing) nativo e modo Janela sem Bordas (Borderless Fullscreen).
+Cuidado Extremo: A biblioteca D3DX9 foi descontinuada pela Microsoft. O Cursor DEVE garantir que funções legadas como D3DXMatrixMultiply ou D3DXVec3Normalize são substituídas pelas suas equivalentes da nova biblioteca <DirectXMath.h> (ex: XMMatrixMultiply) em TODA a source do cliente. Se faltar uma, o projeto não compila.
+Mostra-me a nova classe CGraphicDevice inicializando o ID3D11Device e o DeviceContext, bem como a rotina de redimensionamento (ResizeBuffers) do SwapChain.
+
+Fase 34: Migração do Fixed-Function para Shaders (HLSL)
+Contexto: O DX9 do Metin2 usava SetTransform e SetRenderState para desenhar geometria no ecrã sem usar Shaders programáveis. O DirectX 11 aboliu o Fixed-Function Pipeline. Agora, TUDO o que é desenhado no ecrã (desde a espada do personagem até ao chão) OBRIGA à existência de um Vertex Shader e um Pixel Shader.
+Tarefa:
+Analisa a EterLib (classes CGraphicBase, CGraphicVertexBuffer, CGraphicIndexBuffer).
+Refatora a criação de Buffers de DX9 (CreateVertexBuffer) para o standard DX11 (CreateBuffer com D3D11_BIND_VERTEX_BUFFER).
+Cria dois ficheiros HLSL base: BasicVertexShader.hlsl e BasicPixelShader.hlsl. O Vertex Shader deve receber uma Constant Buffer com a Matriz WorldViewProjection (WVP) e multiplicar a posição do vértice. O Pixel Shader deve apenas amostrar a textura e retornar a cor.
+O Cursor deve reescrever a função de renderização (ex: DrawPrimitiveUP, que não existe no DX11) para criar e atualizar Buffers Dinâmicos na memória gráfica usando Map/Unmap com D3D11_MAP_WRITE_DISCARD.
+Cuidado Extremo: Gestão de Layouts (Input Layouts). O DX11 exige que a estrutura de vértices do C++ (ex: struct TVertex { float x,y,z; float u,v; }) coincida exatamente com a assinatura de entrada do Vertex Shader através de um ID3D11InputLayout. O Cursor DEVE mapear corretamente o SemanticName ("POSITION", "TEXCOORD") ao compilar o shader no arranque do jogo, senão o ecrã ficará completamente preto.
+Mostra-me o código C++ de criação do Input Layout associado ao Vertex Shader HLSL e a nova função de desenho de primitivas.
+
+Fase 35: Refatoração de Texturas e Fontes (Remoção do D3DXSprite/D3DXFont)
+Contexto: A Interface de Utilizador (UI) do Metin2 em Python depende totalmente do ID3DXFont para desenhar texto (nomes, chat) e ID3DXSprite para desenhar o inventário. Como o D3DX morreu no DX11, temos de implementar alternativas modernas de renderização 2D.
+Tarefa:
+Abre as classes CGraphicText, CGraphicImage, e CGraphicExpandedImageInstance.
+Substitui o carregamento de texturas (D3DXCreateTextureFromFile) pelo uso da biblioteca DirectXTK (DirectX Tool Kit) ou STB_Image, gerando um ID3D11ShaderResourceView.
+Substitui o ID3DXFont e D3DXSprite por FW1FontWrapper (uma lib open-source ultra rápida para texto em DX11) ou pelo SpriteBatch e SpriteFont da biblioteca DirectXTK.
+Adapta as chamadas de renderização da UI em Python para usarem os novos métodos de SpriteBatch (Begin, Draw, End).
+Cuidado Extremo: Transparência na UI. A interface do Metin2 usa modos de Alpha Blending muito específicos. O Cursor tem de criar e associar os ID3D11BlendState corretos (ex: NonPremultiplied Alpha) antes de chamar o SpriteBatch::Begin, para que as janelas não fiquem opacas e os cantos arredondados funcionem.
+Mostra-me a refatoração da classe CGraphicText utilizando o FW1FontWrapper (ou SpriteFont) e o carregamento de texturas para ShaderResourceView.
+
+Fase 36: A Ponte Granny 3D para DirectX 11
+Contexto: A biblioteca Granny 3D exporta os dados dos modelos (Vértices, Normais, UVs) num formato desenhado para as versões antigas do DirectX. Temos de intercetar os dados da Mesh do Granny e alimentá-los aos nossos novos Buffers do DX11.
+Tarefa:
+Analisa a classe GameLib/ActorInstanceDraw.cpp e os conectores do Granny (MilesLib).
+Em vez de passar os ponteiros do Granny diretamente para o DirectX antigo, cria uma estrutura intermediária. Quando um modelo .gr2 é carregado, extrai as posições dos vértices (GrannyGetMeshVertexCount), índices e pesos ósseos usando as funções nativas do Granny.
+Aloca um ID3D11VertexBuffer estático (imutável) para a malha base do personagem.
+Utiliza a técnica descrita anteriormente (Hardware Skinning) para passar as matrizes ósseas do Granny para um Constant Buffer do DX11 a cada frame, e deixa o teu Shader fazer a animação.
+Cuidado Extremo: A ordenação dos vértices do Granny pode diferir do que o DX11 espera dependendo das flags de exportação (Clockwise vs Counter-Clockwise Culling). O Cursor deve criar um ID3D11RasterizerState adequado para garantir que os personagens não fiquem "virados do avesso" (com as faces de trás a serem renderizadas à frente).
+Mostra-me a função de extração de vértices do Granny para o Vertex Buffer do DX11 e a configuração do RasterizerState do modelo.
