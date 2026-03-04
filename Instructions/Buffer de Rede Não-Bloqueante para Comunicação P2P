@@ -1,9 +1,0 @@
-Buffer de Rede Não-Bloqueante para Comunicação P2P (Core Lag Resolver)
-Contexto: O Metin2 usa um sistema P2P para os vários Cores (Game99, CH1, CH2) comunicarem. Quando um jogador usa o Global Chat ou processa Guilds, um pacote P2P é enviado para todos os processos locais. O erro sistémico é que a socket P2P pode colidir com buffers do Sistema Operativo. Se o Core 3 estiver sobrecarregado, o OS bloqueia as chamadas send() do Core 1. Resultado: O Core 1 congela completamente (os jogadores ficam parados) apenas à espera que o Core 3 consiga ler a mensagem privada que foi enviada. A melhoria força a rede Core-to-Core para I/O estritamente assíncrono.
-Tarefa:
-Analisa os ficheiros p2p_manager.cpp e desc_p2p.cpp, focando na função genérica de envio P2P_MANAGER::Send e na rotina de processamento da rede do socket descriptor.
-O Cursor deve inspecionar a criação da socket P2P (CreateSocket) e injetar explicitamente a flag de Sistema Operativo O_NONBLOCK utilizando fcntl(), garantindo a nível do Kernel que nenhum envio prenderá a Main Thread do Core emissor.
-Cria um Buffer Circular de saída (Asynchronous Ring Buffer) na estrutura descritiva (CDesc_p2p).
-Modifica o método Send: a função deixará de chamar send() para a rede diretamente. Em vez disso, copia o payload de bytes e formata o cabeçalho P2P para dentro do buffer lógico em tempo absoluto O(1), e retorna verdadeiro.
-No ciclo natural de Polling da rede do processo (ProcessOutput), o servidor tenta drenar esse buffer lógico para a placa de rede. Se a função send() do sistema retornar os códigos EAGAIN ou EWOULDBLOCK (buffer do Kernel cheio), o Cursor deve garantir que o buffer do Metin2 suspende a cópia ordenadamente, mantém a sua integridade de bytes (offsets), e tenta retomar silenciosamente apenas no ciclo (Tick) seguinte, sem gerar desconexões ou atrasos na gameplay principal.
-Mostra-me a refatoração da função Send do P2P interligada ao comportamento seguro do output não-bloqueante.
