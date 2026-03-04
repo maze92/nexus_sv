@@ -1,0 +1,9 @@
+Memory Pooling para Buffers de Rede
+Contexto: Sempre que um pacote é construído e enviado, o servidor aloca e liberta memória no TEMP_BUFFER dinamicamente. Esta alocação contínua causa fragmentação massiva na RAM e picos de uso de CPU devido à sobrecarga do gestor de memória do sistema operativo.
+Tarefa:
+Analisa o ficheiro game/src/buffer_manager.cpp e buffer_manager.h.
+Refatora a lógica de alocação de buffers para utilizar um "Object Pool Pattern". No arranque do servidor, aloca de forma contígua na memória (std::vector<char>) um bloco massivo reservado para buffers de rede.
+Quando um socket precisa de um buffer temporário, o Gestor de Buffers fornece um ponteiro para um segmento livre dessa pool.
+Após o envio, o segmento é marcado como livre via índice, sem usar delete ou free.
+Cuidado Extremo: Implementa salvaguardas rigorosas contra Buffer Overflows. Se a fila de dados ultrapassar o tamanho do segmento pré-alocado, o sistema deve ser capaz de alocar memória extra de forma segura ou forçar a desconexão do cliente para evitar injeção de pacotes maliciosos.
+Mostra-me o header do buffer_manager.h com a nova arquitetura de Pool e a lógica de reciclagem segura de buffers.
