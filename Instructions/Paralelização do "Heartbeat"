@@ -1,9 +1,0 @@
-Fase 1: Paralelização do "Heartbeat" (Multithreading do Game Loop)
-Contexto: A maior limitação do motor do Metin2 (2004) é que a função CHARACTER_MANAGER::Update, que processa a IA, movimento e buffs de todas as entidades, corre numa única thread (Main Thread). Se houver 10.000 monstros, o CPU vai usar apenas 1 núcleo a 100% enquanto os outros ficam inativos, causando stutters globais. Vamos paralelizar este loop usando o ThreadPool previamente criado.
-Tarefa:
-Abre o ficheiro game/src/char_manager.cpp e foca-te na função CHARACTER_MANAGER::Update(int iPulse).
-Em vez de um único loop "for" ou "while" iterar sequencialmente sobre todos os personagens e monstros, divide a lista de entidades (m_map_pkChrByVID) em "blocos" (chunks). Exemplo: se houver 4000 entidades e 4 threads, cria 4 blocos de 1000.
-Envia cada bloco para o ThreadPool usando std::bind ou lambdas, para que as worker threads executem a função UpdateCharacter(iPulse) das entidades em simultâneo.
-A Main Thread deve aguardar (usando std::future ou uma barreira de sincronização) que todas as threads terminem os seus blocos antes de avançar para o próximo "Tick" do servidor.
-Cuidado Extremo: Race Conditions! Se dois monstros em threads diferentes tentarem atacar o mesmo jogador em simultâneo e modificarem o seu HP, o servidor vai crashar. O Cursor TEM de identificar variáveis de estado partilhado (como o HP, MP, ou Posição) na classe CHARACTER e protegê-las usando std::atomic<int> para o HP/SP, ou utilizar um std::mutex leve no objeto alvo na hora exata de aplicar o dano/estado, garantindo concorrência segura.
-Mostra-me a rotina de divisão de blocos (chunking) no char_manager e a implementação dos locks atómicos no cálculo de dano na classe CHARACTER.
