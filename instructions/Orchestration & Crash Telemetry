@@ -1,0 +1,29 @@
+PROMPT 1 
+Cursor, atua como DevOps Engineer AAA. O nosso objetivo é o 15º Pilar: Substituir os velhos scripts '.sh' e binários obscuros como o 'vrunner' por um Orquestrador de Processos Moderno e Sistema de Telemetria (Crash Alerts), garantindo restarts seguros e zero corrupção de dados (Rollbacks).
+
+FASE 0: Auditoria do Encerramento do Servidor (Graceful Shutdown)
+Antes de criarmos o orquestrador, precisamos garantir que o jogo sabe morrer com dignidade.
+1. Analisa o ficheiro main.cpp (no Servidor 'game' e 'db').
+2. Procura pela função de tratamento de sinais (ex: signal(SIGSEGV, core_dump_func) ou signal(SIGTERM, shutdown_func)).
+3. Verifica o que acontece quando o servidor recebe um sinal de fecho. Ele chama as funções de Flush da cache (ex: ITEM_MANAGER::Flush, CHARACTER_MANAGER::Flush) para guardar tudo no MySQL antes de morrer?
+4. Elabora um relatório a mostrar se o nosso servidor atual é seguro contra 'Rollbacks' e 'Item Dupes' em caso de crash ou se simplesmente aborta a memória sem gravar nada.
+
+PROMPT 2
+FASE 1: Tratamento de Sinais e Prevenção de Dupes
+1. No main.cpp do 'game' e do 'db', reescreve o manipulador de sinais (Signal Handler) usando a biblioteca moderna <csignal>.
+2. Interceta os sinais SIGINT, SIGTERM e SIGABRT.
+3. Quando um destes sinais for apanhado, o servidor NÃO pode fazer 'exit(1)' imediatamente.
+4. Ele deve mudar uma flag atómica 'g_bIsShuttingDown = true'. O loop principal (heartbeat) do servidor deve detetar esta flag, fechar a porta de rede (para não aceitar novos logins), e iniciar a sequência de Flush.
+5. A sequência de Flush DEVE iterar por todos os jogadores online, forçar a gravação da posição, do inventário, do armazém e do ouro na Base de Dados, e só depois emitir o comando de saída seguro.
+
+PROMPT 3
+FASE 2: Python Server Orchestrator (O substituto do vrunner)
+1. Esquece o C++ para isto. Cria um script na raiz do servidor chamado 'AAA_Orchestrator.py'.
+2. Usa a biblioteca 'subprocess' e 'time' do Python.
+3. O script deve ler um ficheiro de configuração simples (JSON ou YAML) que lista os processos a manter vivos (ex: db, auth, ch1_core1, ch99).
+4. O script lança os processos e fica num loop infinito a monitorizar o 'return code' de cada um.
+5. Se um processo morrer (return code != 0), o script deve:
+   a) Gerar um log com o Timestamp.
+   b) Enviar um Webhook para um canal de Discord do Administrador com a mensagem: "🔴 ALERTA CRIÍTICO: O processo [CH1_CORE1] sofreu um crash (Código X). A reiniciar..."
+   c) Reiniciar o processo automaticamente.
+6. Adiciona um mecanismo de "Cooldown": se o processo crashar 5 vezes num minuto, o orquestrador desiste e avisa o Discord que há uma falha fatal.
