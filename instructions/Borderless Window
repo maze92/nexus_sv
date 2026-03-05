@@ -35,4 +35,3 @@ FASE 3: Robustez do Device Lost / Reset
 3. Adiciona um sistema de validação rigoroso: Cria um log (sys_err) detalhado que identifique EXATAMENTE qual foi o recurso (textura, fonte, vertex buffer) que não incrementou o seu contador de referências (Ref Count != 0) e impediu o Reset de acontecer. 
 4. Implementa um 'Safe Release' global. Se o Reset falhar, o motor não congela no ecrã preto. Ele liberta a memória à força, recria a janela do zero de forma transparente, e recarrega a UI.
 
-Mostra-me a proteção que adicionaste à volta da chamada IDirect3DDevice9::Reset()!
