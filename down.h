@@ -3,4 +3,6 @@ https://forum.turkmmo.com/konu/3942291-minimap-smooth-zoom-mini-harita-yumusak-y
 https://forum.turkmmo.com/konu/3939554-skill-read-eklentisi/
 https://forum.turkmmo.com/konu/3938195-ikarus-v2-minimap-mark/
 https://forum.turkmmo.com/konu/3907537-hizli-sandik-acma-sistemi/
+https://github.com/Debloat/Metin2-Dynamic-Tree-and-Object-Shadows/tree/main
+https://forum.turkmmo.com/konu/3921802-gmler-icin-mob-vnum-gosterme-eklentisi/
 
