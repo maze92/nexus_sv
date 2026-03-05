@@ -1,0 +1,31 @@
+PROMPT 1
+"Cursor, atua como um Engenheiro de Redes Sénior de C++. Vamos reescrever o pipeline de rede (Servidor e Cliente) do Metin2 para um padrão AAA (Decoupled Crypto Pipeline com Plaintext Ring Buffer e Transport-Layer Framing). O objetivo é erradicar definitivamente os erros de AES desync e UNKNOWN HEADERS (ex: erro 229 e 182(13)).
+
+FASE 0: Auditoria e Mapeamento
+Antes de escrevermos qualquer código novo ou apagarmos o antigo, preciso que faças uma auditoria rigorosa.
+Analisa NetStream.cpp / NetStream.h (Cliente) e desc.cpp / desc.h (Servidor).
+Mapeia exatamente onde a função recv() do socket é chamada e onde o EVP_DecryptUpdate (AES) está a ser injetado.
+Procura ativamente por todas as chamadas a m_recvBuf.Clear(), ClearRecvBuffer() ou m_recvBufOutputPos = 0 no cliente (especialmente em ficheiros como PythonNetworkStreamPhase*.cpp ou durante as transições de fase como Login -> Loading -> Game).
+Mostra-me o teu relatório de análise com os ficheiros e linhas exatas onde a cifra e as limpezas de buffer estão a acontecer. Não escrevas a Fase 1 ainda."
+
+PROMPT 2
+FASE 1: O Coração Seguro (CSecureRingBuffer)
+Cria dois ficheiros novos: SecureRingBuffer.h e SecureRingBuffer.cpp.
+Implementa a classe CSecureRingBuffer. Ela deve ter uma arquitetura de duas camadas: um buffer temporário para receber dados raw encriptados (m_cipherBuffer) e um Buffer Circular robusto APENAS para texto limpo decifrado (m_plainRingBuffer).
+Cria o método IngestEncryptedData(const void* data, size_t size). Este método recebe os bytes do socket, passa-os IMEDIATAMENTE pelo EVP_DecryptUpdate (AES-CTR) e faz append do resultado diretamente no m_plainRingBuffer.
+Implementa um sistema de Transport-Layer Framing rigoroso: o servidor deve prefixar SEMPRE cada pacote com [Tamanho_Encrypted_Payload (4 bytes)]. A função de leitura do Cliente/Servidor deve olhar para esses 4 bytes. Se o socket não tiver recebido o tamanho total do pacote ainda, a função aborta e espera, garantindo que o AES nunca decifra pacotes cortados a meio.
+Cria os métodos PeekPlaintext(size_t size) e ConsumePlaintext(size_t size) para o motor do jogo ler apenas dados perfeitamente seguros.
+
+PROMPT 3
+FASE 2: Implementação no Cliente (NetStream)
+Substitui a lógica antiga de receção no CNetworkStream pelo novo CSecureRingBuffer.
+A partir de agora, o recv() do socket alimenta exclusivamente o IngestEncryptedData().
+O motor do jogo (o Python e as funções Recv()) só podem ler do método ConsumePlaintext().
+Ação Crítica: Comenta/bloqueia COMPLETAMENTE todas as chamadas de ClearRecvBuffer() e resets de ponteiros de buffer que identificaste na Fase 0 durante as mudanças de Fase (ex: Loading). O Ring Buffer gere a sua própria memória e limpar buffers manualmente destrói a cifra AES e apaga os monstros recebidos.
+
+PROMPT 4
+FASE 3: Implementação no Servidor (DESC e InputDB)
+Substitui o buffer de ProcessInput no desc.cpp pelo CSecureRingBuffer.
+Garante que, antes de o servidor enviar qualquer pacote pelo socket (no ProcessOutput ou equivalente), ele adiciona o prefixo de 4 bytes com o tamanho total do payload (Length-Prefixed Framing).
+O m_pInputProcessor->Process() (que lida com os pacotes do jogo, como o EmoteLoad 182) vai passar a ler exclusivamente do teu Ring Buffer de texto limpo.
+Garante que se o ProcessInput ler um tamanho de struct errado, o Ring Buffer apenas avança os bytes consumidos, mas o AES continua 100% isolado e sincronizado.
