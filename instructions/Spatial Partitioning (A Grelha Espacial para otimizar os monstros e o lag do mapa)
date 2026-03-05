@@ -1,0 +1,31 @@
+PROMPT 1
+Cursor, atua como Arquiteto de Motores C++. Vamos implementar um pilar AAA no nosso servidor Metin2: Spatial Partitioning Moderno (Spatial Hash Grid / Cache-Friendly Sectree) para otimizar as queries de visão (View) e colisões, eliminando a carga de CPU O(N) em zonas densamente povoadas.
+
+FASE 0: Auditoria do Sistema SECTREE Atual
+Antes de escrevermos código, analisa o "motor de busca" do jogo:
+1. Inspeciona os ficheiros sectree_manager.cpp, sectree.cpp e char.cpp (na parte do View e Move).
+2. Identifica como a função UpdateSector ou Move é chamada quando um jogador anda.
+3. Analisa as funções de Query (ex: ForEachAround, FindCharacter, GetCharactersAround). Verifica se estão a usar listas ligadas antigas (std::list ou ponteiros manuais) que destroem a Cache do CPU (L1/L2) devido a saltos de memória dispersa.
+4. Localiza os Mutexes usados no SECTREE. (Se o nosso sistema tentar mover vários monstros, um Mutex global no SECTREE vai causar Deadlocks ou Stuttering).
+
+PROMPT 2
+FASE 1: Criação da CSpatialGrid (Spatial Hash Grid)
+1. Cria os ficheiros SpatialGrid.h e SpatialGrid.cpp de forma isolada.
+2. A classe deve representar o mapa como uma Grelha 2D achatada. Em vez de árvores complexas ou std::list, cada "Célula" (Cell) da grelha deve ser um std::vector<CHARACTER*> com memória pré-alocada (ou um array estático pequeno), garantindo acesso sequencial super rápido (Cache-Friendly).
+3. Implementa a função de Hash: GetCellIndex(long x, long y) que converte coordenadas do mundo num índice de array O(1).
+4. Implementa as funções Insert(CHARACTER* ch), Remove(CHARACTER* ch) e Update(CHARACTER* ch, long oldX, long oldY).
+5. Proteção Multithread: Usa um Spinlock ou um std::shared_mutex POR CÉLULA (Fine-grained locking) e NÃO um lock global na grelha toda. Assim, monstros em pontas opostas do mapa podem mover-se ao mesmo tempo em threads diferentes sem esperarem uns pelos outros.
+
+PROMPT 3
+FASE 2: Funções de Query Rápidas
+1. No SpatialGrid.cpp, implementa a função FindEntitiesInRange(long x, long y, int range, std::vector<CHARACTER*>& outEntities).
+2. A lógica deve ser: converter o 'range' em Células, calcular o 'quadrado' de Células afetadas à volta do (x,y), e fazer um loop rápido pelos vectors dessas células específicas.
+3. Implementa o suporte para Functors (Lambdas), criando a função ForEachInRange(long x, long y, int range, std::function<void(CHARACTER*)> callback).
+4. Garante que estas leituras (Queries) usam Shared Locks (Read Locks) nas células, permitindo que dezenas de jogadores leiam a mesma célula ao mesmo tempo sem bloqueios, desde que ninguém a esteja a alterar nesse exato micro-segundo.
+
+PROMPT 4
+FASE 3: Integração no Character e SectreeManager
+1. No char.cpp e char_battle.cpp, procura as chamadas a funções antigas como SECTREE_MANAGER::instance().GetMapSectree(...) ou loops baseados no view do jogador.
+2. Substitui as rotinas de Agro (procurar jogadores para atacar) e de Skill AoE (ataques em área) para usarem a tua nova função CSpatialGrid::ForEachInRange.
+3. No método CHARACTER::SyncPacket() ou CHARACTER::UpdatePosition(), certifica-te de que chamas CSpatialGrid::Update() para que o jogador salte de célula na grelha de forma correta e sem duplicar o ponteiro.
+4. Mantém o SECTREE original apenas para o que for estático (como colisão de edifícios/NPCs fixos), mas passa toda a lógica de Entidades Dinâmicas (Mover/Atacar) para a nossa CSpatialGrid.
