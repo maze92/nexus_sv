@@ -1,0 +1,37 @@
+PROMPT 1
+Cursor, atua como Arquiteto de Sistemas AAA. Vamos implementar o Oitavo Pilar no nosso motor: Data-Driven Architecture com Hot-Reloading via Double Buffering e ficheiros JSON modernos (ex: nlohmann/json ou simdjson), erradicando a necessidade de reiniciar o servidor para aplicar balanceamentos.
+
+FASE 0: Auditoria do Carregamento de Protótipos (Protos)
+Antes de programar, analisa como o Metin2 carrega a sua "Bíblia" de dados:
+1. Inspeciona o ficheiro item_manager.cpp e a função de carregamento (ex: Initialize, InitializeProto, ou LoadItemTable).
+2. Faz o mesmo para o mob_manager.cpp (onde carrega os monstros/NPCs).
+3. Identifica as estruturas antigas (TItemTable, TMobTable) e como o servidor atual procura esses dados (ex: std::map<DWORD, TItemTable*> ou arrays lineares).
+4. Localiza o uso de funções inseguras de parsing de texto ou as chamadas bloqueantes à DB que carregam estes protos no arranque.
+5. Elabora um relatório indicando os gargalos e o risco de crashes se tentássemos atualizar o std::map original com o servidor a correr.
+
+PROMPT 2
+FASE 1: Criação do CDataRegistry (Double Buffering)
+1. Cria os ficheiros DataRegistry.h e DataRegistry.cpp.
+2. Implementa a template class 'CDataRegistry<Key, Value>'.
+3. A classe DEVE usar o padrão Double Buffering para segurança multithread:
+   - Ter dois std::unordered_map<Key, Value>: m_dataA e m_dataB.
+   - Ter um ponteiro atómico ou um std::shared_ptr (ex: std::atomic<std::unordered_map*> m_activeData) que aponta para o mapa que está a ser usado pelo jogo.
+4. Implementa o método 'Get(Key k)' que lê APENAS do 'm_activeData' de forma ultra rápida O(1).
+5. Implementa o método 'HotReload(std::function<void(std::unordered_map&)> loadFunc)'. Este método recebe uma função de carregamento, executa-a no mapa INATIVO (em background) e, quando terminar sem erros, faz o swap atómico do 'm_activeData' para o novo mapa, libertando a memória do antigo de seguida.
+
+PROMPT 3
+FASE 2: Parser JSON para Mobs e Items
+1. Instala (ou simula a inclusão) de uma biblioteca JSON moderna (ex: nlohmann/json.hpp).
+2. Cria o ficheiro ProtoLoader.h/cpp.
+3. Implementa a função 'LoadMobProtoFromJson(const std::string& filepath, std::unordered_map<DWORD, TMobTable>& outMap)'.
+4. A função deve ler o ficheiro JSON, iterar pelas entradas e preencher as estruturas TMobTable de forma segura, com verificações de tipos (try-catch block para garantir que se o ficheiro JSON tiver um erro de sintaxe, o jogo aborta o Hot-Reload e avisa no syserr, mantendo os dados antigos intactos).
+5. Prepara um exemplo de ficheiro 'mob_proto.json' miniatura com 2 monstros para eu ver o formato que vamos usar (ID, Name, HP, Damage, etc).
+
+PROMPT 4
+FASE 3: Integração no Manager e Comando de Reload
+1. No mob_manager.h, substitui o antigo 'std::map m_map_pkMobByVnum' pela nossa nova instância 'CDataRegistry<DWORD, TMobTable> m_mobRegistry'.
+2. Atualiza a função 'CMobManager::Get(DWORD dwVnum)' para retornar 'm_mobRegistry.Get(dwVnum)'.
+3. Abre o ficheiro cmd_gm.cpp (onde estão os comandos do jogo).
+4. Cria um comando novo chamado 'do_hotreload_mobs'.
+5. Quando o GM escrever '/reload_mobs' no jogo, esta função chama 'CMobManager::instance().HotReload([](auto& inactiveMap) { LoadMobProtoFromJson("mob_proto.json", inactiveMap); })'.
+6. Adiciona logs (sys_log) que avisam a equipa inteira no jogo: "O Administrador atualizou os atributos dos monstros. As alterações já estão ativas."
