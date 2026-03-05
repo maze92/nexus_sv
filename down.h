@@ -8,3 +8,4 @@ https://forum.turkmmo.com/konu/3921802-gmler-icin-mob-vnum-gosterme-eklentisi/
 https://forum.turkmmo.com/konu/3926138-buff-information-show-system/
 https://forum.turkmmo.com/konu/3893813-sonitex-offline-shop/
 https://forum.turkmmo.com/konu/3923817-kostum-takiliyken-cinsiyet-degistiremezsin/
+https://forum.turkmmo.com/konu/3877812-imagebox-memory-leak-fix/
