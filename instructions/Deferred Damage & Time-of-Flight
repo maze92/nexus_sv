@@ -1,0 +1,43 @@
+PROMPT 1
+Cursor, atua como Combat Designer de jogos AAA. O nosso objetivo é resolver o bug visual de dessincronização de projéteis no Metin2 (onde o monstro morre antes da flecha/magia visualmente o atingir). Vamos implementar o Pilar 17: Deferred Damage Queue e Time-of-Flight (ToF) Synchronization.
+
+FASE 0: Auditoria do Cálculo de Dano à Distância
+Antes de programar, identifica onde o dano é subtraído prematuramente:
+1. Inspeciona o ficheiro battle.cpp (funções como CalcMeleeDamage ou equivalentes para arcos) e char_skill.cpp (funções como ComputeSkill).
+2. Localiza o ponto exato onde a função Damage() é chamada e o PointChange(POINT_HP, -dano) ocorre para ataques de longo alcance (projéteis/magias).
+3. Verifica se o servidor já tem alguma variável de 'velocidade de projétil' definida nas tabelas de skills ou se o dano é simplesmente aplicado no frame zero do cast.
+4. Elabora um relatório sobre as linhas exatas onde teremos de intercetar a aplicação do dano e trocá-la por um sistema de agendamento (Delay).
+
+PROMPT 2
+FASE 1: Criação da Deferred Damage Queue
+1. No ficheiro char.h, dentro da classe CHARACTER, cria uma nova struct chamada 'SDeferredDamage':
+   struct SDeferredDamage {
+       CHARACTER* pkAttacker;
+       int iDamage;
+       DWORD dwExecuteTime; // GetCurrentTime() + Tempo de Voo
+       // Outros dados relevantes (tipo de dano, skill_id)
+   };
+2. Adiciona um contentor leve para guardar estes eventos: std::vector<SDeferredDamage> m_vecDeferredDamageQueue;
+3. Cria o método 'void AddDeferredDamage(CHARACTER* pkAttacker, int iDamage, int iDelayMS)'. Este método apenas preenche a struct e empurra para o vector, calculando o dwExecuteTime baseado no GetCurrentTime() atual + o atraso.
+
+PROMPT 3
+FASE 2: Processamento do Dano Agendado
+1. No ficheiro char.cpp, localiza a função de atualização regular da entidade (CHARACTER::Update() ou a função chamada pelo nosso novo Job System / Pulse).
+2. Cria e chama a função 'void ProcessDeferredDamage()'.
+3. A lógica deve iterar pelo 'm_vecDeferredDamageQueue'. 
+4. Se o GetCurrentTime() do servidor já ultrapassou o 'dwExecuteTime' de um item da fila:
+   - Extrai o dano.
+   - Aplica a função Damage() real (que subtrai o HP e toca a animação de dor/morte).
+   - Remove o item da fila.
+5. Garante que se o atacante já tiver morrido ou desconectado entretanto, o dano é validado na mesma (ou ignorado, dependendo da regra de design que preferires, mas num AAA o projétil em voo continua a existir).
+
+PROMPT 4
+FASE 3: Cálculo de Time-of-Flight e Integração
+1. Volta ao battle.cpp ou char_skill.cpp nos pontos identificados na Fase 0.
+2. Sempre que o ataque for categorizado como PROJÉTIL (Arco) ou MAGIA À DISTÂNCIA (Shaman/Sura):
+   - Calcula a distância entre 'pkAttacker' e 'pkVictim' usando DISTANCE_APPROX.
+   - Define uma velocidade fixa provisória para os projéteis (ex: 1500 unidades de jogo por segundo).
+   - Tempo de Voo (MS) = (Distância / Velocidade) * 1000.
+3. Remove a velha chamada instantânea a 'Damage(pkAttacker, pkVictim, dano)'.
+4. Substitui pela nova chamada: 'pkVictim->AddDeferredDamage(pkAttacker, dano, Tempo_De_Voo_MS)'.
+5. Certifica-te que os ataques Corpo-a-Corpo (Melee) continuam a ir para a frente com Delay = 0 ou um delay muito curto para bater certo com a animação da espada.
