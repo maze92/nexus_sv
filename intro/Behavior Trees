@@ -1,0 +1,32 @@
+PROMPT 1
+Cursor, atua como AI Programmer de jogos AAA. Vamos substituir o sexto pilar do nosso servidor Metin2: abandonar a 'Finite State Machine' (FSM) monolítica e hardcoded, implementando uma arquitetura de 'Behavior Trees' (BT) e 'Blackboards' para a IA dos monstros.
+
+FASE 0: Auditoria da Máquina de Estados
+Antes de programar, analisa o cérebro atual dos NPCs:
+1. Inspeciona o ficheiro char_state.cpp, focando-te na função CHARACTER::UpdateStateMachine() e na matriz de estados (ex: StateMove, StateIdle, StateBattle).
+2. Analisa as funções de suporte chamadas dentro desses estados, como UpdateTarget(), FindTarget() e as verificações de distância hardcoded.
+3. Identifica onde o monstro guarda a sua "memória" de combate (ex: ponteiro m_pkChrTarget e os tempos de cooldown de ataque).
+4. Elabora um relatório mostrando como a FSM atual está rigidamente acoplada, dificultando a criação de Bosses com mecânicas complexas em fases, e como consome ciclos de CPU desnecessários ao recalcular targets em cada pulse.
+
+PROMPT 2
+FASE 1: O Core do Sistema Behavior Tree
+1. Cria os ficheiros BehaviorTree.h e BehaviorTree.cpp.
+2. Implementa a classe 'Blackboard': um dicionário chave-valor genérico (usando std::unordered_map<std::string, std::any> ou variantes baseadas em enum para máxima performance) que servirá de memória para a IA (ex: guardar o "TargetVID" ou "FleeCoordinate").
+3. Implementa a estrutura base de nós 'BTNode' com o método virtual 'Tick()', que deve retornar um de três estados: SUCCESS, FAILURE ou RUNNING.
+4. Cria os nós de controlo fundamentais: 'Selector' (corre os filhos até um ter SUCCESS) e 'Sequence' (corre os filhos até um ter FAILURE).
+5. Mantém a estrutura limpa, usando smart pointers (std::unique_ptr) para a gestão da árvore, garantindo ausência de memory leaks.
+
+PROMPT 3
+FASE 2: Implementação dos Nós Leaf (Ações e Condições)
+1. Cria um ficheiro BTActions.h/cpp. Vamos traduzir o código antigo em nós independentes e reutilizáveis.
+2. Cria os Nós de Condição: 'CheckHasTarget' (lê do Blackboard se existe alvo) e 'CheckTargetInRange' (lê do Blackboard a distância mínima e verifica se o alvo está nela).
+3. Cria os Nós de Ação: 'ActionFindTarget' (procura jogadores próximos via SpatialGrid e guarda no Blackboard), 'ActionMoveToTarget' (chama a função de movimento do CHARACTER) e 'ActionAttack' (aciona a skill ou hit básico).
+4. Garante que estes nós recebem o ponteiro do 'CHARACTER' dono da árvore (o contexto) e o ponteiro do 'Blackboard' no seu método 'Tick()'.
+
+PROMPT 4
+FASE 3: Integração no Character
+1. Na classe CHARACTER (char.h), adiciona um ponteiro para a sua BehaviorTree e o seu Blackboard local.
+2. No método de inicialização do monstro, constrói a árvore padrão: um Selector raiz que tenta a Sequência "Atacar" (Se tem alvo -> Se está perto -> Ataca) e, se falhar, tenta a Sequência "Procurar e Aproximar", caindo para a ação "Idle" em último caso.
+3. Esvazia completamente o interior do velho 'UpdateStateMachine()' no char_state.cpp.
+4. O 'UpdateStateMachine()' agora deve ter APENAS uma linha crucial de IA: `if (m_behaviorTree) m_behaviorTree->Tick();`
+5. Limpa variáveis de estado velhas (m_bState, etc) que já não sejam necessárias, pois o estado agora é gerido dinamicamente pelos nós RUNNING da Behavior Tree.

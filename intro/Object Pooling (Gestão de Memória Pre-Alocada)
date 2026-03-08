@@ -1,0 +1,32 @@
+PROMPT 1
+"Cursor, atua como Arquiteto Principal de C++. Vamos implementar o terceiro pilar AAA no nosso servidor Metin2: Object Pooling para Entidades (Items e Characters), erradicando o uso de new e delete dinâmicos durante o gameplay para evitar fragmentação de memória e cache misses.
+
+FASE 0: Auditoria de Alocação
+Antes de qualquer alteração, mapeia o terreno:
+Analisa os ficheiros item_manager.cpp e char_manager.cpp.
+Identifica exatamente onde a instância de CItem é criada (new ou M2_NEW) na função CreateItem e onde é destruída (DestroyItem / Flush).
+Identifica o mesmo processo para a classe CHARACTER (criação e destruição de NPCs/PCs).
+Verifica se as classes CItem e CHARACTER têm algum construtor ou destrutor virtual complexo que precise de ser limpo (resetado) quando um objeto volta para a pool.
+
+🟣 PROMPT 2
+FASE 1: Criação do CMemoryPool<T>
+Cria um ficheiro MemoryPool.h.
+Implementa uma Template Class CMemoryPool<T>. Ela deve gerir um array contíguo de std::vector<T> ou uma lista lock-free de ponteiros pré-alocados.
+A classe deve ter um método Init(size_t capacity) para pré-alocar a memória de uma só vez (ex: capacity = 50000 no arranque do servidor).
+Cria o método T* Acquire() para obter um objeto livre da pool (mudando o seu estado em O(1)) e void Release(T* obj) para o devolver à pool.
+A pool deve ser Thread-Safe (usa std::mutex leve ou um Lock-Free Stack com atómicos) porque os nossos Workers (do Job System) podem tentar criar/destruir itens ao mesmo tempo.
+
+🟣 PROMPT 3
+FASE 2: Refatoração do ITEM_MANAGER
+No item_manager.h, adiciona uma instância de CMemoryPool<CItem> m_itemPool;.
+No item_manager.cpp, na função Initialize(), chama m_itemPool.Init(100000) para criar espaço para 100 mil itens instantaneamente.
+Na função CreateItem(), remove o new CItem() (ou M2_NEW). Substitui por CItem* item = m_itemPool.Acquire();.
+Ação Crítica: Como o item adquirido tem "lixo" do seu uso anterior, implementa ou chama um método item->Reset() ou item->Initialize() logo após o Acquire() para limpar variáveis antigas (IDs, Vnums, Sockets, Atributos).
+Na função DestroyItem() ou equivalente, em vez de delete item, chama item->Clear() e depois m_itemPool.Release(item);.
+
+🟣 PROMPT 4
+FASE 3: Refatoração do CHARACTER_MANAGER
+Semelhante à Fase 2, introduz CMemoryPool<CHARACTER> m_charPool; no char_manager.h e inicializa com uma capacidade generosa (ex: 20000) no arranque.
+Modifica a função de criação de Mobs/NPCs para usar o Acquire() da pool em vez de alocação dinâmica.
+Garante que os ponteiros de rede (DESC) associados ao CHARACTER são limpos a 100% no método Reset() para que um monstro novo não herde acidentalmente a ligação de rede de um jogador antigo.
+O DestroyCharacter() agora devolve a entidade à pool via Release().
