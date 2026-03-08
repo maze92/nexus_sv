@@ -27,4 +27,5 @@ FASE 3: Integração no Character Manager
 No char_manager.cpp, remove completamente a biblioteca <future> e todas as chamadas pesadas ao std::async.
 Modifica a função CHARACTER_MANAGER::Update. Em vez de lançar threads descartáveis, itera pelos teus chunks de entidades e submete os blocos de trabalho ao novo CThreadPool::EnqueueJob().
 Usa um std::atomic<int> ou um std::latch (se C++20) como barreira de sincronização (para a main thread esperar que os workers terminem o frame antes de avançar, garantindo consistência temporal).
+Implementa o padrão 'Deferred Destruction'. Durante o Update dos Workers, nenhum monstro pode sofrer delete (ou ser devolvido à Pool). Eles devem receber uma flag m_bIsDestructionPending = true. A limpeza final da memória só ocorre DEPOIS de a Main Thread passar a barreira std::latch, garantindo que nenhum Worker está a ler um monstro a ser apagado.
 Remove o std::mutex m_mtxDamage e outros locks locais do CHARACTER que agora são desnecessários graças à fila sequencial.
