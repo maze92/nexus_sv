@@ -28,7 +28,7 @@ FASE 3: Limpeza do char_battle.cpp
 1. Vai à função CHARACTER::Dead() no char_battle.cpp.
 2. APAGA TODAS as chamadas diretas ao QuestManager, PartyManager, GuildManager, etc., que transferiste na Fase 2.
 3. Em vez de dezenas de `#include` e chamadas diretas, cria o evento e publica-o:
-   EntityDeathEvent deathEvent(pkKiller, this);
+   EntityDeathEvent deathEvent(pkKiller->GetVID(), this->GetVID());
    EventBus::Instance().Publish(deathEvent);
 4. O código da função Dead() deve agora ser minúsculo, tratando APENAS do que diz respeito ao combate (remover HP, tocar animação de morte, limpar os buffs) e emitir o evento. Tudo o que é externo é gerido pelo Event Bus.
 5. Faz o mesmo para a função de Level Up no char.cpp, emitindo um 'EntityLevelUpEvent'.
