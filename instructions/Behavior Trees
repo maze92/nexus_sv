@@ -1,32 +1,47 @@
-PROMPT 1
-Cursor, atua como AI Programmer de jogos AAA. Vamos substituir o sexto pilar do nosso servidor Metin2: abandonar a 'Finite State Machine' (FSM) monolítica e hardcoded, implementando uma arquitetura de 'Behavior Trees' (BT) e 'Blackboards' para a IA dos monstros.
+PROMPT 1: A Autopsia do Legado (Auditoria)
+Cursor, atua como Auditor de Sistemas AAA. Antes de implementarmos a nova IA, analisa o ficheiro char_state.cpp e a função CHARACTER::UpdateStateMachine().
 
-FASE 0: Auditoria da Máquina de Estados
-Antes de programar, analisa o cérebro atual dos NPCs:
-1. Inspeciona o ficheiro char_state.cpp, focando-te na função CHARACTER::UpdateStateMachine() e na matriz de estados (ex: StateMove, StateIdle, StateBattle).
-2. Analisa as funções de suporte chamadas dentro desses estados, como UpdateTarget(), FindTarget() e as verificações de distância hardcoded.
-3. Identifica onde o monstro guarda a sua "memória" de combate (ex: ponteiro m_pkChrTarget e os tempos de cooldown de ataque).
-4. Elabora um relatório mostrando como a FSM atual está rigidamente acoplada, dificultando a criação de Bosses com mecânicas complexas em fases, e como consome ciclos de CPU desnecessários ao recalcular targets em cada pulse.
+Foca-te no seguinte:
 
-PROMPT 2
-FASE 1: O Core do Sistema Behavior Tree
-1. Cria os ficheiros BehaviorTree.h e BehaviorTree.cpp.
-2. Implementa a classe 'Blackboard': um dicionário chave-valor genérico (usando std::unordered_map<std::string, std::any> ou variantes baseadas em enum para máxima performance) que servirá de memória para a IA (ex: guardar o "TargetVID" ou "FleeCoordinate").
-3. Implementa a estrutura base de nós 'BTNode' com o método virtual 'Tick()', que deve retornar um de três estados: SUCCESS, FAILURE ou RUNNING.
-4. Cria os nós de controlo fundamentais: 'Selector' (corre os filhos até um ter SUCCESS) e 'Sequence' (corre os filhos até um ter FAILURE).
-5. Mantém a estrutura limpa, usando smart pointers (std::unique_ptr) para a gestão da árvore, garantindo ausência de memory leaks.
+Acoplamento Rígido: Como é que os estados (Idle, Move, Battle) estão interligados? Identifica o "Código Esparguete" onde a lógica de decisão está misturada com a lógica de execução.
 
-PROMPT 3
-FASE 2: Implementação dos Nós Leaf (Ações e Condições)
-1. Cria um ficheiro BTActions.h/cpp. Vamos traduzir o código antigo em nós independentes e reutilizáveis.
-2. Cria os Nós de Condição: 'CheckHasTarget' (lê do Blackboard se existe alvo) e 'CheckTargetInRange' (lê do Blackboard a distância mínima e verifica se o alvo está nela).
-3. Cria os Nós de Ação: 'ActionFindTarget' (procura jogadores próximos via SpatialGrid e guarda no Blackboard), 'ActionMoveToTarget' (chama a função de movimento do CHARACTER) e 'ActionAttack' (aciona a skill ou hit básico).
-4. Garante que estes nós recebem o ponteiro do 'CHARACTER' dono da árvore (o contexto) e o ponteiro do 'Blackboard' no seu método 'Tick()'.
+Thread-Safety Risk: No contexto do nosso Job System, identifica variáveis de estado (como m_pkChrTarget) que são acedidas sem proteção e que podem causar Race Conditions durante o cálculo da IA.
 
-PROMPT 4
-FASE 3: Integração no Character
-1. Na classe CHARACTER (char.h), adiciona um ponteiro para a sua BehaviorTree e o seu Blackboard local.
-2. No método de inicialização do monstro, constrói a árvore padrão: um Selector raiz que tenta a Sequência "Atacar" (Se tem alvo -> Se está perto -> Ataca) e, se falhar, tenta a Sequência "Procurar e Aproximar", caindo para a ação "Idle" em último caso.
-3. Esvazia completamente o interior do velho 'UpdateStateMachine()' no char_state.cpp.
-4. O 'UpdateStateMachine()' agora deve ter APENAS uma linha crucial de IA: `if (m_behaviorTree) m_behaviorTree->Tick();`
-5. Limpa variáveis de estado velhas (m_bState, etc) que já não sejam necessárias, pois o estado agora é gerido dinamicamente pelos nós RUNNING da Behavior Tree.
+Desperdício de CPU: Procura por cálculos redundantes que acontecem em cada "pulse" (ex: FindTarget a ser chamado mesmo quando o monstro já tem um alvo válido).
+
+Objetivo: Cria um relatório de "Dívida Técnica" que justifique a transição para Behavior Trees.
+
+🛡️ PROMPT 2: O Sistema de Memória (Blackboard & Core)
+Cursor, implementa o Core da Behavior Tree seguindo o padrão de alta performance. >
+
+Blackboard Thread-Safe: Cria a classe Blackboard. Em vez de std::string para chaves, usa um Enum de Chaves (ex: BB_TARGET_VID, BB_LAST_ATTACK_TIME) para evitar o custo de hashing de strings em cada frame.
+
+BTNode & Status: Implementa a classe base BTNode com o método Tick(). O retorno deve ser um enum: SUCCESS, FAILURE, RUNNING.
+
+Composites (Selector & Sequence): Implementa estes nós de controlo.
+
+Segurança AAA: Garante que o Blackboard usa o nosso sistema de Double Buffering para posições, lendo sempre dados estáveis e escrevendo de forma atómica.
+
+Nota: Usa std::unique_ptr para os nós para evitar memory leaks e garantir que a memória é limpa quando o monstro é destruído.
+
+🛡️ PROMPT 3: Ações e Condições Blindadas (Leaf Nodes)
+Cursor, vamos criar os "músculos" da IA (BTActions). Traduz a lógica antiga para nós independentes, mas aplica as nossas Leis de Segurança:
+
+Condições: CheckHasTarget, CheckTargetInRange. Devem ler apenas do Blackboard e do m_pos (estável) do CHARACTER.
+
+Ações de Movimento: ActionMoveToTarget deve escrever no m_posNext (Double Buffer) e nunca diretamente no m_pos.
+
+Ação de Ataque (CRÍTICO): O nó ActionAttack NUNCA deve chamar funções de rede ou dano direto. Ele deve enfileirar um comando na Mailbox (EnqueueEvent) ou na Network Mailbox (EnqueueNetwork).
+
+Targeting: Usa o VID (ID Virtual) no Blackboard em vez de ponteiros LPCHARACTER diretos, para evitar Dangling Pointers se o alvo for desconectado entre ticks da IA.
+
+🛡️ PROMPT 4: Integração e Purga do Legado
+Cursor, é hora da integração final no CHARACTER.
+
+Limpeza: Esvazia o UpdateStateMachine(). Substitui o emaranhado de switch-cases por uma única chamada: if (m_behaviorTree) m_behaviorTree->Tick();.
+
+Padrão de Fábrica: Cria uma BTFactory para que não tenhamos de reconstruir a árvore para cada um dos 10.000 monstros. Eles devem partilhar a Estrutura da Árvore (Read-Only) e ter apenas o seu Blackboard e Estado de Execução (Runtime) únicos.
+
+Fallback Seguro: Se a Behavior Tree falhar ou retornar um erro inesperado, o monstro deve entrar automaticamente em estado Idle e limpar o seu alvo no Blackboard.
+
+Verificação de Segurança: Garante que esta integração não quebra a regra de que Workers não tocam nos mapas da SECTREE ou do CHARACTER_MANAGER.
