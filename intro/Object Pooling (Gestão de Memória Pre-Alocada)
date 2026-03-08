@@ -22,6 +22,7 @@ No item_manager.h, adiciona uma instância de CMemoryPool<CItem> m_itemPool;.
 No item_manager.cpp, na função Initialize(), chama m_itemPool.Init(100000) para criar espaço para 100 mil itens instantaneamente.
 Na função CreateItem(), remove o new CItem() (ou M2_NEW). Substitui por CItem* item = m_itemPool.Acquire();.
 Ação Crítica: Como o item adquirido tem "lixo" do seu uso anterior, implementa ou chama um método item->Reset() ou item->Initialize() logo após o Acquire() para limpar variáveis antigas (IDs, Vnums, Sockets, Atributos).
+Garante explicitamente que o ponteiro de rede (LPDESC m_lpDesc) é colocado a NULL no Reset(). Se não fizeres isto, um NPC/Monstro que acabe de sair da Pool pode herdar a ligação TCP/IP de um jogador antigo e crashar o Game Core.
 Na função DestroyItem() ou equivalente, em vez de delete item, chama item->Clear() e depois m_itemPool.Release(item);.
 
 🟣 PROMPT 4
