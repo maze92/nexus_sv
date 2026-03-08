@@ -1,0 +1,46 @@
+PROMPT 1
+"Cursor, atua como um Engenheiro de Sistemas Sénior de jogos AAA. Vamos desmantelar o 'God Object' da classe CHARACTER e modernizar o pipeline de dados com ECS, Event Bus e Hot-Reloading. O objetivo é eliminar o acoplamento forte (Spaghetti Code) e evitar reboots do servidor.
+
+FASE 0: Auditoria Conjunta de Dados e Acoplamento
+Antes de programar, mapeia a dívida técnica:
+
+Abre char.h e identifica blocos de variáveis privadas/protegidas que SÓ são usadas por Jogadores (PCs), mas que ocupam memória nos NPCs (ex: m_stName de loja, variáveis m_horse..., Guild, Stamina, Casamento).
+
+Inspeciona char_battle.cpp (função CHARACTER::Dead()) e char.cpp (PointChange / Level Up). Lista todas as chamadas DIRETAS a dependências externas (ex: QuestManager, PartyManager, GuildManager).
+
+Analisa item_manager.cpp (Initialize) e mob_manager.cpp. Identifica as estruturas de dados (TItemTable, TMobTable) e como o servidor atual faz o parsing de texto bloqueante no arranque.
+
+Elabora um relatório provando a violação do SRP (Single Responsibility Principle) e os riscos de memory leaks na estrutura atual."
+
+PROMPT 2
+"FASE 1: O Núcleo do Event Bus e Component Registry
+
+Cria EventBus.h/cpp. Implementa a classe CEventBus (Singleton genérico). Cria a base IEvent e derivados (EntityDeathEvent, EntityLevelUpEvent).
+
+Segurança Crítica: Os eventos devem conter APENAS DADOS e usar VIDs (Virtual IDs), NUNCA ponteiros CHARACTER* (ex: dwKillerVID, dwVictimVID). Implementa Subscribe e Publish protegidos rigorosamente por std::shared_mutex para segurança multithread.
+
+Cria Component.h/cpp. Implementa IComponent (com destrutor virtual) e a classe ComponentContainer.
+
+O ComponentContainer deve usar std::unordered_map<std::type_index, std::unique_ptr<IComponent>> (ou array mapeado por ID). Implementa métodos seguros AddComponent<T>, GetComponent<T>, HasComponent<T>."
+
+PROMPT 3
+"FASE 2: Extração de Dados e DataRegistry (Double Buffering)
+
+Cria PlayerComponents.h. Extrai as variáveis de Lojas Privadas, Cavalo e Guilda do char.h para structs puras (ShopComponent, MountComponent, etc.). Adiciona ComponentContainer m_components; à classe CHARACTER.
+
+Cria DataRegistry.h/cpp. Implementa a template class CDataRegistry<Key, Value> usando o padrão Double Buffering para Hot-Reloading seguro.
+
+A classe deve ter m_dataA e m_dataB, e um ponteiro atómico (std::atomic<std::unordered_map*> m_activeData). O método Get() lê apenas do mapa ativo em O(1).
+
+Implementa HotReload(std::function<void(std::unordered_map&)> loadFunc). Executa a função no mapa inativo em background e faz o swap atómico quando terminar sem erros."
+
+PROMPT 4
+"FASE 3: Integração Global e Segurança JSON
+
+Limpeza do char_battle.cpp: Na função Dead(), APAGA todas as chamadas diretas a Quests/Guildas. Substitui pela emissão: EventBus::Instance().Publish(EntityDeathEvent(this->GetVID(), pkKiller->GetVID()));.
+
+Nos Managers (ex: questmanager.cpp), adiciona a subscrição no Initialize(). O callback deve validar a existência da entidade usando o VID antes de executar a lógica.
+
+Adaptação ECS: Substitui os acessos diretos antigos (ex: ch->GetHorseLevel()) por auto* mount = ch->m_components.GetComponent<MountComponent>(); if (mount)....
+
+Integra nlohmann/json em ProtoLoader.h/cpp. Implementa LoadMobProtoFromJson com blocos try-catch estritos. Se o JSON falhar, aborta o reload e mantém os dados antigos. Cria o comando /reload_mobs em cmd_gm.cpp para acionar o HotReload."
