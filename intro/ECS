@@ -37,4 +37,5 @@ FASE 3: Adaptação Lógica e Segurança de Acesso
    Exemplo DEPOIS: 
    auto* mount = ch->m_components.GetComponent<MountComponent>();
    if (mount && mount->level > 0)
+Garante que, em modo Release, os acessos não disparam exceções pesadas se o componente não existir, e que hackers enviando pacotes de 'Montar Cavalo' para um NPC retornam silenciosamente sem crashar o servidor.
 3. Na função de inicialização do CHARACTER (onde defines se ele é um PC ou NPC), adiciona uma verificação: Se for um PC (Jogador), adiciona o MountComponent, ShopComponent, etc., à sua lista de componentes. Se for um NPC, NÃO adiciona nada.
