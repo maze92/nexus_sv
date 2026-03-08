@@ -1,40 +1,45 @@
-PROMPT 1
-Cursor, atua como Arquiteto de Performance C++. O nosso objetivo agora é o Sétimo Pilar AAA: transitar a monstruosa classe CHARACTER para uma Arquitetura Baseada em Componentes (Component-Based Design / Hybrid ECS), erradicando a "obesidade" de dados em memória e melhorando drasticamente a Cache Coherency (Data-Oriented Design).
+PROMPT 1: A Auditoria de "Gordura" (Memory Profiling)
+Cursor, atua como Arquiteto de Performance C++. O nosso objetivo é dissecar a "obesidade" da classe CHARACTER.
 
-FASE 0: Auditoria de Dados e Acoplamento de Variáveis
-Antes de programar, mapeia os dados inúteis:
-1. Abre o ficheiro char.h e analisa os membros privados/protegidos da classe CHARACTER.
-2. Identifica blocos de variáveis que SÓ são usados por Jogadores (PCs) mas que estão a ocupar memória nos Monstros (NPCs). Exemplos: m_stName (loja privada), variáveis de Cavalo (m_horse...), variáveis de Guilda, Alignment, Pontos de Skill, Stamina, estado de Casamento e Quests.
-3. Calcula (aproximadamente) quantos bytes de memória estão a ser desperdiçados num único NPC (ex: Cão Selvagem) devido a herdar estas variáveis todas que nunca vai usar.
-4. Apresenta-me o relatório deste desperdício para prepararmos a extração para Componentes.
+Tarefa:
 
-PROMPT 2
-FASE 1: Criação do Entity Component Registry
-1. Cria os ficheiros Component.h e Component.cpp.
-2. Implementa uma classe base leve 'IComponent' com um destrutor virtual.
-3. Cria a classe 'ComponentContainer'. Esta classe terá um `std::unordered_map<std::type_index, std::unique_ptr<IComponent>>` (ou um array rápido mapeado por IDs de tipo gerados em tempo de compilação para máxima performance).
-4. Implementa os métodos de acesso seguros:
-   - template<typename T> void AddComponent(std::unique_ptr<T> component);
-   - template<typename T> T* GetComponent();
-   - template<typename T> bool HasComponent() const;
-   - template<typename T> void RemoveComponent();
-5. Garante que os componentes são guardados de forma contígua em memória onde possível (opcional nesta fase, mas os smart pointers garantem ausência de memory leaks).
+Analisa o char.h e identifica todos os membros que são exclusivos de Jogadores (PCs).
 
-PROMPT 2
-FASE 2: Extração de Dados (Data-Driven)
-1. Cria um ficheiro PlayerComponents.h.
-2. Extrai todas as variáveis relacionadas com Lojas Privadas (Offline Shop / Private Shop) da classe CHARACTER e move-as para uma struct pura chamada 'ShopComponent : public IComponent'.
-3. Extrai as variáveis de Cavalo (Mount/Riding) para um 'MountComponent : public IComponent'.
-4. Extrai as variáveis de Casamento e Guilda para os respetivos Componentes.
-5. Limpa estas variáveis velhas do char.h.
-6. Na classe CHARACTER, adiciona uma instância do nosso novo 'ComponentContainer m_components;'.
+Procura por: variáveis de Offline Shop, Mount/Horse, Marriage, Guild, Stamina, Combo, e Quest States.
 
-PROMPT 4
-FASE 3: Adaptação Lógica e Segurança de Acesso
-1. Procura no projeto (ex: char_horse.cpp, char_item.cpp) os locais onde as antigas variáveis do cavalo ou da loja eram acedidas diretamente (ex: m_horse_level).
-2. Substitui esses acessos por chamadas seguras ao ComponentContainer.
-   Exemplo ANTES: if (ch->GetHorseLevel() > 0)
-   Exemplo DEPOIS: 
-   auto* mount = ch->m_components.GetComponent<MountComponent>();
-   if (mount && mount->level > 0)
-3. Na função de inicialização do CHARACTER (onde defines se ele é um PC ou NPC), adiciona uma verificação: Se for um PC (Jogador), adiciona o MountComponent, ShopComponent, etc., à sua lista de componentes. Se for um NPC, NÃO adiciona nada.
+Cálculo de Desperdício: Estima o tamanho em bytes (incluindo padding de memória) que um NPC (Monster/Stone) ocupa desnecessariamente por herdar estes membros.
+
+Relatório de Cache: Explica como este excesso de dados prejudica a L1/L2 Cache do CPU durante o nosso Update paralelo no Job System.
+
+🛡️ PROMPT 2: O Registry de Alta Performance (Hybrid ECS Core)
+Cursor, vamos implementar o ComponentContainer. Precisamos de velocidade de acesso quase instantânea:
+
+Implementação: Cria Component.h/cpp. Usa um std::array de ponteiros (ou std::unique_ptr) mapeado por um ID de Tipo estático (gerado via typeid ou um contador compile-time). Evita std::unordered_map se possível para fugir ao custo de hashing.
+
+Interface AAA: Implementa AddComponent<T>, GetComponent<T> e HasComponent<T>.
+
+Thread-Safety (Crítico): Como os nossos Workers vão ler componentes, o ComponentContainer deve ser imutável durante o frame de combate. Uma vez adicionados os componentes no spawn do monstro, a estrutura da lista de componentes não muda.
+
+Null-Safety: O GetComponent deve ser marcado como [[nodiscard]] e deve ser ultra-otimizado para inlining.
+
+🛡️ PROMPT 3: Extração de Dados (Data-Oriented Extraction)
+Cursor, vamos "operar" o CHARACTER. >
+
+Módulos: Extrai ShopComponent, MountComponent e GuildComponent.
+
+Refatoração: Move toda a lógica de dados (apenas variáveis e PODs) do char.h para estes componentes.
+
+Pilar de Memória: Garante que estes componentes são alocados apenas quando necessário. Um monstro nunca deve ter um MountComponent alocado na RAM.
+
+Encapsulamento: Mantém os métodos GetHorseLevel() no CHARACTER por compatibilidade, mas faz com que eles consultem internamente o componente: return m_components.Get<MountComponent>()->level;.
+
+🛡️ PROMPT 4: Adaptação e Segurança (The Great Refactor)
+Cursor, vamos integrar o sistema e garantir que o servidor não crasha.
+
+Inicialização: No CHARACTER::Create, se a entidade for um ENTITY_PC, instancia todos os componentes. Se for ENTITY_MONSTER, instancia zero componentes (ou apenas o de IA/BehaviorTree).
+
+Proteção contra NullPtr: Em todos os locais onde o código antigo acedia a variáveis de cavalo ou loja, adiciona uma verificação de segurança: if (auto* comp = GetComponent<T>()).
+
+Vulnerabilidade Anti-Exploit: Garante que, se um hacker tentar enviar um pacote de "Abrir Loja" para um Monstro, o servidor não crasha ao tentar aceder a um ShopComponent inexistente.
+
+Limpeza: Remove os #includes desnecessários do char.h para acelerar o tempo de compilação do projeto.
