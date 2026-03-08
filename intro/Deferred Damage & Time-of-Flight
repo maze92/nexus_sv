@@ -12,7 +12,7 @@ PROMPT 2
 FASE 1: Criação da Deferred Damage Queue
 1. No ficheiro char.h, dentro da classe CHARACTER, cria uma nova struct chamada 'SDeferredDamage':
    struct SDeferredDamage {
-       CHARACTER* pkAttacker;
+       DWORD dwAttackerVID;
        int iDamage;
        DWORD dwExecuteTime; // GetCurrentTime() + Tempo de Voo
        // Outros dados relevantes (tipo de dano, skill_id)
