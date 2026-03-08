@@ -1,0 +1,43 @@
+PROMPT 1
+"Cursor, atua como Combat Designer e AI Programmer AAA. Vamos revolucionar o Game Feel e a IA: implementar Behavior Trees (BT) para os NPCs e Deferred Damage (Time-of-Flight) para sincronizar o impacto visual dos projéteis.
+
+FASE 0: Auditoria do Cérebro e do Dano
+
+Inspeciona char_state.cpp: foca-te na UpdateStateMachine() e na matriz de estados (StateMove, StateBattle). Identifica a rigidez da FSM atual.
+
+Identifica variáveis de memória de combate no char.h (ex: m_pkChrTarget).
+
+Inspeciona battle.cpp (CalcMeleeDamage) e char_skill.cpp (ComputeSkill). Localiza a linha EXATA onde a função Damage() ou PointChange(POINT_HP) é chamada instantaneamente (Frame Zero) para ataques de longo alcance (Arcos/Magias).
+
+Elabora um relatório indicando onde vamos intercetar o dano e como a FSM consome CPU com targets recalculados inutilmente."
+
+PROMPT 2
+"FASE 1: Core da Behavior Tree e Fila de Dano Adiado
+
+Cria BehaviorTree.h/cpp. Implementa a classe Blackboard usando Enums como chaves para máxima performance e std::any (ou variante rápida) para os valores (ex: guardar BB_TARGET_VID).
+
+Cria a estrutura BTNode com o método virtual Tick() (retornando SUCCESS, FAILURE, RUNNING) e os nós de controlo Selector e Sequence usando std::unique_ptr.
+
+No ficheiro char.h, cria a struct SDeferredDamage. REGRA DE OURO: Não uses ponteiros, usa VIDs: DWORD dwAttackerVID; int iDamage; DWORD dwExecuteTime;.
+
+Adiciona std::vector<SDeferredDamage> m_vecDeferredDamageQueue; à classe CHARACTER e o método AddDeferredDamage(DWORD dwAttackerVID, int iDamage, int iDelayMS)."
+
+PROMPT 3
+"FASE 2: Cálculo de Time-of-Flight e Nós de IA (Leaf Nodes)
+
+Cria BTActions.h/cpp. Implementa CheckHasTarget (lê do Blackboard) e ActionAttack (aciona hit/skill sem bloquear a thread).
+
+Volta ao battle.cpp ou char_skill.cpp. Para ataques classificados como PROJÉTIL ou MAGIA À DISTÂNCIA:
+
+Calcula a distância usando DISTANCE_APPROX(pkAttacker, pkVictim).
+
+Define o DelayMS: (Distância / Velocidade_Fixa) * 1000. Remove a velha chamada Damage() instantânea e substitui por pkVictim->AddDeferredDamage(pkAttacker->GetVID(), dano, DelayMS). Ataques Melee continuam com Delay = 0."
+
+PROMPT 4
+"FASE 3: Integração Segura no CHARACTER
+
+Esvazia o interior do velho UpdateStateMachine() no char_state.cpp. O método deve conter apenas: if (m_behaviorTree) m_behaviorTree->Tick();.
+
+No char.cpp (no método Update que corre na Mailbox/Job System), implementa a chamada a ProcessDeferredDamage().
+
+Lógica de Segurança ToF: O ProcessDeferredDamage() deve iterar a fila. Se GetCurrentTime() >= dwExecuteTime, extrai o dano. Antes de aplicar Damage(), usa o dwAttackerVID para verificar no CHARACTER_MANAGER se o atacante ainda existe. Se não existir ou se o alvo estiver m_bIsDestructionPending, o dano é descartado em segurança."
