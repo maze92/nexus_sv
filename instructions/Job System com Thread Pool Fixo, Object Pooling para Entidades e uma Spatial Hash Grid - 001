@@ -1,0 +1,46 @@
+PROMPT 1
+"Cursor, atua como um Arquiteto de Motores de Jogo C++. Vamos substituir o sistema amador do Metin2 por um padrão AAA: Job System com Thread Pool Fixo, Object Pooling para Entidades e uma Spatial Hash Grid. O objetivo é eliminar overhead de async, fragmentação de memória e contenção de mutexes.
+
+FASE 0: Auditoria Conjunta do Sistema Atual
+Antes de escrevermos código, preciso de um mapeamento cruzado de concorrência e alocação:
+
+Analisa char_manager.cpp, focando-te na função CHARACTER_MANAGER::Update e na utilização do std::async para o UpdateStateMachine ou m_set_pkChrState.
+
+Mapeia em item_manager.cpp (função CreateItem/DestroyItem) e char_manager.cpp (criação de mobs) onde a instância é criada (new ou M2_NEW) e destruída.
+
+Inspeciona sectree_manager.cpp e sectree.cpp (funções de View/Move e ForEachAround). Identifica o uso de listas ligadas (std::list) e mutexes globais que causam cache misses.
+
+Elabora um relatório destacando os gargalos de CPU e o risco de Dangling Pointers no sistema atual."
+
+PROMPT 2
+"FASE 1: O Core da Infraestrutura (Job System e Memory Pool)
+
+Cria JobSystem.h/cpp. Implementa a classe CThreadPool que inicializa um número fixo de std::thread (hardware_concurrency()) no arranque. Estas threads nunca morrem. Usa std::condition_variable para ociosidade a 0% de CPU. Cria a interface void EnqueueJob(std::function<void()> job).
+
+Cria MemoryPool.h. Implementa a Template Class CMemoryPool<T> (gerindo um array contíguo de std::vector<T> pré-alocado).
+
+Na CMemoryPool, implementa Init(size_t capacity) para pré-alocar no arranque, e os métodos atómicos/thread-safe T* Acquire() e void Release(T* obj).
+
+Segurança Crítica: Na pool, implementa a exigência de chamar um método Reset()/Initialize() após o Acquire() para limpar lixo de memória anterior (como IDs ou ponteiros DESC de rede)."
+
+PROMPT 3
+"FASE 2: Mailboxes e Spatial Hash Grid
+
+Cria SpatialGrid.h/cpp. Implementa a classe CSpatialGrid como uma grelha 2D achatada. Cada Célula deve ser um std::vector<CHARACTER*> com memória pré-alocada.
+
+Implementa GetCellIndex(x, y), Insert, Remove e Update. Usa Fine-grained locking (um std::shared_mutex ou Spinlock POR CÉLULA, e não na grelha toda) para que Workers movam monstros em lados opostos do mapa sem esperarem uns pelos outros.
+
+No ficheiro char.h, adiciona uma fila de eventos lock-free chamada m_eventQueue (Mailbox). Qualquer ação externa (HP, posição) deve ser empacotada como comando (Lambda) nesta fila.
+
+No Update() do CHARACTER, a entidade deve consumir sequencialmente a sua m_eventQueue. Como isto corre num Worker único do Thread Pool, remove os mutexes de dano (m_mtxDamage) do CHARACTER para evitar deadlocks."
+
+PROMPT 4
+"FASE 3: Integração Global e Deferred Destruction
+
+No item_manager.h e char_manager.h, introduz CMemoryPool<CItem> m_itemPool (ex: 100k) e CMemoryPool<CHARACTER> m_charPool (ex: 20k). Substitui os new/delete originais por Acquire/Release.
+
+No char_manager.cpp (Update), remove completamente <future> e std::async. Itera pelos chunks de entidades e submete ao CThreadPool::EnqueueJob().
+
+Integração de Busca: No char.cpp e char_battle.cpp, substitui as chamadas de agro/skill em área do antigo SECTREE pela nova CSpatialGrid::ForEachInRange.
+
+Barreira de Sincronização e Segurança: No final de CHARACTER_MANAGER::Update, usa std::latch ou std::atomic para a Main Thread esperar os workers. Implementa Deferred Destruction: proíbe a destruição dinâmica durante o frame. Monstros mortos recebem m_bIsDestructionPending = true e só sofrem Release() de volta para a Pool APÓS a barreira de sincronização."
