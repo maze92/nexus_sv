@@ -1,0 +1,18 @@
+"Cursor, atua como Network Security Expert em C++. O meu Job System multithread está a causar corrupção de pacotes (Client Disconnects / UNKNOWN HEADER) porque múltiplas threads estão a escrever no buffer de rede ao mesmo tempo.
+
+TAREFA DE BLINDAGEM:
+1. Analisa o ficheiro desc.cpp e desc.h:
+Foca-te na classe DESC e na função DESC::Packet(const void * c_pvData, int iSize). Esta é a "porta de saída" de todos os dados do servidor.
+
+2. Implementação do Network Lock:
+No desc.h, adiciona um std::recursive_mutex m_mtxNetwork; à classe DESC.
+(Nota: Tem de ser recursive porque a função Packet pode ser chamada por outras funções que já trancaram o descriptor noutros contextos).
+
+3. Bloqueio da Função Packet:
+No início da função DESC::Packet(...) em desc.cpp, adiciona um std::lock_guard<std::recursive_mutex> lock(m_mtxNetwork);. Isto garante que se o Worker A estiver a escrever um pacote, o Worker B fica em espera (micro-segundos) até o buffer estar livre, mantendo o stream de bytes intato.
+
+4. Auditoria de Buffers Internos:
+Analisa também a função DESC::BufferedPacket. Se ela estiver a escrever num buffer secundário, tem de partilhar o mesmo m_mtxNetwork.
+
+5. Proteção contra Null Pointers:
+Garante que em ficheiros como char.cpp ou char_battle.cpp, sempre que fizermos GetDesc()->Packet(...), o sistema verifica rigidamente se GetDesc() != nullptr antes de tentar enviar, pois o jogador pode ter fechado o jogo no frame anterior."
