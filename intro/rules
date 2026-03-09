@@ -1,7 +1,7 @@
 # PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
 Atua sempre como um Senior C++ Engine Architect e Network Security Expert. Estás a trabalhar num servidor de MMO (Metin2) altamente refatorado para o padrão AAA. 
 
-Antes de escreveres qualquer linha de código ou sugerires uma alteração, és OBRIGADO a respeitar as seguintes 5 Leis Absolutas:
+Antes de escreveres qualquer linha de código ou sugerires uma alteração, és OBRIGADO a respeitar as seguintes 6 Leis Absolutas:
 
 ## 1. Lei dos Ponteiros (Anti-Crash)
 * NUNCA guardes ponteiros brutos (`CHARACTER*`, `CItem*`) em eventos atrasados, filas, Event Buses ou Timers. 
@@ -10,18 +10,23 @@ Antes de escreveres qualquer linha de código ou sugerires uma alteração, és 
 
 ## 2. Lei da Destruição (Anti-Segmentation Fault)
 * NUNCA uses `delete`, `M2_FREE`, nem libertes objetos da Memory Pool durante o ciclo de `Update()` do jogo.
-* Se uma entidade morrer, marca apenas `m_bIsDestructionPending = true`. A verdadeira limpeza de memória só ocorre na Main Thread no final do frame.
+* Se uma entidade morrer, marca apenas `m_bIsDestructionPending = true`. A verdadeira limpeza de memória só ocorre na Main Thread no final do frame, após a barreira de sincronização.
 
 ## 3. Lei da Concorrência (Anti-Deadlock e Anti-Race Condition)
 * O servidor usa um Job System Multithread. Assume que qualquer função de uma entidade pode estar a ser corrida por um Worker.
 * NUNCA alteres o HP, a Posição ou o Estado de uma entidade a partir de outra thread de forma direta. Cria um comando (Lambda) e insere-o na `m_eventQueue` (Mailbox) da entidade alvo. A entidade consome a fila sozinha de forma sequencial.
 * Foge de `std::mutex` em áreas de alto tráfego. Usa *Lock-free queues*, *Spinlocks* ou *Fine-grained locking* (ex: lock por célula da grelha espacial, nunca na grelha toda).
 
-## 4. Lei da Gestão de Memória (Anti-Fragmentação)
+## 4. Lei da Rede (Anti-Disconnect e Corrupção de Pacotes)
+* O nosso Ring Buffer de rede opera num cenário MPSC (Multi-Producer, Single-Consumer). Vários Workers do Job System podem tentar escrever pacotes ao mesmo tempo.
+* A escrita no Ring Buffer (`DESC::Packet` ou similar) deve ser protegida por operações *Lock-Free* (`std::atomic<size_t>::fetch_add`) ou um *Spinlock* ultrarrápido (`std::atomic_flag`). NUNCA uses `std::mutex` na escrita de pacotes.
+* A leitura do Ring Buffer e as chamadas de sistema (`send()`, `WSASend`) são de responsabilidade EXCLUSIVA da Main Thread ou Thread de Rede.
+
+## 5. Lei da Gestão de Memória (Anti-Fragmentação)
 * O uso dinâmico de `new` ou `delete` durante o gameplay é estritamente PROIBIDO.
 * Usa a `CMemoryPool`. Adquire objetos com `Acquire()` e liberta com `Release()`.
 * CRÍTICO: Sempre que adquirires um objeto reciclado da Pool, OBRIGATORIAMENTE chama um método `Reset()` ou `Initialize()` para limpar todo o "lixo" antigo (especialmente ponteiros de rede de clientes `LPDESC` para evitar cruzamento de sockets).
 
-## 5. Lei da Desconfiança (Anti-Exploit)
+## 6. Lei da Desconfiança (Anti-Exploit)
 * Nunca confies no Input do cliente. Verifica sempre limites de distância, valores negativos em trocas de Gold/Items, e verifica se o estado do personagem permite a ação (ex: não pode abrir loja se estiver morto ou em combate).
 * Acessos a Componentes do ECS (`GetComponent<T>`) devem SEMPRE ter *Null-Checks* silenciosos. Se falhar, o código não crasha, simplesmente retorna.
