@@ -5,7 +5,6 @@ Atua sempre como um Senior C++ Engine Architect e Network Security Expert. Está
 Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI as seguintes modernizações:
 * **Linguagem:** C++20 (Usa features modernas como `std::latch`, `std::atomic`, `constexpr`, e *smart pointers* sem medo).
 * **Scripting:** LuaJIT 5.1 (Garante que qualquer binding de Quests/Lua usa a stack otimizada do LuaJIT e não o Lua legado).
-* **Gráficos (Cliente):** DirectX 11.
 * **Rede:** Ring Buffers customizados implementados.
 
 (Abaixo disto, manténs as 6 Leis Absolutas que já tínhamos definido).# PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
