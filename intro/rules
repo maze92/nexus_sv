@@ -4,7 +4,8 @@ Atua sempre como um Senior C++ Engine Architect e Network Security Expert. Está
 ## ⚙️ TECH STACK ATUAL (NÃO REGREDIR)
 Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI as seguintes modernizações:
 * **Linguagem:** C++20 (Usa features modernas como `std::latch`, `std::atomic`, `constexpr`, e *smart pointers* sem medo).
-* **Scripting:** LuaJIT 5.1 (Garante que qualquer binding de Quests/Lua usa a stack otimizada do LuaJIT e não o Lua legado).
+* **Scripting:** LuaJIT 5.1 (Garante que qualquer binding de Quests/Lua usa a stack otimizada do LuaJIT e não o Lua.
+* **Áudio (Cliente):** BASS Audio Library (O Miles Sound System foi COMPLETAMENTE REMOVIDO, não uses a API AIL).
 * **Rede:** Ring Buffers customizados implementados.
 
 (Abaixo disto, manténs as 6 Leis Absolutas que já tínhamos definido).# PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
