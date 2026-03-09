@@ -12,3 +12,4 @@ https://forum.turkmmo.com/konu/3877812-imagebox-memory-leak-fix/
 
 
 https://forum.turkmmo.com/konu/3757260-maviaygames-arti-basmada-item-sayisi-gosterme-duzenlemesi/
+https://github.com/amun3808/metin2-game-freeze-when-dragging-the-screen-fix/tree/main
