@@ -1,31 +1,54 @@
-PROMPT 1
-"Cursor, atua como um Arquiteto de Motores de Jogo C++. Vamos substituir o sistema de multithreading amador do Metin2 por um padrão AAA: um Job System com Thread Pool Fixo e Filas Lock-Free, eliminando o overhead do std::async e a contenção de std::mutex.
+BLOCO 1 (REBOOT): Ring Buffers MPSC & Job System AAA
 
-FASE 0: Auditoria do Sistema Atual
-Antes de escrevermos código, preciso de um mapeamento de concorrência:
-Analisa o ficheiro char_manager.cpp, focando-te na função CHARACTER_MANAGER::Update e na utilização do std::async para o UpdateStateMachine ou m_set_pkChrState.
-Localiza onde o std::mutex está a ser usado na classe CHARACTER (como o m_mtxDamage no char_battle.cpp e char.h).
-Identifica as estruturas de dados (como vectores ou maps de PCs e NPCs) que estão a ser iteradas a cada pulse do servidor.
+(Copia e cola, um a um, no novo chat do Cursor)
 
-PROMPT 2
-FASE 1: O Core do Thread Pool (CJobSystem)
-Cria os ficheiros JobSystem.h e JobSystem.cpp de forma isolada.
-Implementa a classe CThreadPool. Ela deve inicializar um número fixo de std::thread (baseado em std::thread::hardware_concurrency()) no momento em que o servidor arranca. Estas threads NUNCA morrem até o servidor desligar.
-Implementa uma fila de tarefas (Task Queue) Thread-Safe usando std::condition_variable para acordar os workers apenas quando há trabalho, mantendo o uso de CPU a 0% quando ociosos.
-Cria a interface void EnqueueJob(std::function<void()> job) para submeter trabalho para a fila.
+PROMPT 1: O Contexto e a Auditoria de Rede
 
-PROMPT 3
-FASE 2: Mailboxes de Entidades (CHARACTER)
-No ficheiro char.h, adiciona uma estrutura leve de fila de eventos (uma 'Mailbox' Lock-Free ou protegida por um spinlock muito rápido) chamada m_eventQueue.
-Qualquer ação externa que altere o HP, a posição ou o estado deste CHARACTER (ex: receber dano de outra entidade) deve ser empacotada como um comando (Lambda/Functor) e colocada nesta m_eventQueue, em vez de executar o cálculo imediatamente.
-Na função Update() ou UpdateStateMachine() do CHARACTER, a entidade deve consumir e executar todos os eventos da sua própria m_eventQueue de forma sequencial.
-Como esta função Update será despachada para o Thread Pool e executada por um único Worker de cada vez, os Mutexes de dano (como m_mtxDamage) tornam-se redundantes e evitamos Deadlocks.
-Mostra-me as alterações na classe CHARACTER e como estruturaste a m_eventQueue."
+"Cursor, atua como um C++ Engine Architect e Network Security Expert. Vamos implementar um Job System Multithread AAA no nosso servidor de Metin2. No entanto, o motor já possui Ring Buffers implementados para a rede. Atualmente, o servidor sofre crashes no cliente (UNKNOWN HEADER e disconnects) porque os pacotes colidem quando múltiplas threads tentam escrever no Ring Buffer ao mesmo tempo.
 
-PROMPT 4
-FASE 3: Integração no Character Manager
-No char_manager.cpp, remove completamente a biblioteca <future> e todas as chamadas pesadas ao std::async.
-Modifica a função CHARACTER_MANAGER::Update. Em vez de lançar threads descartáveis, itera pelos teus chunks de entidades e submete os blocos de trabalho ao novo CThreadPool::EnqueueJob().
-Usa um std::atomic<int> ou um std::latch (se C++20) como barreira de sincronização (para a main thread esperar que os workers terminem o frame antes de avançar, garantindo consistência temporal).
-Implementa o padrão 'Deferred Destruction'. Durante o Update dos Workers, nenhum monstro pode sofrer delete (ou ser devolvido à Pool). Eles devem receber uma flag m_bIsDestructionPending = true. A limpeza final da memória só ocorre DEPOIS de a Main Thread passar a barreira std::latch, garantindo que nenhum Worker está a ler um monstro a ser apagado.
-Remove o std::mutex m_mtxDamage e outros locks locais do CHARACTER que agora são desnecessários graças à fila sequencial.
+FASE 0: Auditoria do Ring Buffer Atual
+Antes de criarmos o Job System, precisamos de auditar a rede:
+
+Analisa os ficheiros do Ring Buffer (ex: buffer.c, buffer.cpp ou desc.h).
+
+Localiza as variáveis de controlo (read_pos, write_pos, size) e a função de escrita (ex: buffer_write, DESC::Packet).
+
+Elabora um relatório a explicar se o Ring Buffer atual é SPSC (Single-Producer) e mostra-me exatamente onde ocorre a Data Race (colisão) quando múltiplas threads tentam escrever nele simultaneamente."
+
+PROMPT 2: A Blindagem do Ring Buffer (MPSC Lock-Free)
+
+"FASE 1: Transformação para MPSC (Multi-Producer, Single-Consumer)
+Vamos tornar o nosso Ring Buffer Thread-Safe para suportar o futuro Job System, mas sem usar std::mutex pesados que destruam a performance.
+
+Na função de escrita do Ring Buffer (ou na DESC::Packet), implementa uma proteção lock-free ou baseada em Spinlock.
+
+Usa std::atomic<size_t> com fetch_add para reservar espaço contíguo atomicamente ANTES da cópia de memória (memcpy), ou usa uma std::atomic_flag (Spinlock) que bloqueia apenas durante os microssegundos da cópia.
+
+Garante que apenas a Main Thread (Consumer) faz a leitura do Ring Buffer e executa o send() / socket_write. Os Workers (Producers) devem apenas escrever no buffer e regressar ao trabalho."
+
+PROMPT 3: O Core do Job System e Memory Pool
+
+"FASE 2: Criação da Infraestrutura de Threads e Memória
+Agora que a rede está blindada, vamos construir os motores:
+
+Cria JobSystem.h/cpp. Implementa a classe CThreadPool com um número fixo de std::thread (hardware_concurrency()) que nunca morrem. Usa std::condition_variable para ociosidade a 0% de CPU.
+
+Cria a interface void EnqueueJob(std::function<void()> job).
+
+Cria MemoryPool.h e implementa CMemoryPool<T> (array contíguo pré-alocado) com Init(capacity).
+
+Implementa os métodos atómicos Acquire() e Release().
+
+Segurança de Memória: Garante que qualquer objeto reciclado pela Pool chama OBRIGATORIAMENTE um método Reset() para limpar variáveis e ponteiros de rede antigos (LPDESC), evitando que um NPC herde a ligação de um jogador."
+
+PROMPT 4: Mailboxes e Integração Final
+
+"FASE 3: Integração no CHARACTER_MANAGER e Mailboxes
+
+No ficheiro char.h, adiciona uma fila de eventos lock-free chamada m_eventQueue (Mailbox). O HP e a Posição NÃO podem ser alterados diretamente por threads externas; comandos devem ser enfileirados aqui.
+
+O Update() do CHARACTER deve consumir a sua própria m_eventQueue de forma sequencial, eliminando a necessidade de mutexes de dano locais (m_mtxDamage).
+
+No char_manager.cpp (CHARACTER_MANAGER::Update), remove completamente o uso de <future> e std::async. Itera pelos chunks de entidades e submete ao CThreadPool::EnqueueJob().
+
+Sincronização e Destruição: No final do Update do Manager, usa std::latch ou std::atomic como barreira de sincronização. Implementa o padrão de 'Deferred Destruction': entidades mortas recebem m_bIsDestructionPending = true e só são devolvidas à Pool DEPOIS da barreira de sincronização."
