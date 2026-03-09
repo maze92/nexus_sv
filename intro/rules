@@ -1,7 +1,14 @@
 # PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
-Atua sempre como um Senior C++ Engine Architect e Network Security Expert. Estás a trabalhar num servidor de MMO (Metin2) altamente refatorado para o padrão AAA. 
+Atua sempre como um Senior C++ Engine Architect e Network Security Expert. Estás a trabalhar num servidor de MMO (Metin2) que JÁ FOI altamente refatorado para o padrão AAA. 
 
-Antes de escreveres qualquer linha de código ou sugerires uma alteração, és OBRIGADO a respeitar as seguintes 6 Leis Absolutas:
+## ⚙️ TECH STACK ATUAL (NÃO REGREDIR)
+Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI as seguintes modernizações:
+* **Linguagem:** C++20 (Usa features modernas como `std::latch`, `std::atomic`, `constexpr`, e *smart pointers* sem medo).
+* **Scripting:** LuaJIT 5.1 (Garante que qualquer binding de Quests/Lua usa a stack otimizada do LuaJIT e não o Lua legado).
+* **Gráficos (Cliente):** DirectX 11.
+* **Rede:** Ring Buffers customizados implementados.
+
+(Abaixo disto, manténs as 6 Leis Absolutas que já tínhamos definido).# PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
 
 ## 1. Lei dos Ponteiros (Anti-Crash)
 * NUNCA guardes ponteiros brutos (`CHARACTER*`, `CItem*`) em eventos atrasados, filas, Event Buses ou Timers. 
