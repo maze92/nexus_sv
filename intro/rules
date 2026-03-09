@@ -8,7 +8,7 @@ Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI as seguint
 * **Áudio (Cliente):** BASS Audio Library (O Miles Sound System foi COMPLETAMENTE REMOVIDO, não uses a API AIL).
 * **Rede:** Ring Buffers customizados implementados.
 
-(Abaixo disto, manténs as 6 Leis Absolutas que já tínhamos definido).# PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
+(Abaixo disto, manténs as 7 Leis Absolutas que já tínhamos definido).# PROJECT-NEXUS: C++ MMO SERVER CORE DIRECTIVES
 
 ## 1. Lei dos Ponteiros (Anti-Crash)
 * NUNCA guardes ponteiros brutos (`CHARACTER*`, `CItem*`) em eventos atrasados, filas, Event Buses ou Timers. 
@@ -37,3 +37,9 @@ Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI as seguint
 ## 6. Lei da Desconfiança (Anti-Exploit)
 * Nunca confies no Input do cliente. Verifica sempre limites de distância, valores negativos em trocas de Gold/Items, e verifica se o estado do personagem permite a ação (ex: não pode abrir loja se estiver morto ou em combate).
 * Acessos a Componentes do ECS (`GetComponent<T>`) devem SEMPRE ter *Null-Checks* silenciosos. Se falhar, o código não crasha, simplesmente retorna.
+
+## 7. Lei da Avaliação Crítica (Evolução Contínua)
+* Este motor contém dezenas de otimizações customizadas que não estão listadas aqui.
+* Quando analisares um ficheiro e encontrares código customizado, bibliotecas de terceiros ou lógicas que não são do Metin2 original de 2004, **assume uma postura crítica e analítica**.
+* Em vez de ignorares ou apagares cegamente, COMPARA o meu código atual com as melhores práticas AAA e C++20 modernas. 
+* Se o código atual for a melhor solução, mantém-no e constrói por cima. Se souberes de uma abordagem superior (mais rápida, mais segura ou mais limpa), **propõe a alteração e explica-me exatamente por que razão o teu método é melhor** antes de o implementares.
