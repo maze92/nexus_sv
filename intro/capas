@@ -1,0 +1,238 @@
+BRAVERY CAPE RENEWAL — Especificação completa (ficheiro a ficheiro)
+FICHEIRO 1 — src/server/common/service.h
+Caminho: server\home\metin2\Source\Server\common\service.h
+
+Ação: Adicionar o define do sistema.
+
+Abrir o ficheiro.
+Localizar a secção // Item Related (por volta da linha 206) ou a última secção de #define antes de #include "disclaimer.h" (linha 268).
+Adicionar numa secção adequada (por exemplo após // Item Related ou antes de // Miscellaneous) o seguinte bloco:
+////////////////////////////////////////////////////////////////////////////////
+// Bravery Cape (Capa da Coragem)
+#define __BRAVERY_CAPE_RENEWAL__
+Não remover nenhum código existente.
+Não alterar a ordem dos outros #define.
+FICHEIRO 2 — src/server/game/char.h
+Caminho: server\home\metin2\Source\Server\game\src\char.h
+
+2.1 — Declaração da nova função
+Abrir o ficheiro.
+Localizar a linha com void AggregateMonster(); (linha 1895).
+Adicionar imediatamente abaixo dessa linha o seguinte:
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+	void AggregateMonster(int range, int limit, int chance);
+#endif
+Não remover a linha void AggregateMonster();.
+2.2 — Membros privados (cooldown e recorde)
+Localizar o fecho da classe CHARACTER, ou seja o bloco:
+#endif
+private:
+	CHARACTER(const CHARACTER&);
+	CHARACTER& operator=(const CHARACTER&);
+};
+(por volta das linhas 3334–3338).
+
+Adicionar antes do private: que contém o construtor por cópia (ou seja, antes de private:\n\tCHARACTER(const CHARACTER&);) o seguinte:
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+private:
+	DWORD m_dwLastCapeUseTime;
+	int m_iLastCapeMobLimit;
+#endif
+Não remover nenhum private: já existente.
+FICHEIRO 3 — src/server/game/char.cpp
+Caminho: server\home\metin2\Source\Server\game\src\char.cpp
+
+Ação: Inicializar os novos membros no construtor.
+
+Abrir o ficheiro.
+Localizar no construtor CHARACTER::CHARACTER() a linha:
+	m_bAddChrState = 0;
+(linha 365).
+
+Adicionar logo abaixo dessa linha:
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+	m_dwLastCapeUseTime = 0;
+	m_iLastCapeMobLimit = 0;
+#endif
+Não remover nem alterar outras linhas do construtor.
+FICHEIRO 4 — src/server/game/char_battle.cpp
+Caminho: server\home\metin2\Source\Server\game\src\char_battle.cpp
+
+4.1 — Include para limite máximo (opcional C++20)
+Abrir o ficheiro.
+Localizar o bloco de includes no topo (após #include "stdafx.h" e includes do projeto).
+Adicionar uma linha (por exemplo após #include "vector.h"):
+#include <limits>
+Só é necessário se usares std::numeric_limits<int>::max() no functor (ver 4.2). Se preferires não adicionar includes, na struct usa um valor literal para “sem limite” (ex.: 999999).
+4.2 — Substituir a estrutura FuncAggregateMonster e o corpo de AggregateMonster()
+Localizar a estrutura inteira desde struct FuncAggregateMonster até ao }; que a fecha (linhas 4066–4091 no teu ficheiro), ou seja:
+struct FuncAggregateMonster
+{
+	LPCHARACTER m_ch;
+	FuncAggregateMonster(LPCHARACTER ch)
+	{
+		m_ch = ch;
+	}
+	void operator()(LPENTITY ent)
+	{
+		if (ent->IsType(ENTITY_CHARACTER))
+		{
+			LPCHARACTER ch = (LPCHARACTER)ent;
+			if (ch->IsPC())
+				return;
+			if (!ch->IsMonster())
+				return;
+			if (ch->GetVictim())
+				return;
+			if (number(1, 100) <= 50) // ...
+				if (DISTANCE_APPROX(ch->GetX() - m_ch->GetX(), ch->GetY() - m_ch->GetY()) < 5000)
+					if (ch->CanBeginFight())
+						ch->BeginFight(m_ch);
+		}
+	}
+};
+Remover esse bloco por completo.
+Inserir no mesmo sítio (entre o }; de FuncForgetMyAttacker e o struct FuncAttractRanger) o seguinte código:
+struct FuncAggregateMonster
+{
+	LPCHARACTER m_ch;
+	int m_range;
+	int m_limit;
+	int m_chance;
+	int m_count;
+	bool m_useParams;
+	// Construtor para versão básica (compatibilidade: quest/GM)
+	FuncAggregateMonster(LPCHARACTER ch)
+		: m_ch(ch), m_range(5000), m_limit(999999), m_chance(50), m_count(0), m_useParams(false)
+	{}
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+	// Construtor para versão com parâmetros (item capa)
+	FuncAggregateMonster(LPCHARACTER ch, int range, int limit, int chance)
+		: m_ch(ch), m_range(range), m_limit(limit), m_chance(chance), m_count(0), m_useParams(true)
+	{}
+#endif
+	void operator()(LPENTITY ent)
+	{
+		if (!ent->IsType(ENTITY_CHARACTER))
+			return;
+		LPCHARACTER ch = (LPCHARACTER)ent;
+		if (ch->IsPC() || !ch->IsMonster() || ch->GetVictim())
+			return;
+		if (ch->GetMapIndex() != m_ch->GetMapIndex())
+			return;
+		if (DISTANCE_APPROX(ch->GetX() - m_ch->GetX(), ch->GetY() - m_ch->GetY()) >= m_range)
+			return;
+		if (m_useParams)
+		{
+			if (m_count >= m_limit)
+				return;
+			if (m_chance < 100 && number(1, 100) > m_chance)
+				return;
+		}
+		else
+		{
+			if (number(1, 100) > 50)
+				return;
+		}
+		if (ch->CanBeginFight())
+		{
+			ch->BeginFight(m_ch);
+			++m_count;
+		}
+	}
+};
+Nota: Usei 999999 como “sem limite” para não depender de <limits>. Se tiveres #include <limits>, podes usar m_limit(std::numeric_limits<int>::max()) no primeiro construtor.
+4.3 — Nova sobrecarga AggregateMonster(int, int, int)
+Localizar a função:
+void CHARACTER::AggregateMonster()
+{
+	LPSECTREE pSec = GetSectree();
+	if (pSec)
+	{
+		FuncAggregateMonster f(this);
+		pSec->ForEachAround(f);
+		EffectPacket(SE_CAPE_OF_COURAGE);
+	}
+}
+(linhas 4185–4195).
+
+Não remover esta função.
+Adicionar logo abaixo do fecho } desta função o seguinte:
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+void CHARACTER::AggregateMonster(int range, int limit, int chance)
+{
+	LPSECTREE pSec = GetSectree();
+	if (pSec)
+	{
+		FuncAggregateMonster f(this, range, limit, chance);
+		pSec->ForEachAround(f);
+		EffectPacket(SE_CAPE_OF_COURAGE);
+	}
+}
+#endif
+FICHEIRO 5 — src/server/game/char_item.cpp
+Caminho: server\home\metin2\Source\Server\game\src\char_item.cpp
+
+Ação: Substituir o bloco do case USE_CALL e usar constantes e std::min em estilo C++20.
+
+Abrir o ficheiro.
+Localizar o bloco:
+				case USE_CALL:
+					AggregateMonster();
+					if (!g_bUnlimitedCapeOfCourage)
+						item->SetCount(item->GetCount() - 1);
+					break;
+(linhas 7080–7085).
+
+Remover esse bloco por completo (as 6 linhas).
+Inserir no mesmo sítio (entre o break; anterior e o case USE_BAIT:) o seguinte:
+#if defined(__BRAVERY_CAPE_RENEWAL__)
+				case USE_CALL:
+				{
+					// Lei 6: validar estado do personagem antes de usar
+					if (IsDead() || GetExchange() || IsStun())
+						break;
+					constexpr DWORD COOLDOWN_MS = 3000;
+					constexpr int VNUM_CAPA_NORMAL = 70038;
+					constexpr int VNUM_CAPA_PREMIUM = 70057;
+					constexpr int MAX_MOB_LIMIT = 40;
+					DWORD now = get_dword_time();
+					if (now < m_dwLastCapeUseTime + COOLDOWN_MS)
+					{
+						DWORD remaining = (m_dwLastCapeUseTime + COOLDOWN_MS - now) / 1000 + 1;
+						ChatPacket(CHAT_TYPE_INFO, "Aguarde %u segundos para usar a capa novamente.", remaining);
+						break;
+					}
+					bool isPremium = (item->GetVnum() == VNUM_CAPA_PREMIUM);
+					int cost = isPremium ? 0 : (GetLevel() * 3);
+					if (cost > 0 && GetGold() < cost)
+					{
+						ChatPacket(CHAT_TYPE_INFO, "Voce precisa de %d Yang para usar esta capa!", cost);
+						break;
+					}
+					int baseLimit = isPremium ? 22 : 10;
+					int range = isPremium ? 6000 : 3000;
+					int chance = isPremium ? 100 : 50;
+					range += (GetLevel() * 10);
+					int mobLimit = std::min(MAX_MOB_LIMIT, baseLimit + (GetLevel() / 10));
+					m_dwLastCapeUseTime = now;
+					if (cost > 0)
+						PointChange(POINT_GOLD, -cost, false);
+					if (!isPremium && !g_bUnlimitedCapeOfCourage)
+						item->SetCount(item->GetCount() - 1);
+					if (mobLimit > m_iLastCapeMobLimit)
+					{
+						m_iLastCapeMobLimit = mobLimit;
+						ChatPacket(CHAT_TYPE_INFO, "A tua capa tornou-se mais poderosa. Agora atrais ate %d monstros!", mobLimit);
+					}
+					AggregateMonster(range, mobLimit, chance);
+				}
+				break;
+#else
+				case USE_CALL:
+					AggregateMonster();
+					if (!g_bUnlimitedCapeOfCourage)
+						item->SetCount(item->GetCount() - 1);
+					break;
+#endif
+Nota: std::min já está disponível via stdafx.h (#include <algorithm>). Se o teu stdafx.h não tiver <algorithm>, adiciona-o ou usa a macro MIN que o projeto já use.
