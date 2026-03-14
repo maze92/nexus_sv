@@ -1,1 +1,0 @@
-Implementação do sistema de jobs no servidor de jogo (buffer MPSC no DESC, CThreadPool, mailbox no CHARACTER, restrição de acesso ao sectree à main thread e mitigações de concorrência).
