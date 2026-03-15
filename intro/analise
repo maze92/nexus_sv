@@ -1,0 +1,17 @@
+PROMPT DE AUDITORIA: VERIFICAÇÃO DE CONFORMIDADE NEXUS v2.0
+"Cursor, atua como Senior Auditor de Sistemas C++. Preciso que faças uma análise exaustiva ao código atual (foca-te em char.cpp, char_battle.cpp, item_manager.cpp, desc.cpp e db.cpp) para garantir que as PROJECT-NEXUS: CORE DIRECTIVES v2.0 estão a ser seguidas a 100%.
+
+ITENS CRÍTICOS PARA VERIFICAÇÃO:
+
+Lei 1 (Ponteiros & Mailbox): Procura por qualquer local onde um ponteiro CHARACTER* ou CItem* esteja a ser guardado em std::vector, std::list ou LPOBJECT fora de um contexto imediato. Verifica se as interações entre entidades estão a usar m_mailbox.EnqueueEvent ou se ainda existem chamadas diretas que podem causar race conditions.
+
+Lei 2 & 5 (Memória & Pool): Verifica se existe algum delete ou M2_FREE ativo. Confirma se o método Reset()/Initialize() das pools está a limpar o LPDESC e os locks de rede.
+
+Lei 4 (Rede & MPSC): Inspeciona a função Packet e ProcessOutput no desc.cpp. Garante que o Spinlock com Fallback Queue está implementado e que não há std::mutex a bloquear o envio de pacotes.
+
+Lei 5 (InnoDB & I/O): Procura por chamadas a mysql_query ou Query na Main Thread. Se encontrares, marca-as para conversão imediata para AsyncQuery.
+
+Lei 6 (Desconfiança): Verifica se os pacotes de movimento, troca ou uso de itens têm validações de distância e estado (IsDead(), IsStunned(), etc.).
+
+RESULTADO ESPERADO:
+Apresenta um relatório de 'Violações de Diretiva' encontradas, indicando o ficheiro, a linha e qual a lei que está a ser quebrada. Se o código estiver limpo, confirma a conformidade total."
