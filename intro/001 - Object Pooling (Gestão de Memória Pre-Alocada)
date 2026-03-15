@@ -14,7 +14,7 @@ Cria um ficheiro MemoryPool.h.
 Implementa uma Template Class CMemoryPool<T>. Ela deve gerir um array contíguo de std::vector<T> ou uma lista lock-free de ponteiros pré-alocados.
 A classe deve ter um método Init(size_t capacity) para pré-alocar a memória de uma só vez (ex: capacity = 50000 no arranque do servidor).
 Cria o método T* Acquire() para obter um objeto livre da pool (mudando o seu estado em O(1)) e void Release(T* obj) para o devolver à pool.
-A pool deve ser Thread-Safe (usa std::mutex leve ou um Lock-Free Stack com atómicos) porque os nossos Workers (do Job System) podem tentar criar/destruir itens ao mesmo tempo.
+A pool deve ser Thread-Safe (Usa uma Lock-Free Stack baseada em std::atomic ou um Spinlock (std::atomic_flag). Como os nossos Workers vão pedir objetos constantemente, um std::mutex causaria um gargalo de sistema (Kernel-level sleep) inaceitável.) porque os nossos Workers (do Job System) podem tentar criar/destruir itens ao mesmo tempo.
 
 🟣 PROMPT 3
 FASE 2: Refatoração do ITEM_MANAGER
@@ -30,4 +30,4 @@ FASE 3: Refatoração do CHARACTER_MANAGER
 Semelhante à Fase 2, introduz CMemoryPool<CHARACTER> m_charPool; no char_manager.h e inicializa com uma capacidade generosa (ex: 20000) no arranque.
 Modifica a função de criação de Mobs/NPCs para usar o Acquire() da pool em vez de alocação dinâmica.
 Garante que os ponteiros de rede (DESC) associados ao CHARACTER são limpos a 100% no método Reset() para que um monstro novo não herde acidentalmente a ligação de rede de um jogador antigo.
-O DestroyCharacter() agora devolve a entidade à pool via Release().
+O DestroyCharacter deve apenas marcar m_bIsDestructionPending = true. A devolução real à Pool via m_charPool.Release(item) SÓ pode ocorrer na Main Thread, após a barreira de sincronização std::latch, garantindo que nenhum Worker está a processar esse ponteiro.
