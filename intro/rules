@@ -6,6 +6,7 @@ Antes de sugerires código, tem em conta que o nosso motor JÁ POSSUI ou ESTÁ E
 
 Linguagem: C++20 (std::latch, std::atomic, constexpr, std::span).
 Concorrência: Job System (Worker Threads) + Actor Model (Mailboxes por Entidade).
+Base de Dados: MySQL com Engine InnoDB (Transacional).
 Scripting: LuaJIT 5.1 (Bindings otimizadas).
 Áudio: BASS Audio Library (AIL/Miles removido).
 Rede: Ring Buffers MPSC com Spinlocks e Fallback Queues.
@@ -38,5 +39,13 @@ Limpa obrigatoriamente: 1. Ponteiros de rede (LPDESC) para NULL, 2. Eventos pend
 Nunca confies no Input do cliente. Verifica limites de distância, valores negativos e permissões de estado antes de qualquer ação.
 No futuro sistema de Componentes, acessos via GetComponent<T> devem ter Null-Checks silenciosos. Se falhar, o código aborta sem crashar.
 
-7. Lei da Avaliação Crítica (Evolução Contínua)
+7. Lei da Persistência e Integridade (InnoDB)
+Como usamos InnoDB, abandonamos o bloqueio de tabelas. Vários Workers podem solicitar escritas em linhas diferentes da player ou item simultaneamente.
+Operações críticas (Trade, Guild Bank, Item Shop) devem ser encapsuladas em blocos START TRANSACTION e COMMIT.
+A Main Thread nunca faz queries síncronas (mysql_query).
+Toda a persistência deve ser despachada para a CDBManager::AsyncQuery.
+O salvamento de personagens deve ser escalonado (Snapshotting) para evitar picos de I/O no disco.
+O código C++ deve estar preparado para re-tentar uma transação caso o InnoDB retorne um Deadlock error (1213), algo comum em sistemas multithread de alta densidade.
+
+8. Lei da Avaliação Crítica (Evolução Contínua)
 Nexus Standard: Se encontrares código de 2004, assume uma postura crítica. COMPARA com as melhores práticas AAA e C++20. Se houver uma abordagem superior (mais rápida, segura ou limpa), propõe a refatoração (ex: trocar std::list por std::vector para Cache Coherency).
