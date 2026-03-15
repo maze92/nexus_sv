@@ -13,11 +13,7 @@ FASE 1: Criação do Entity Component Registry
 1. Cria os ficheiros Component.h e Component.cpp.
 2. Implementa uma classe base leve 'IComponent' com um destrutor virtual.
 3. Cria a classe 'ComponentContainer'. Esta classe terá um `std::unordered_map<std::type_index, std::unique_ptr<IComponent>>` (ou um array rápido mapeado por IDs de tipo gerados em tempo de compilação para máxima performance).
-4. Implementa os métodos de acesso seguros:
-   - template<typename T> void AddComponent(std::unique_ptr<T> component);
-   - template<typename T> T* GetComponent();
-   - template<typename T> bool HasComponent() const;
-   - template<typename T> void RemoveComponent();
+4. Implementa os métodos de acesso seguindo a Lei nº 3 (Concorrência): usa um std::shared_mutex no ComponentContainer. O GetComponent deve usar std::shared_lock para permitir leituras simultâneas por vários Workers, e o AddComponent deve usar std::unique_lock, sendo restrito à Main Thread.
 5. Garante que os componentes são guardados de forma contígua em memória onde possível (opcional nesta fase, mas os smart pointers garantem ausência de memory leaks).
 
 PROMPT 2
