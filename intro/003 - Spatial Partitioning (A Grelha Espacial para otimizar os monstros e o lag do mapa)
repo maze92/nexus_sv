@@ -1,35 +1,39 @@
-Aqui tens a reescrita do pilar de Spatial Partitioning, perfeitamente alinhada com as regras de concorrência e o Job System (Mailboxes) que construímos no Project-Nexus.O foco desta alteração é garantir que os Workers (Threads da FSM/Behavior Tree) possam ler a grelha à vontade de forma super rápida para procurar alvos, mas que qualquer escrita (mover o monstro de uma célula para outra) vá obrigatoriamente para a Mailbox da Main Thread.Podes copiar e colar isto diretamente para o teu ficheiro de prompts:
+PILAR 5: SPATIAL PARTITIONING & HASH GRID (v2.0)
+Este pilar substitui a procura ineficiente do SECTREE por uma grelha de alto desempenho, otimizada para o Job System e para a Cache L1 do CPU.
 
-PROMPT 1: Auditoria do Sistema SECTREE AtualCursor, atua como Arquiteto de Motores C++. Vamos implementar um pilar AAA no nosso servidor Metin2: Spatial Partitioning Moderno (Spatial Hash Grid / Cache-Friendly Sectree) para otimizar as queries de visão (View) e colisões, eliminando a carga de CPU O(N) em zonas densamente povoadas.
+🟣 PROMPT 1: FASE 0 - Auditoria do Sistema SECTREE Atual
+"Cursor, atua como Arquiteto de Motores C++. Vamos implementar o pilar AAA: Spatial Hash Grid (Cache-Friendly) para otimizar queries de visão e colisões, eliminando a carga O(N) em zonas densas.
 
-FASE 0: Auditoria do Sistema SECTREE Atual
-Antes de escrevermos código, analisa o "motor de busca" do jogo: Inspeciona os ficheiros sectree_manager.cpp, sectree.cpp e char.cpp (na parte do View e Move).
-Identifica como a função UpdateSector ou Move é chamada quando um jogador/monstro anda.
-Analisa as funções de Query (ex: ForEachAround, FindCharacter, GetCharactersAround). Verifica se estão a usar listas ligadas antigas (std::list ou ponteiros manuais) que destroem a Cache do CPU (L1/L2) devido a saltos de memória dispersa.
-Localiza os Mutexes usados no SECTREE atual e identifica o risco de concorrência.
+Tarefa de Auditoria:
 
-PROMPT 2: Criação da CSpatialGrid e a Lei da Mailbox
+Inspeciona sectree_manager.cpp, sectree.cpp e char.cpp (lógica de Move e View).
+Identifica como a função UpdateSector é chamada e o custo de percorrer as listas ligadas (std::list) originais.
+Análise de Cache: Relata como os saltos de memória das listas ligadas antigas causam Cache Misses e como a nossa nova Grelha 2D (array contíguo) resolverá isto.
+Identifica os Mutexes globais que causam bloqueios nas threads de rede."
 
-FASE 1: Criação da CSpatialGrid (Spatial Hash Grid)
-Cria os ficheiros SpatialGrid.h e SpatialGrid.cpp de forma isolada.
-A classe deve representar o mapa como uma Grelha 2D achatada. Em vez de árvores complexas ou std::list, cada "Célula" (Cell) da grelha deve ser um std::vector<CHARACTER*> com memória pré-alocada (ou array estático pequeno), garantindo acesso sequencial Cache-Friendly.
-Implementa a função GetCellIndex(long x, long y) que converte coordenadas num índice de array O(1).
-Implementa as funções Insert(CHARACTER* ch), Remove(CHARACTER* ch) e Update(CHARACTER* ch, long oldX, long oldY).
-A REGRA DE OURO DA ARQUITETURA NEXUS (Multithreading): O nosso servidor usa um Job System com Mailboxes (Event Queue). A CSpatialGrid NÃO deve ter locks de escrita complexos. Em vez disso, impõe a regra estrita de que Insert, Remove e Update SÓ PODEM SER CHAMADOS NA MAIN THREAD.
-Usa um std::shared_mutex apenas para proteger as Células contra condições de corrida entre Leitura (Workers) e Escrita (Main Thread). Os Workers apenas tiram Read Locks (std::shared_lock) para consultar o mapa.
+🟣 PROMPT 2: FASE 1 - Criação da CSpatialGrid (Lei da Mailbox)
+"Cursor, vamos criar a estrutura de dados central:
 
-PROMPT 3: Funções de Query Rápidas (Read-Only)
+Cria SpatialGrid.h e SpatialGrid.cpp. Representa o mapa como uma Grelha 2D achatada (flat array).
+Performance: Cada célula da grelha deve ser um std::vector<CHARACTER*> com memória pré-alocada. Evita std::list.
+Lei da Concorrência (Nº 3): Implementa a regra de Single-Writer / Multi-Reader.
+Usa std::shared_mutex por célula ou por região.
+Os Workers (IA/Combate) apenas usam std::shared_lock (Read-Only).
+Restrição Absoluta: As funções Insert, Remove e Update SÓ podem ser executadas pela Main Thread. Qualquer tentativa de escrita por um Worker deve ser rejeitada ou reportada."
 
-FASE 2: Funções de Query Rápidas
-No SpatialGrid.cpp, implementa a função FindEntitiesInRange(long x, long y, int range, std::vector<CHARACTER*>& outEntities).
-A lógica deve ser: converter o 'range' em Células, calcular o 'quadrado' de Células afetadas à volta do (x,y), e fazer um loop rápido pelos vectors dessas células.
-Implementa o suporte para Functors (Lambdas), criando a função ForEachInRange(long x, long y, int range, std::function<void(CHARACTER*)> callback).
-Proteção Multithread: Garante que estas leituras (Queries) usam Shared Locks (Read Locks) nas células. Isto permite que dezenas de Workers avaliem IAs e procurem alvos concorrentemente, sem bloquearem a Main Thread ou uns aos outros.
+🟣 PROMPT 3: FASE 2 - Funções de Query Rápidas (Read-Only)
+"Cursor, vamos implementar a inteligência de busca:
 
-PROMPT 4: Integração via Mailbox (Actor Model)
-FASE 3: Integração no Character e SectreeManager
-No char.cpp e char_battle.cpp, procura as chamadas a funções antigas como GetMapSectree(...) ou loops baseados no view do jogador.
-Substitui as rotinas de Agro (procurar jogadores para atacar) e de Skill AoE para usarem a tua nova função Read-Only CSpatialGrid::ForEachInRange.
-Refatoração Crítica de Escrita: No método CHARACTER::SyncPacket(), CHARACTER::UpdatePosition() ou StateMove(), certifica-te de que a chamada a CSpatialGrid::Update() é feita EXCLUSIVAMENTE via Mailbox.
-Exemplo prático: Se um Worker da IA decidir mover o monstro, ele não atualiza a grelha. Ele faz EnqueueEvent([this, oldX, oldY]() { SpatialGrid->Update(this, oldX, oldY); });
-Mantém o SECTREE original apenas para colisões estáticas (edifícios/NPCs fixos), mas passa a gestão dinâmica para a CSpatialGrid.
+Implementa ForEachInRange(long x, long y, int range, Lambda callback).
+A lógica deve converter as coordenadas em índices de células e iterar apenas sobre o 'quadrado' de células afetadas.
+Proteção de Threads: Garante que estas leituras são protegidas por Shared Locks. Isto permite que 20 Workers procurem alvos ao mesmo tempo sem que um bloqueie o outro.
+Otimização: Se uma célula estiver vazia, o iterador deve saltar imediatamente para a próxima, minimizando ciclos de CPU."
+
+🟣 PROMPT 4: FASE 3 - Integração via Actor Model (Mailbox)
+"Cursor, vamos ligar a Grelha ao fluxo do servidor:
+
+Substitui as rotinas de busca de inimigos (Agro) e Skills de área (AoE) para usarem o novo CSpatialGrid::ForEachInRange.
+Refatoração Crítica (Lei nº 1): No método CHARACTER::SyncPacket() ou UpdatePosition(), se um Worker detetar que a entidade se moveu, ele NÃO atualiza a grelha diretamente.
+Implementação da Mailbox: O Worker deve fazer:
+ch->m_mailbox.EnqueueEvent([this, oldX, oldY]() { SpatialGrid->Update(this, oldX, oldY); });
+Mantém o SECTREE original apenas para dados estáticos (colisões de mapa/muros), mas transfere toda a lógica de entidades dinâmicas para a CSpatialGrid."
