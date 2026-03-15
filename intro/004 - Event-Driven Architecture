@@ -24,18 +24,14 @@ Integração com Mailbox: O Publish deve ter a opção de ser Síncrono (executa
 "Cursor, vamos mover a lógica para os Managers corretos:
 
 No questmanager.cpp, subscreve ao EntityDeathEvent. Move a lógica de 'verificar morte para quest' que estava no char_battle.cpp para este novo listener.
-
 Faz o mesmo para party_manager.cpp e guild_manager.cpp.
-
 Validação de Segurança: Dentro de cada callback, o sistema deve usar CHARACTER_MANAGER::instance().Find(dwVID) para garantir que a entidade ainda existe antes de processar qualquer lógica. Se o Find retornar nulo, o evento é ignorado (Lei nº 6)."
 
 🟣 PROMPT 4: FASE 3 - Purga do char_battle.cpp
 "Cursor, vamos limpar a 'obesidade' lógica:
 
 Na função CHARACTER::Dead(), APAGA todas as chamadas diretas a gestores externos que transferiste na Fase 2.
-
 Substitui dezenas de #include desnecessários pela emissão de um evento simples:
 EntityDeathEvent deathEvent(pkKiller->GetVID(), this->GetVID());
 EventBus::Instance().Publish(deathEvent);
-
 Resultado Final: A função Dead() deve tratar apenas de lógica de combate (HP=0, animação, buffs). Toda a lógica periférica (Drops, Quests, EXP de Grupo) deve agora viver isolada nos seus próprios sistemas, reagindo através do Bus."
