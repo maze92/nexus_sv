@@ -15,6 +15,9 @@ https://metin2.dev/topic/34280-map-preview-scroll/
 https://metin2.dev/topic/30021-cross-channel-friend-request/
 https://metin2.dev/topic/22634-discord-rich-presence/
 https://metin2.dev/topic/6314-ingame-wiki-system/
+https://metin2hub.com/threads/ikarus-v2-offline-shop.3065/
+https://m2dev.ro/topic/361-c-system-pet-last-version/
+https://metin2hub.com/threads/py-anti-exp-button-integrated-in-toolbar.797/
 
 
 https://forum.turkmmo.com/konu/3757260-maviaygames-arti-basmada-item-sayisi-gosterme-duzenlemesi/
