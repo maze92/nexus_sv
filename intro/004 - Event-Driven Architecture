@@ -1,34 +1,48 @@
-PROMPT 1 
-Cursor, atua como Arquiteto de Motores C++. Vamos implementar o quinto e último pilar AAA no nosso servidor Metin2: Event-Driven Architecture (Event Bus / Pub-Sub) para desmantelar o "God Object" da classe CHARACTER e eliminar o acoplamento forte (Spaghetti Code).
+PILAR 6: EVENT-DRIVEN ARCHITECTURE & DECOUPLING (v2.0)
+Este pilar desmantela o "God Object" da classe CHARACTER, permitindo que sistemas como Quests, Guildas e Pets reajam a eventos sem estarem colados ao código de combate.
 
-FASE 0: Auditoria de Acoplamento
-Antes de programarmos, analisa o nível de acoplamento atual:
-1. Inspeciona o ficheiro char_battle.cpp, especificamente a função CHARACTER::Dead() e CHARACTER::Damage().
-2. Lista todas as dependências externas que estão a ser chamadas DIRETAMENTE dentro da função Dead() (ex: QuestManager, PartyManager, GuildManager, PetSystem, DropManager, etc).
-3. Analisa o ficheiro char_state.cpp ou char.cpp na parte do Level Up (PointChange). Lista os sistemas que são chamados quando o jogador sobe de nível.
-4. Apresenta-me o teu relatório. O objetivo é provar como uma simples morte de um monstro está acoplada a dezenas de sistemas não relacionados, violando o princípio SRP (Single Responsibility Principle).
+🟣 PROMPT 1: FASE 0 - Auditoria de Acoplamento
+"Cursor, atua como Arquiteto de Motores C++. Vamos implementar o pilar AAA: Event-Driven Architecture (Event Bus) para eliminar o 'Spaghetti Code' da classe CHARACTER.
 
-PROMPT 2
-FASE 1: O Núcleo do Event Bus
-1. Cria os ficheiros EventBus.h e EventBus.cpp.
-2. Implementa a classe CEventBus (pode ser um Singleton genérico ou gerido pelo Game Manager).
-3. Cria uma estrutura base 'IEvent' e eventos específicos derivados, por exemplo: 'EntityDeathEvent', 'EntityLevelUpEvent', 'EntityDamageEvent'. Estes eventos devem conter apenas DADOS (ex: ponteiro do atacante, ponteiro da vítima, quantidade de dano).
-4. Implementa o método 'Subscribe<T>(std::function<void(const T&)> callback)' para que os sistemas se possam registar para ouvir eventos.
-5. Implementa o método 'Publish<T>(const T& event)' para emitir o evento para todos os subscritores.
-6. Proteção AAA: O EventBus deve ser Thread-Safe (usando shared_mutex para a lista de subscritores) para funcionar em harmonia com o nosso novo Job System multithread.
+Tarefa de Auditoria:
 
-PROMPT 3
-FASE 2: Injeção de Listeners nos Managers
-1. Abre o ficheiro questmanager.cpp. No método Initialize() (ou no construtor), adiciona uma subscrição ao EventBus: EventBus::Instance().Subscribe<EntityDeathEvent>(...). Dentro do callback, coloca a lógica que antes estava espalhada no char_battle.cpp (verificar se a morte aciona uma quest de caça).
-2. Faz o mesmo para o party_manager.cpp e guild_manager.cpp, registando-os para ouvir o 'EntityDeathEvent' e distribuir a EXP.
-3. Garante que os callbacks apenas tentam aceder aos ponteiros se eles ainda forem válidos.
+Inspeciona char_battle.cpp, especificamente CHARACTER::Dead() e CHARACTER::Damage().
 
-PROMPT 4
-FASE 3: Limpeza do char_battle.cpp
-1. Vai à função CHARACTER::Dead() no char_battle.cpp.
-2. APAGA TODAS as chamadas diretas ao QuestManager, PartyManager, GuildManager, etc., que transferiste na Fase 2.
-3. Em vez de dezenas de `#include` e chamadas diretas, cria o evento e publica-o:
-   EntityDeathEvent deathEvent(pkKiller->GetVID(), this->GetVID());
-   EventBus::Instance().Publish(deathEvent);
-4. O código da função Dead() deve agora ser minúsculo, tratando APENAS do que diz respeito ao combate (remover HP, tocar animação de morte, limpar os buffs) e emitir o evento. Tudo o que é externo é gerido pelo Event Bus.
-5. Faz o mesmo para a função de Level Up no char.cpp, emitindo um 'EntityLevelUpEvent'.
+Lista todas as dependências externas chamadas diretamente (Ex: QuestManager, PartyManager, GuildManager, PetSystem, DropManager).
+
+Analisa o char.cpp na parte do Level Up (PointChange).
+
+Relatório de Acoplamento: Mostra como uma simples morte de monstro viola o SRP (Single Responsibility Principle) e como isso dificulta a manutenção do nosso motor multithread."
+
+🟣 PROMPT 2: FASE 1 - O Núcleo do Event Bus (Thread-Safe)
+"Cursor, vamos criar o sistema de mensagens:
+
+Cria EventBus.h e EventBus.cpp. Implementa CEventBus de forma Thread-Safe.
+
+Lei dos Ponteiros (Nº 1): Os eventos (ex: EntityDeathEvent) NÃO DEVEM conter ponteiros brutos (CHARACTER*). Devem conter apenas o dwVID das entidades envolvidas.
+
+Implementa Subscribe<T>(callback) e Publish<T>(event).
+
+Segurança Multithread: Usa std::shared_mutex para a lista de subscritores.
+
+Integração com Mailbox: O Publish deve ter a opção de ser Síncrono (executa agora) ou Assíncrono (coloca na Mailbox da entidade alvo ou na fila global da Main Thread para processamento seguro no final do frame)."
+
+🟣 PROMPT 3: FASE 2 - Injeção de Listeners (Decoupling)
+"Cursor, vamos mover a lógica para os Managers corretos:
+
+No questmanager.cpp, subscreve ao EntityDeathEvent. Move a lógica de 'verificar morte para quest' que estava no char_battle.cpp para este novo listener.
+
+Faz o mesmo para party_manager.cpp e guild_manager.cpp.
+
+Validação de Segurança: Dentro de cada callback, o sistema deve usar CHARACTER_MANAGER::instance().Find(dwVID) para garantir que a entidade ainda existe antes de processar qualquer lógica. Se o Find retornar nulo, o evento é ignorado (Lei nº 6)."
+
+🟣 PROMPT 4: FASE 3 - Purga do char_battle.cpp
+"Cursor, vamos limpar a 'obesidade' lógica:
+
+Na função CHARACTER::Dead(), APAGA todas as chamadas diretas a gestores externos que transferiste na Fase 2.
+
+Substitui dezenas de #include desnecessários pela emissão de um evento simples:
+EntityDeathEvent deathEvent(pkKiller->GetVID(), this->GetVID());
+EventBus::Instance().Publish(deathEvent);
+
+Resultado Final: A função Dead() deve tratar apenas de lógica de combate (HP=0, animação, buffs). Toda a lógica periférica (Drops, Quests, EXP de Grupo) deve agora viver isolada nos seus próprios sistemas, reagindo através do Bus."
