@@ -7,24 +7,17 @@ Este pilar desmantela o "God Object" da classe CHARACTER, permitindo que sistema
 Tarefa de Auditoria:
 
 Inspeciona char_battle.cpp, especificamente CHARACTER::Dead() e CHARACTER::Damage().
-
 Lista todas as dependências externas chamadas diretamente (Ex: QuestManager, PartyManager, GuildManager, PetSystem, DropManager).
-
 Analisa o char.cpp na parte do Level Up (PointChange).
-
 Relatório de Acoplamento: Mostra como uma simples morte de monstro viola o SRP (Single Responsibility Principle) e como isso dificulta a manutenção do nosso motor multithread."
 
 🟣 PROMPT 2: FASE 1 - O Núcleo do Event Bus (Thread-Safe)
 "Cursor, vamos criar o sistema de mensagens:
 
 Cria EventBus.h e EventBus.cpp. Implementa CEventBus de forma Thread-Safe.
-
 Lei dos Ponteiros (Nº 1): Os eventos (ex: EntityDeathEvent) NÃO DEVEM conter ponteiros brutos (CHARACTER*). Devem conter apenas o dwVID das entidades envolvidas.
-
 Implementa Subscribe<T>(callback) e Publish<T>(event).
-
-Segurança Multithread: Usa std::shared_mutex para a lista de subscritores.
-
+Segunança Multithread: Usa std::shared_mutex para a lista de subscritores.
 Integração com Mailbox: O Publish deve ter a opção de ser Síncrono (executa agora) ou Assíncrono (coloca na Mailbox da entidade alvo ou na fila global da Main Thread para processamento seguro no final do frame)."
 
 🟣 PROMPT 3: FASE 2 - Injeção de Listeners (Decoupling)
