@@ -10,6 +10,10 @@ https://forum.turkmmo.com/konu/3893813-sonitex-offline-shop/
 https://forum.turkmmo.com/konu/3923817-kostum-takiliyken-cinsiyet-degistiremezsin/
 https://forum.turkmmo.com/konu/3877812-imagebox-memory-leak-fix/
 https://forum.turkmmo.com/konu/3771458-at-binek-ustunde-ates-hayaleti-fix/
+https://metin2.dev/topic/34400-automatic-ability-coefficients-in-tooltip/
+https://metin2.dev/topic/34280-map-preview-scroll/
+https://metin2.dev/topic/30021-cross-channel-friend-request/
+https://metin2.dev/topic/22634-discord-rich-presence/
 
 
 https://forum.turkmmo.com/konu/3757260-maviaygames-arti-basmada-item-sayisi-gosterme-duzenlemesi/
