@@ -14,6 +14,7 @@ https://metin2.dev/topic/34400-automatic-ability-coefficients-in-tooltip/
 https://metin2.dev/topic/34280-map-preview-scroll/
 https://metin2.dev/topic/30021-cross-channel-friend-request/
 https://metin2.dev/topic/22634-discord-rich-presence/
+https://metin2.dev/topic/6314-ingame-wiki-system/
 
 
 https://forum.turkmmo.com/konu/3757260-maviaygames-arti-basmada-item-sayisi-gosterme-duzenlemesi/
